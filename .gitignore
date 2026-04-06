@@ -1,0 +1,45 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+*.egg
+.eggs/
+
+# Virtual environment
+venv/
+env/
+.venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Large data files
+*.csv
+*.xlsx
+*.xls
+
+# OSRM map data
+osrm-data/
+*.osrm
+*.osrm.*
+
+# Logs
+*.log
+
+# Environment
+.env
+
+# Generated HTML dashboards
+feb_2026_dashboard.html
