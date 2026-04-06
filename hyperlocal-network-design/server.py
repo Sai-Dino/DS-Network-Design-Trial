@@ -16,7 +16,7 @@ from math import radians, cos, sin, asin, sqrt
 from collections import defaultdict
 from typing import Dict, List, Tuple, Optional, Any
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from io import StringIO
+from io import StringIO, BytesIO
 import csv
 
 import pandas as pd
@@ -172,21 +172,25 @@ def calculate_stats(results: List[Dict]) -> Dict[str, Any]:
     distances = sorted(distances)
     n = len(distances)
 
-    # Histogram: 10km bins
-    hist_bins = {}
-    for i in range(0, int(max(distances)) + 11, 10):
-        bin_key = f"{i}-{i+10}"
-        count = sum(1 for d in distances if i <= d < i + 10)
-        if count > 0:
-            hist_bins[bin_key] = count
+    # Histogram: 1km bins up to 5km, then 5+ bucket
+    dist_arr = np.array(distances)
+    hist_bins = {
+        '0-1 km': int(np.sum((dist_arr >= 0) & (dist_arr < 1))),
+        '1-2 km': int(np.sum((dist_arr >= 1) & (dist_arr < 2))),
+        '2-3 km': int(np.sum((dist_arr >= 2) & (dist_arr < 3))),
+        '3-4 km': int(np.sum((dist_arr >= 3) & (dist_arr < 4))),
+        '4-5 km': int(np.sum((dist_arr >= 4) & (dist_arr < 5))),
+        '5+ km': int(np.sum(dist_arr >= 5)),
+    }
 
-    # Range distribution
+    # Range distribution (same granularity)
     ranges = {
-        '0-5km': sum(1 for d in distances if d < 5),
-        '5-10km': sum(1 for d in distances if 5 <= d < 10),
-        '10-20km': sum(1 for d in distances if 10 <= d < 20),
-        '20-50km': sum(1 for d in distances if 20 <= d < 50),
-        '50km+': sum(1 for d in distances if d >= 50),
+        '0-1 km': hist_bins['0-1 km'],
+        '1-2 km': hist_bins['1-2 km'],
+        '2-3 km': hist_bins['2-3 km'],
+        '3-4 km': hist_bins['3-4 km'],
+        '4-5 km': hist_bins['4-5 km'],
+        '5+ km': hist_bins['5+ km'],
     }
 
     return {
@@ -391,9 +395,14 @@ def batch_osrm_requests(
 
 
 def background_distance_calculation(job: JobState, osrm_url: str):
-    """Background thread worker for distance calculations."""
+    """
+    Background distance calculation using store-grouped Table API.
+    Groups orders by store, then for each store sends one Table API request
+    with the store as the single source and all its orders as destinations.
+    This produces a 1xN vector per store — zero wasted computation.
+    """
     try:
-        # First, test OSRM connectivity
+        # Test OSRM connectivity
         try:
             test_url = f"{osrm_url}/route/v1/driving/77.5946,12.9716;77.6000,12.9800?overview=false"
             test_resp = requests.get(test_url, timeout=5)
@@ -401,110 +410,157 @@ def background_distance_calculation(job: JobState, osrm_url: str):
                 with job.lock:
                     job.status = "error"
                     job.error_message = f"OSRM server at {osrm_url} returned status {test_resp.status_code}. Is OSRM running?"
-                logger.error(f"Job {job.job_id}: OSRM not reachable at {osrm_url}")
                 return
         except requests.exceptions.ConnectionError:
             with job.lock:
                 job.status = "error"
                 job.error_message = f"Cannot connect to OSRM at {osrm_url}. Make sure OSRM is running (osrm-routed)."
-            logger.error(f"Job {job.job_id}: OSRM connection refused at {osrm_url}")
             return
         except Exception as e:
             with job.lock:
                 job.status = "error"
                 job.error_message = f"OSRM connectivity test failed: {str(e)}"
-            logger.error(f"Job {job.job_id}: OSRM test failed: {e}")
             return
 
-        logger.info(f"Job {job.job_id}: OSRM connectivity verified at {osrm_url}")
+        logger.info(f"Job {job.job_id}: OSRM verified at {osrm_url}")
 
         with job.lock:
             job.status = "running"
             job.start_time = datetime.now()
 
-        # Prepare rows as list of dicts
         rows = job.df.to_dict('records')
         mapping = job.mapping
-        max_workers = 24  # High parallelism for Route API (1 request per pair)
-        all_results = []
-        total_failed = 0
+        total_rows = len(rows)
+        store_col = mapping.get('store_id', '')
+        slat_col = mapping.get('store_lat', '')
+        slon_col = mapping.get('store_lon', '')
+        olat_col = mapping.get('order_lat', '')
+        olon_col = mapping.get('order_lon', '')
+
+        # Group row indices by store
+        store_groups = defaultdict(list)
+        invalid_indices = []
+        for i, row in enumerate(rows):
+            try:
+                float(row.get(slat_col))
+                float(row.get(slon_col))
+                float(row.get(olat_col))
+                float(row.get(olon_col))
+                store_key = str(row.get(store_col, 'unknown'))
+                store_groups[store_key].append(i)
+            except (TypeError, ValueError):
+                invalid_indices.append(i)
+
+        # For each store, chunk orders into batches of 500 (safe URL size for OSRM)
+        chunk_limit = 500
+        tasks = []
+        for store_key, indices in store_groups.items():
+            row0 = rows[indices[0]]
+            store_coord = f"{float(row0[slon_col])},{float(row0[slat_col])}"
+            for c in range(0, len(indices), chunk_limit):
+                chunk_indices = indices[c:c + chunk_limit]
+                tasks.append((store_coord, chunk_indices))
+
+        max_workers = 32
+        all_results = [None] * total_rows
+        failed_count = [len(invalid_indices)]
+        completed_count = [len(invalid_indices)]
         result_lock = threading.Lock()
 
-        # Use a persistent session with connection pooling for speed
         session = requests.Session()
         adapter = requests.adapters.HTTPAdapter(
             pool_connections=max_workers,
             pool_maxsize=max_workers,
-            max_retries=1
+            max_retries=2
         )
         session.mount('http://', adapter)
 
-        def fetch_single(idx):
-            """Fetch road distance for a single store-order pair via Route API."""
-            try:
+        logger.info(f"Job {job.job_id}: {total_rows} rows, {len(store_groups)} stores, {len(tasks)} Table API requests ({max_workers} workers)")
+
+        def process_store_chunk(store_coord, chunk_indices):
+            """1 request: store as source, N orders as destinations → 1xN distances."""
+            chunk_results = {}
+            chunk_failed = 0
+
+            order_coords = []
+            valid = []
+            for idx in chunk_indices:
                 row = rows[idx]
-                store_lat = row.get(mapping.get('store_lat'))
-                store_lon = row.get(mapping.get('store_lon'))
-                order_lat = row.get(mapping.get('order_lat'))
-                order_lon = row.get(mapping.get('order_lon'))
+                try:
+                    olat = float(row.get(olat_col))
+                    olon = float(row.get(olon_col))
+                    order_coords.append(f"{olon},{olat}")
+                    valid.append(idx)
+                except (TypeError, ValueError):
+                    chunk_failed += 1
 
-                if any(x is None for x in [store_lat, store_lon, order_lat, order_lon]):
-                    return idx, None
+            if not valid:
+                return chunk_results, chunk_failed
 
-                slat = float(store_lat)
-                slon = float(store_lon)
-                olat = float(order_lat)
-                olon = float(order_lon)
+            try:
+                # coords[0] = store, coords[1..N] = orders
+                all_coords = store_coord + ";" + ";".join(order_coords)
+                dests = ";".join(str(i) for i in range(1, len(valid) + 1))
+                url = f"{osrm_url}/table/v1/driving/{all_coords}?sources=0&destinations={dests}&annotations=distance"
 
-                # Route API: simple 2-point request, very fast
-                url = f"{osrm_url}/route/v1/driving/{slon},{slat};{olon},{olat}?overview=false"
-                resp = session.get(url, timeout=10)
+                resp = session.get(url, timeout=60)
                 data = resp.json()
 
-                if data.get('code') == 'Ok' and data.get('routes'):
-                    dist_m = data['routes'][0]['distance']
-                    result_row = row.copy()
-                    result_row['distance_m'] = dist_m
-                    result_row['distance_km'] = dist_m / 1000.0
-                    if 'store_id' not in result_row and mapping.get('store_id'):
-                        result_row['store_id'] = str(result_row.get(mapping['store_id'], ''))
-                    if 'order_id' not in result_row and mapping.get('order_id'):
-                        result_row['order_id'] = str(result_row.get(mapping['order_id'], ''))
-                    return idx, result_row
+                if data.get('code') == 'Ok' and data.get('distances'):
+                    dist_row = data['distances'][0]  # 1xN: single source row
+                    for j, idx in enumerate(valid):
+                        dist_m = dist_row[j]
+                        if dist_m is not None:
+                            result_row = rows[idx].copy()
+                            result_row['distance_m'] = dist_m
+                            result_row['distance_km'] = dist_m / 1000.0
+                            if store_col:
+                                result_row['store_id'] = str(result_row.get(store_col, ''))
+                            oid_col = mapping.get('order_id', '')
+                            if oid_col:
+                                result_row['order_id'] = str(result_row.get(oid_col, ''))
+                            chunk_results[idx] = result_row
+                        else:
+                            chunk_failed += 1
                 else:
-                    return idx, None
-            except Exception:
-                return idx, None
+                    chunk_failed += len(valid)
+            except Exception as e:
+                logger.debug(f"Store chunk failed ({len(valid)} orders): {e}")
+                chunk_failed += len(valid)
 
-        # Process all rows with high parallelism
-        chunk_size = 500  # Update progress every 500 completions
-        completed = 0
+            return chunk_results, chunk_failed
+
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            futures = {executor.submit(fetch_single, i): i for i in range(len(rows))}
+            futures = {
+                executor.submit(process_store_chunk, sc, ci): ci
+                for sc, ci in tasks
+            }
 
             for future in as_completed(futures):
-                idx, result = future.result()
-                if result is not None:
-                    all_results.append(result)
-                else:
-                    total_failed += 1
+                chunk_results, chunk_failed = future.result()
+                batch_size = len(chunk_results) + chunk_failed
 
-                completed += 1
-                if completed % chunk_size == 0 or completed == len(rows):
+                with result_lock:
+                    for idx, result in chunk_results.items():
+                        all_results[idx] = result
+                    failed_count[0] += chunk_failed
+                    completed_count[0] += batch_size
+
                     with job.lock:
-                        job.processed = completed
-                        job.failed = total_failed
+                        job.processed = completed_count[0]
+                        job.failed = failed_count[0]
 
-        # Finalize
+        final_results = [r for r in all_results if r is not None]
+
         with job.lock:
-            job.results = all_results
-            job.processed = len(all_results) + total_failed
-            job.failed = total_failed
+            job.results = final_results
+            job.processed = total_rows
+            job.failed = failed_count[0]
             job.status = "complete"
-            job.stats_cache = calculate_stats(all_results)
-            job.stores_cache = calculate_store_stats(all_results, job.df, job.mapping)
+            job.stats_cache = calculate_stats(final_results)
+            job.stores_cache = calculate_store_stats(final_results, job.df, job.mapping)
 
-        logger.info(f"Job {job.job_id} completed: {len(all_results)} successful, {total_failed} failed")
+        logger.info(f"Job {job.job_id} completed: {len(final_results)} ok, {failed_count[0]} failed")
 
     except Exception as e:
         logger.error(f"Job {job.job_id} failed: {e}")
@@ -1293,8 +1349,9 @@ def download_data(job_id):
                     pass
 
         output.seek(0)
+        binary_output = BytesIO(output.getvalue().encode('utf-8'))
         return send_file(
-            StringIO(output.getvalue()),
+            binary_output,
             mimetype='text/csv',
             as_attachment=True,
             download_name=f'hyperlocal_{job_id}.csv'

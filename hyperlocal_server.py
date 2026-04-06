@@ -535,21 +535,22 @@ def after_request(response):
 @app.route('/', methods=['GET'])
 def serve_frontend():
     """Serve the frontend HTML file."""
-    frontend_path = os.path.join(os.path.dirname(__file__), 'hyperlocal_app.html')
-    if os.path.exists(frontend_path):
-        with open(frontend_path, 'r') as f:
-            return f.read()
+    # Look for frontend in multiple locations for flexibility
+    search_paths = [
+        os.path.join(os.path.dirname(__file__), 'static', 'index.html'),
+        os.path.join(os.path.dirname(__file__), 'hyperlocal_app.html'),
+    ]
+    for frontend_path in search_paths:
+        if os.path.exists(frontend_path):
+            with open(frontend_path, 'r') as f:
+                return f.read()
     return """
     <html>
     <head><title>Hyperlocal Server</title></head>
     <body>
         <h1>Flipkart Hyperlocal Distance Analysis Server</h1>
-        <p>Frontend not found. Place <code>hyperlocal_app.html</code> in the same directory.</p>
+        <p>Frontend not found. Place <code>static/index.html</code> in the project directory.</p>
         <p><strong>API Ready at:</strong> http://localhost:8080/api/</p>
-        <ul>
-            <li>POST /api/upload - Upload CSV/XLSX</li>
-            <li>GET /api/jobs - List jobs</li>
-        </ul>
     </body>
     </html>
     """

@@ -500,16 +500,122 @@
         .threshold-control input {
             width: 80px;
             padding: 8px 12px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            font-size: 13px;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
             font-weight: 600;
+            transition: border-color 0.2s, box-shadow 0.2s;
         }
 
         .threshold-control input:focus {
             outline: none;
             border-color: #2874f0;
-            box-shadow: 0 0 0 2px rgba(40, 116, 240, 0.1);
+            box-shadow: 0 0 0 3px rgba(40, 116, 240, 0.15);
+        }
+
+        .threshold-control input.changed {
+            border-color: #FF9800;
+            box-shadow: 0 0 0 3px rgba(255, 152, 0, 0.15);
+        }
+
+        .threshold-apply-btn {
+            padding: 8px 20px;
+            background: #2874f0;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.25s;
+            display: none;
+            align-items: center;
+            gap: 6px;
+            white-space: nowrap;
+        }
+
+        .threshold-apply-btn.visible {
+            display: inline-flex;
+        }
+
+        .threshold-apply-btn:hover {
+            background: #2157b8;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(40, 116, 240, 0.3);
+        }
+
+        .threshold-apply-btn:active {
+            transform: translateY(0);
+        }
+
+        .threshold-apply-btn.loading {
+            opacity: 0.7;
+            pointer-events: none;
+        }
+
+        .threshold-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 10px;
+            background: #e8f0fe;
+            color: #2874f0;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        /* Dashboard Loading Overlay */
+        .dashboard-loading {
+            position: relative;
+        }
+
+        .dashboard-loading-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(2px);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 50;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s;
+        }
+
+        .dashboard-loading-overlay.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .loading-spinner-large {
+            width: 48px;
+            height: 48px;
+            border: 4px solid #e8e8e8;
+            border-top: 4px solid #2874f0;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-bottom: 16px;
+        }
+
+        .loading-text {
+            font-size: 15px;
+            font-weight: 600;
+            color: #555;
+        }
+
+        .loading-subtext {
+            font-size: 12px;
+            color: #999;
+            margin-top: 4px;
+        }
+
+        /* Empty/Loading state for KPI values */
+        .kpi-value-empty {
+            color: #ccc !important;
+            letter-spacing: 2px;
         }
 
         .network-health-container {
@@ -609,7 +715,7 @@
 
         .insights-row {
             display: grid;
-            grid-template-columns: 320px 1fr;
+            grid-template-columns: 280px 1fr;
             gap: 20px;
             margin-bottom: 30px;
         }
@@ -626,68 +732,110 @@
 
         .donut-chart {
             position: relative;
-            width: 300px;
-            height: 300px;
+            width: 260px;
+            height: 260px;
         }
 
         .insights-panel {
             background: white;
             border-radius: 8px;
             box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-            padding: 20px;
+            padding: 24px;
         }
 
         .insights-panel h3 {
-            font-size: 14px;
-            font-weight: 600;
+            font-size: 13px;
+            font-weight: 700;
             color: #333;
-            margin: 0 0 18px 0;
+            margin: 0 0 16px 0;
             text-transform: uppercase;
-            letter-spacing: 0.5px;
+            letter-spacing: 0.8px;
         }
 
-        .insight-item {
-            padding: 12px 14px;
-            margin-bottom: 12px;
-            border-left: 4px solid #ddd;
-            border-radius: 3px;
+        .insights-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 12px;
+        }
+
+        .insight-card {
+            display: flex;
+            gap: 12px;
+            padding: 14px 16px;
+            border-radius: 8px;
+            background: #fafafa;
+            border: 1px solid #f0f0f0;
+            transition: transform 0.15s, box-shadow 0.15s;
+        }
+
+        .insight-card:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 3px 8px rgba(0,0,0,0.06);
+        }
+
+        .insight-icon {
+            flex-shrink: 0;
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+        }
+
+        .insight-card.good .insight-icon {
+            background: #e8f5e9;
+        }
+        .insight-card.warning .insight-icon {
+            background: #fff3e0;
+        }
+        .insight-card.critical .insight-icon {
+            background: #ffebee;
+        }
+        .insight-card.info .insight-icon {
+            background: #e3f2fd;
+        }
+
+        .insight-body {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .insight-title {
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            margin-bottom: 4px;
+        }
+
+        .insight-card.good .insight-title { color: #2e7d32; }
+        .insight-card.warning .insight-title { color: #e65100; }
+        .insight-card.critical .insight-title { color: #c62828; }
+        .insight-card.info .insight-title { color: #1565c0; }
+
+        .insight-desc {
             font-size: 13px;
             line-height: 1.5;
             color: #555;
-            background: #fafafa;
-            transition: background 0.2s;
         }
 
-        .insight-item:last-child {
-            margin-bottom: 0;
-        }
-
-        .insight-item.good {
-            border-left-color: #4CAF50;
-            background: #f1f8f6;
-            color: #2d5f4d;
-        }
-
-        .insight-item.warning {
-            border-left-color: #FF9800;
-            background: #fff9e6;
-            color: #6d5a2d;
-        }
-
-        .insight-item.critical {
-            border-left-color: #f44336;
-            background: #ffebee;
-            color: #6d2d2d;
-        }
-
-        .insight-label {
-            font-weight: 600;
-            display: block;
-            margin-bottom: 4px;
+        .insight-desc strong {
+            color: #333;
         }
 
         .coverage-donut {
             display: none;
+        }
+
+        @media (max-width: 768px) {
+            .insights-row {
+                grid-template-columns: 1fr;
+            }
+            .insights-grid {
+                grid-template-columns: 1fr;
+            }
         }
 
         .store-breach-table {
@@ -1242,13 +1390,14 @@
                     <input type="text" id="osrmUrl" placeholder="http://localhost:5000" value="http://localhost:5000">
                     <button id="testConnectionBtn">Test Connection</button>
                 </div>
-                <div class="control-group">
-                    <label>Dataset:</label>
-                    <select id="jobSelector">
-                        <option value="">Select a dataset...</option>
-                    </select>
-                    <span class="job-info" id="jobInfo"></span>
+                <div class="control-group" id="activeDatasetInfo" style="display:none;">
+                    <label>Active Dataset:</label>
+                    <span class="job-info" id="jobInfo" style="font-weight:600;"></span>
                 </div>
+                <!-- Hidden selector for internal use -->
+                <select id="jobSelector" style="display:none;">
+                    <option value="">Select a dataset...</option>
+                </select>
             </div>
         </div>
     </div>
@@ -1337,21 +1486,32 @@
 
         <!-- TAB 2: Dashboard -->
         <div class="tab-content" id="dashboard-tab">
+            <!-- Loading Overlay -->
+            <div class="dashboard-loading-overlay" id="dashboardLoading">
+                <div class="loading-spinner-large"></div>
+                <div class="loading-text">Analyzing network data...</div>
+                <div class="loading-subtext" id="loadingSubtext">Computing threshold metrics for all orders</div>
+            </div>
+
             <!-- Threshold Control -->
             <div class="dashboard-header">
                 <div class="threshold-control">
                     <label for="thresholdInput">Delivery Radius Threshold:</label>
                     <input type="number" id="thresholdInput" min="1" max="20" step="0.5" value="3.0">
                     <span style="font-size: 13px; color: #666;">km</span>
+                    <button class="threshold-apply-btn" id="thresholdApplyBtn">
+                        Recalculate
+                    </button>
+                    <span class="threshold-badge" id="thresholdBadge" style="display:none;"></span>
                 </div>
             </div>
 
             <!-- Network Health Score -->
-            <div class="network-health-container">
+            <div class="network-health-container" id="healthContainer">
                 <div style="text-align: center;">
-                    <div class="health-gauge" id="healthGauge">
+                    <div class="health-gauge" id="healthGauge" style="background: #ddd;">
                         <div class="health-gauge-inner">
-                            <div class="health-gauge-value" id="healthScore">95</div>
+                            <div class="health-gauge-value kpi-value-empty" id="healthScore">--</div>
                             <div class="health-gauge-label">Health Score</div>
                         </div>
                     </div>
@@ -1362,28 +1522,28 @@
             <div class="kpi-cards" id="kpiCards">
                 <div class="kpi-card success">
                     <div class="kpi-label">Coverage Rate</div>
-                    <div class="kpi-value" id="kpiCoverage">95.3%</div>
+                    <div class="kpi-value kpi-value-empty" id="kpiCoverage">--</div>
                 </div>
                 <div class="kpi-card danger">
                     <div class="kpi-label">Beyond Threshold</div>
-                    <div class="kpi-value" id="kpiBeyond">5.7K</div>
+                    <div class="kpi-value kpi-value-empty" id="kpiBeyond">--</div>
                 </div>
                 <div class="kpi-card warning">
                     <div class="kpi-label">Problem Stores</div>
-                    <div class="kpi-value" id="kpiProblem">15</div>
+                    <div class="kpi-value kpi-value-empty" id="kpiProblem">--</div>
                 </div>
                 <div class="kpi-card danger">
                     <div class="kpi-label">Critical Stores</div>
-                    <div class="kpi-value" id="kpiCritical">3</div>
+                    <div class="kpi-value kpi-value-empty" id="kpiCritical">--</div>
                 </div>
                 <div class="kpi-card">
                     <div class="kpi-label">Avg Distance</div>
-                    <div class="kpi-value" id="kpiAvgDist">2.8</div>
+                    <div class="kpi-value kpi-value-empty" id="kpiAvgDist">--</div>
                     <div class="kpi-unit">km</div>
                 </div>
                 <div class="kpi-card">
                     <div class="kpi-label">Total Orders</div>
-                    <div class="kpi-value" id="kpiTotalOrders">120K</div>
+                    <div class="kpi-value kpi-value-empty" id="kpiTotalOrders">--</div>
                 </div>
             </div>
 
@@ -1396,41 +1556,22 @@
                 </div>
                 <div class="insights-panel" id="insightsPanel">
                     <h3>Insights & Recommendations</h3>
-                    <div id="insightsContent" style="min-height: 200px;">Loading insights...</div>
-                </div>
-            </div>
-
-            <!-- Store Breach Table -->
-            <div class="store-breach-table">
-                <h3>Store Performance & Breach Analysis</h3>
-                <div class="table-responsive">
-                    <table id="storeBreachTable">
-                        <thead>
-                            <tr>
-                                <th>Store ID</th>
-                                <th>Orders</th>
-                                <th>Within Threshold</th>
-                                <th>Beyond Threshold</th>
-                                <th>Breach %</th>
-                                <th>Avg Distance</th>
-                                <th>P90 Distance</th>
-                                <th>Max Distance</th>
-                            </tr>
-                        </thead>
-                        <tbody id="storeBreachBody">
-                            <tr><td colspan="8" style="text-align: center; padding: 40px;">Loading store data...</td></tr>
-                        </tbody>
-                    </table>
+                    <div id="insightsContent" style="min-height: 200px; display: flex; align-items: center; justify-content: center; color: #999;">
+                        Select a dataset to see insights
+                    </div>
                 </div>
             </div>
 
             <!-- Distance Distribution with Threshold Line -->
             <div class="charts-grid">
                 <div class="chart-container" style="grid-column: span 2;">
-                    <div class="chart-title">Distance Distribution (with Threshold)</div>
+                    <div class="chart-title">Distance Distribution</div>
                     <div class="chart-inner"><canvas id="distChart"></canvas></div>
                 </div>
             </div>
+
+            <!-- Distance Ranges & Daily Trends (conditional) -->
+            <div class="charts-grid" id="additionalChartsGrid"></div>
 
             <!-- Store Avg Distance (color coded) -->
             <div class="charts-grid">
@@ -1448,12 +1589,33 @@
                 </div>
             </div>
 
-            <!-- Distance Ranges & Daily Trends (conditional) -->
-            <div class="charts-grid" id="additionalChartsGrid"></div>
-
             <div class="daily-trends" id="dailyTrendsSection" style="display: none;">
                 <h3>Daily Trends</h3>
                 <div class="trends-grid" id="trendsGrid"></div>
+            </div>
+
+            <!-- Store Breach Table (at the bottom) -->
+            <div class="store-breach-table" style="margin-top: 30px;">
+                <h3>Store Performance & Breach Analysis</h3>
+                <div class="table-responsive">
+                    <table id="storeBreachTable">
+                        <thead>
+                            <tr>
+                                <th>Store ID</th>
+                                <th>Orders</th>
+                                <th>Within Threshold</th>
+                                <th>Beyond Threshold</th>
+                                <th>Breach %</th>
+                                <th>Avg Distance</th>
+                                <th>P90 Distance</th>
+                                <th>Max Distance</th>
+                            </tr>
+                        </thead>
+                        <tbody id="storeBreachBody">
+                            <tr><td colspan="8" style="text-align: center; padding: 40px; color: #999;">No data loaded</td></tr>
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
 
@@ -1768,6 +1930,8 @@
         let storeMarkers = {};
         let allCharts = {};
         let currentThreshold = 3.0;
+        let dashboardLoadedForJob = null;
+        let dashboardLoadedForThreshold = null;
 
         // ========== UTILITY FUNCTIONS ==========
         function showAlert(message, type = 'info') {
@@ -1798,10 +1962,42 @@
             return typeof value === 'number' ? value.toFixed(2) : value;
         }
 
+        function formatLargeNumber(num) {
+            if (num === null || num === undefined || num === 0) return '0';
+            if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+            if (num >= 10000) return (num / 1000).toFixed(0) + 'K';
+            if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+            return num.toLocaleString();
+        }
+
         function getColorForDistance(distance) {
-            // Simple: within threshold = green, beyond = red
             return distance <= currentThreshold ? '#4CAF50' : '#e53935';
         }
+
+        function showDashboardLoading(show, message) {
+            const overlay = document.getElementById('dashboardLoading');
+            if (show) {
+                if (message) document.getElementById('loadingSubtext').textContent = message;
+                overlay.classList.add('active');
+            } else {
+                overlay.classList.remove('active');
+            }
+        }
+
+        function resetDashboardToEmpty() {
+            document.getElementById('healthScore').textContent = '--';
+            document.getElementById('healthScore').classList.add('kpi-value-empty');
+            document.getElementById('healthGauge').style.background = '#ddd';
+            ['kpiCoverage', 'kpiBeyond', 'kpiProblem', 'kpiCritical', 'kpiAvgDist', 'kpiTotalOrders'].forEach(id => {
+                const el = document.getElementById(id);
+                el.textContent = '--';
+                el.classList.add('kpi-value-empty');
+            });
+            document.getElementById('insightsContent').innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#999;">Select a dataset to see insights</div>';
+            document.getElementById('storeBreachBody').innerHTML = '<tr><td colspan="8" style="text-align:center;padding:40px;color:#999;">No data loaded</td></tr>';
+        }
+
+        let appliedThreshold = 3.0;
 
         // ========== TAB NAVIGATION ==========
         document.querySelectorAll('.tab-button').forEach(button => {
@@ -1818,7 +2014,10 @@
             document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
 
             if (currentJobId) {
-                if (tabName === 'dashboard') loadDashboard();
+                if (tabName === 'dashboard') {
+                    const needsReload = dashboardLoadedForJob !== currentJobId || dashboardLoadedForThreshold !== appliedThreshold;
+                    if (needsReload) loadDashboard();
+                }
                 else if (tabName === 'map') loadMap();
                 else if (tabName === 'table') loadTable();
             } else {
@@ -1888,12 +2087,33 @@
 
         fileInput.addEventListener('change', handleFileSelect);
 
+        function resetProgressUI() {
+            document.getElementById('progressBar').style.width = '0%';
+            document.getElementById('progressBar').textContent = '';
+            document.getElementById('progressPercent').textContent = '0%';
+            document.getElementById('progressProcessed').textContent = '0/0';
+            document.getElementById('progressOK').textContent = '0';
+            document.getElementById('progressFailed').textContent = '0';
+            document.getElementById('progressRate').textContent = '0/s';
+            document.getElementById('progressETA').textContent = '--';
+            document.getElementById('progressContainer').classList.remove('show');
+            document.getElementById('preCalculatedMessage').innerHTML = '';
+            document.getElementById('calculateBtn').style.display = 'none';
+            document.getElementById('infoBox').style.display = 'none';
+        }
+
         async function handleFileSelect() {
             const file = fileInput.files[0];
             if (!file) return;
 
             const formData = new FormData();
             formData.append('file', file);
+
+            // Reset all previous upload state
+            resetProgressUI();
+            dashboardLoadedForJob = null;
+            dashboardLoadedForThreshold = null;
+            resetDashboardToEmpty();
 
             document.getElementById('fileInfo').classList.add('show');
             document.getElementById('fileName').textContent = file.name;
@@ -1910,6 +2130,10 @@
                 currentJobId = data.job_id;
                 document.getElementById('rowCount').textContent = data.row_count;
                 document.getElementById('storeCount').textContent = data.store_count;
+
+                // Update active dataset label in header
+                document.getElementById('jobInfo').textContent = file.name;
+                document.getElementById('activeDatasetInfo').style.display = 'flex';
 
                 // Show mapping section
                 let mappingHtml = '<h4 style="margin-bottom: 15px; font-weight: 600; color: #333;">Detected Columns (Override if needed):</h4><div class="mapping-grid">';
@@ -1935,12 +2159,9 @@
                             Processing ${data.row_count.toLocaleString()} rows with pre-calculated distances...
                         </div>
                     `;
-                    document.getElementById('calculateBtn').style.display = 'none';
                     document.getElementById('progressContainer').classList.add('show');
-                    // Poll progress for pre-calculated file processing
                     pollProgress();
                 } else {
-                    document.getElementById('preCalculatedMessage').innerHTML = '';
                     document.getElementById('calculateBtn').style.display = 'inline-block';
                     document.getElementById('infoBox').innerHTML = `
                         For large datasets (3M+ rows), distance calculation runs server-side in Python — your browser won't freeze. You'll see live progress below.
@@ -2018,43 +2239,24 @@
                 if (!response.ok) throw new Error('Failed to fetch jobs');
                 const jobs = await response.json();
 
-                const selector = document.getElementById('jobSelector');
-                const currentValue = selector.value;
-                selector.innerHTML = '<option value="">Select a dataset...</option>';
-
-                jobs.forEach(job => {
-                    const option = document.createElement('option');
-                    option.value = job.job_id;
-                    option.textContent = job.filename;
-                    selector.appendChild(option);
-                });
-
+                // Auto-select current or most recent job
                 if (currentJobId && jobs.some(j => j.job_id === currentJobId)) {
-                    selector.value = currentJobId;
+                    const job = jobs.find(j => j.job_id === currentJobId);
+                    document.getElementById('jobInfo').textContent = job.filename;
+                    document.getElementById('activeDatasetInfo').style.display = 'flex';
                 } else if (jobs.length > 0) {
-                    selector.value = jobs[0].job_id;
                     currentJobId = jobs[0].job_id;
+                    document.getElementById('jobInfo').textContent = jobs[0].filename;
+                    document.getElementById('activeDatasetInfo').style.display = 'flex';
                 }
 
-                selector.dispatchEvent(new Event('change'));
+                // Invalidate dashboard cache so next tab switch reloads
+                dashboardLoadedForJob = null;
+                dashboardLoadedForThreshold = null;
             } catch (error) {
-                showAlert('Error loading jobs: ' + error.message, 'error');
+                // Silently fail on initial load if no jobs exist
             }
         }
-
-        document.getElementById('jobSelector').addEventListener('change', (e) => {
-            currentJobId = e.target.value;
-            if (currentJobId) {
-                const selectedOption = e.target.options[e.target.selectedIndex];
-                document.getElementById('jobInfo').textContent = selectedOption.textContent;
-
-                // Clear charts when job changes
-                Object.values(allCharts).forEach(chart => {
-                    if (chart && chart.destroy) chart.destroy();
-                });
-                allCharts = {};
-            }
-        });
 
         loadJobList();
 
@@ -2062,30 +2264,35 @@
         async function loadDashboard() {
             if (!currentJobId) return;
 
+            showDashboardLoading(true, `Recalculating metrics for ${currentThreshold} km threshold...`);
+
             try {
-                // Load network analysis data with current threshold
-                const netResponse = await fetch(`/api/network-analysis/${currentJobId}?threshold=${currentThreshold}`);
-                const networkData = netResponse.ok ? await netResponse.json() : null;
-
-                // Load basic stats
-                const statsResponse = await fetch(`/api/stats/${currentJobId}`);
-                const stats = statsResponse.ok ? await statsResponse.json() : {};
-
-                // Load chart data
-                const [chartsResponse, chartResponse] = await Promise.all([
+                const [netResponse, statsResponse, chartsResponse, chartResponse] = await Promise.all([
+                    fetch(`/api/network-analysis/${currentJobId}?threshold=${currentThreshold}`),
+                    fetch(`/api/stats/${currentJobId}`),
                     fetch(`/api/chart/store_avg/${currentJobId}`),
                     fetch(`/api/chart/store_orders/${currentJobId}`)
                 ]);
 
-                const [chartsData, chartData] = await Promise.all([
-                    chartsResponse.json(),
-                    chartResponse.json()
-                ]);
+                const networkData = netResponse.ok ? await netResponse.json() : null;
+                const stats = statsResponse.ok ? await statsResponse.json() : {};
+                const chartsData = await chartsResponse.json();
+                const chartData = await chartResponse.json();
 
-                // Update threshold control
                 document.getElementById('thresholdInput').value = currentThreshold;
+                appliedThreshold = currentThreshold;
+                dashboardLoadedForJob = currentJobId;
+                dashboardLoadedForThreshold = appliedThreshold;
 
-                // Render network dashboard
+                const badge = document.getElementById('thresholdBadge');
+                badge.textContent = `Active: ${currentThreshold} km`;
+                badge.style.display = 'inline-flex';
+
+                // Hide the Apply button since we just applied
+                const applyBtn = document.getElementById('thresholdApplyBtn');
+                applyBtn.classList.remove('visible', 'loading');
+                document.getElementById('thresholdInput').classList.remove('changed');
+
                 if (networkData) {
                     renderNetworkDashboard(networkData, stats);
                     renderInsights(networkData, stats);
@@ -2093,7 +2300,6 @@
                     showAlert('Network analysis endpoint not available - showing basic stats', 'warning');
                 }
 
-                // Render charts
                 setTimeout(() => {
                     renderCoverageDonutChart(networkData);
                     renderDistributionChart(stats, currentThreshold);
@@ -2105,39 +2311,38 @@
 
             } catch (error) {
                 showAlert('Error loading dashboard: ' + error.message, 'error');
+            } finally {
+                showDashboardLoading(false);
             }
         }
 
         function renderNetworkDashboard(networkData, stats) {
-            // Update health score with dynamic color gradient
+            // Clear empty states from all KPI elements
+            ['healthScore', 'kpiCoverage', 'kpiBeyond', 'kpiProblem', 'kpiCritical', 'kpiAvgDist', 'kpiTotalOrders'].forEach(id => {
+                document.getElementById(id).classList.remove('kpi-value-empty');
+            });
+
+            // Health score gauge
             const healthScore = networkData.health_score || 0;
             document.getElementById('healthScore').textContent = healthScore;
             const healthGauge = document.getElementById('healthGauge');
 
-            let healthColor = '#4CAF50'; // green
-            if (healthScore < 70) healthColor = '#f44336'; // red
-            else if (healthScore < 90) healthColor = '#FF9800'; // orange
+            let healthColor = '#4CAF50';
+            if (healthScore < 70) healthColor = '#f44336';
+            else if (healthScore < 90) healthColor = '#FF9800';
 
             const angle = (healthScore / 100) * 360;
             healthGauge.style.background = `conic-gradient(${healthColor} 0deg ${angle}deg, #ddd ${angle}deg 360deg)`;
 
-            // Update KPI cards
+            // KPI cards
             const coverage = networkData.coverage_pct || 0;
             document.getElementById('kpiCoverage').textContent = coverage.toFixed(1) + '%';
-
-            const beyond = networkData.beyond_threshold || 0;
-            const beyondFormatted = beyond > 1000 ? (beyond / 1000).toFixed(1) + 'K' : beyond.toString();
-            document.getElementById('kpiBeyond').textContent = beyondFormatted;
-
+            document.getElementById('kpiBeyond').textContent = formatLargeNumber(networkData.beyond_threshold || 0);
             document.getElementById('kpiProblem').textContent = networkData.problem_stores_count || 0;
             document.getElementById('kpiCritical').textContent = networkData.critical_stores_count || 0;
             document.getElementById('kpiAvgDist').textContent = (stats.avg_distance || 0).toFixed(2);
+            document.getElementById('kpiTotalOrders').textContent = formatLargeNumber(networkData.total_orders || 0);
 
-            const totalOrders = networkData.total_orders || 0;
-            const totalOrdersFormatted = totalOrders > 1000 ? (totalOrders / 1000).toFixed(0) + 'K' : totalOrders.toString();
-            document.getElementById('kpiTotalOrders').textContent = totalOrdersFormatted;
-
-            // Render store breach table
             renderStoreBreachTable(networkData.store_analysis || []);
         }
 
@@ -2182,81 +2387,95 @@
             const stores = networkData.store_analysis || [];
             const coverage = networkData.coverage_pct || 0;
             const avgDistance = stats.avg_distance || 0;
-            const p90Distance = stats.p90_distance || 0;
+            const p90Distance = stats.p90 || stats.p90_distance || 0;
             const threshold = currentThreshold;
+            const totalOrders = networkData.total_orders || 0;
+            const beyondOrders = networkData.beyond_threshold || 0;
 
-            // Insight 1: Coverage status
+            // Coverage status
             if (coverage >= 85) {
                 insights.push({
-                    text: `<span class="insight-label">Coverage Status</span>${coverage.toFixed(1)}% of orders are within ${threshold.toFixed(1)}km - Excellent coverage!`,
-                    type: 'good'
+                    icon: '\u2705', title: 'Coverage Status', type: 'good',
+                    desc: `<strong>${coverage.toFixed(1)}%</strong> of ${formatLargeNumber(totalOrders)} orders are within ${threshold}km. Excellent network coverage.`
                 });
             } else if (coverage >= 70) {
                 insights.push({
-                    text: `<span class="insight-label">Coverage Status</span>${coverage.toFixed(1)}% of orders are within ${threshold.toFixed(1)}km - Good, but room for improvement`,
-                    type: 'warning'
+                    icon: '\u26A0\uFE0F', title: 'Coverage Status', type: 'warning',
+                    desc: `<strong>${coverage.toFixed(1)}%</strong> of ${formatLargeNumber(totalOrders)} orders are within ${threshold}km. <strong>${formatLargeNumber(beyondOrders)}</strong> orders breach the threshold.`
                 });
             } else {
                 insights.push({
-                    text: `<span class="insight-label">Coverage Status</span>${coverage.toFixed(1)}% of orders are within ${threshold.toFixed(1)}km - Needs improvement`,
-                    type: 'critical'
+                    icon: '\u{1F6A8}', title: 'Coverage Status', type: 'critical',
+                    desc: `Only <strong>${coverage.toFixed(1)}%</strong> of orders within ${threshold}km. <strong>${formatLargeNumber(beyondOrders)}</strong> orders breach threshold \u2014 network redesign recommended.`
                 });
             }
 
-            // Insight 2: Problem stores
+            // Critical stores
             const problemStores = stores.filter(s => (s.breach_pct || 0) > 20);
             if (problemStores.length > 0) {
                 const top3 = problemStores.sort((a, b) => (b.breach_pct || 0) - (a.breach_pct || 0)).slice(0, 3);
-                const storeList = top3.map(s => `${s.store_id} (${(s.breach_pct || 0).toFixed(1)}%)`).join(', ');
+                const storeList = top3.map(s => `<strong>${s.store_id}</strong> (${(s.breach_pct || 0).toFixed(0)}%)`).join(', ');
                 insights.push({
-                    text: `<span class="insight-label">Critical Stores</span>${problemStores.length} stores have >20% breach rate: ${storeList}`,
-                    type: 'critical'
+                    icon: '\u{1F3EA}', title: `${problemStores.length} Critical Stores`, type: 'critical',
+                    desc: `Stores with >20% breach rate: ${storeList}`
                 });
             }
 
-            // Insight 3: Top problem store
+            // Top problem store
             if (stores.length > 0) {
                 const worstStore = stores.reduce((max, s) => (s.breach_pct || 0) > (max.breach_pct || 0) ? s : max);
-                insights.push({
-                    text: `<span class="insight-label">Top Problem Store</span>${worstStore.store_id} has ${(worstStore.breach_pct || 0).toFixed(1)}% breach rate with avg distance ${worstStore.avg_distance.toFixed(2)}km`,
-                    type: worstStore.breach_pct > 20 ? 'critical' : 'warning'
-                });
+                if (worstStore.breach_pct > 0) {
+                    insights.push({
+                        icon: '\u{1F4CD}', title: 'Highest Breach Store', type: worstStore.breach_pct > 20 ? 'critical' : 'warning',
+                        desc: `<strong>${worstStore.store_id}</strong> has <strong>${(worstStore.breach_pct || 0).toFixed(1)}%</strong> breach rate with avg delivery distance of ${worstStore.avg_distance.toFixed(2)} km.`
+                    });
+                }
             }
 
-            // Insight 4: Distance stats
+            // Distance metrics
             if (avgDistance > 0) {
+                const avgOk = avgDistance <= threshold;
+                const p90Ok = p90Distance <= threshold;
+                const bothOk = avgOk && p90Ok;
+                let distType = bothOk ? 'good' : (avgOk ? 'warning' : 'critical');
+                let distVerdict = bothOk
+                    ? `Both avg and P90 are within the ${threshold} km threshold.`
+                    : (avgOk
+                        ? `Avg is within threshold but <strong>P90 exceeds ${threshold} km</strong> \u2014 the tail of deliveries is too long.`
+                        : `Both avg and P90 exceed the ${threshold} km threshold.`);
                 insights.push({
-                    text: `<span class="insight-label">Distance Metrics</span>Avg distance across network: ${avgDistance.toFixed(2)}km (P90: ${p90Distance.toFixed(2)}km)`,
-                    type: avgDistance <= threshold ? 'good' : 'warning'
+                    icon: '\u{1F4CF}', title: 'Distance Metrics', type: distType,
+                    desc: `Network average: <strong>${avgDistance.toFixed(2)} km</strong> | P90: <strong>${p90Distance.toFixed(2)} km</strong>. ${distVerdict}`
                 });
             }
 
-            // Insight 5: Most efficient store
+            // Most efficient store
             if (stores.length > 0) {
                 const bestStore = stores.reduce((min, s) => s.avg_distance < min.avg_distance ? s : min);
                 insights.push({
-                    text: `<span class="insight-label">Most Efficient Store</span>${bestStore.store_id} has lowest avg distance: ${bestStore.avg_distance.toFixed(2)}km`,
-                    type: 'good'
+                    icon: '\u{1F31F}', title: 'Most Efficient Store', type: 'good',
+                    desc: `<strong>${bestStore.store_id}</strong> leads with avg distance of just <strong>${bestStore.avg_distance.toFixed(2)} km</strong>.`
                 });
             }
 
-            // Insight 6: Threshold projection (if threshold increased by 1km)
+            // Threshold projection
             const nextThreshold = threshold + 1;
-            const estimatedCoverageGain = Math.min(5, (100 - coverage) / 2); // rough estimate
+            const estimatedCoverageGain = Math.min(5, (100 - coverage) / 2);
             const projectedCoverage = Math.min(100, coverage + estimatedCoverageGain);
             insights.push({
-                text: `<span class="insight-label">Threshold Impact</span>If threshold were set to ${nextThreshold.toFixed(1)}km, estimated coverage would be ~${projectedCoverage.toFixed(1)}%`,
-                type: 'warning'
+                icon: '\u{1F4A1}', title: 'Threshold Impact', type: 'info',
+                desc: `Increasing threshold to <strong>${nextThreshold.toFixed(1)} km</strong> could improve coverage to ~<strong>${projectedCoverage.toFixed(1)}%</strong>.`
             });
 
-            // Render insights
-            const html = insights.map(insight => `
-                <div class="insight-item ${insight.type}">
-                    ${insight.text}
+            container.innerHTML = `<div class="insights-grid">${insights.map(i => `
+                <div class="insight-card ${i.type}">
+                    <div class="insight-icon">${i.icon}</div>
+                    <div class="insight-body">
+                        <div class="insight-title">${i.title}</div>
+                        <div class="insight-desc">${i.desc}</div>
+                    </div>
                 </div>
-            `).join('');
-
-            container.innerHTML = html;
+            `).join('')}</div>`;
         }
 
         function renderCoverageDonutChart(networkData) {
@@ -2317,7 +2536,7 @@
 
             setTimeout(() => {
                 if (data.range_bins) {
-                    renderRangeChart(data);
+                    renderRangeChart(data, currentThreshold);
                 }
             }, 100);
         }
@@ -2350,24 +2569,46 @@
             }, 100);
         }
 
-        function updateThreshold() {
+        function applyThreshold() {
             const input = document.getElementById('thresholdInput');
             const newThreshold = parseFloat(input.value);
 
             if (isNaN(newThreshold) || newThreshold < 1 || newThreshold > 20) {
                 showAlert('Please enter a valid threshold between 1 and 20 km', 'warning');
                 input.value = currentThreshold;
+                input.classList.remove('changed');
+                document.getElementById('thresholdApplyBtn').classList.remove('visible');
                 return;
             }
+
+            const applyBtn = document.getElementById('thresholdApplyBtn');
+            applyBtn.classList.add('loading');
+            applyBtn.innerHTML = '<span class="spinner"></span> Recalculating...';
 
             currentThreshold = newThreshold;
             loadDashboard();
         }
 
-        // Add event listener for threshold input
-        document.getElementById('thresholdInput')?.addEventListener('change', updateThreshold);
+        // Show/hide the Apply button when threshold value changes
+        document.getElementById('thresholdInput')?.addEventListener('input', () => {
+            const input = document.getElementById('thresholdInput');
+            const newVal = parseFloat(input.value);
+            const applyBtn = document.getElementById('thresholdApplyBtn');
+
+            if (!isNaN(newVal) && newVal !== appliedThreshold && newVal >= 1 && newVal <= 20) {
+                input.classList.add('changed');
+                applyBtn.classList.add('visible');
+                applyBtn.innerHTML = 'Recalculate';
+            } else {
+                input.classList.remove('changed');
+                applyBtn.classList.remove('visible');
+            }
+        });
+
+        document.getElementById('thresholdApplyBtn')?.addEventListener('click', applyThreshold);
+
         document.getElementById('thresholdInput')?.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') updateThreshold();
+            if (e.key === 'Enter') applyThreshold();
         });
 
         function renderDistributionChart(data, threshold) {
@@ -2375,44 +2616,97 @@
             if (!ctx) return;
             if (allCharts.dist) allCharts.dist.destroy();
             const bins = data.histogram_bins || {};
+            const labels = Object.keys(bins);
+            const values = Object.values(bins);
+
+            const colors = labels.map(label => {
+                const upper = parseFloat(label.replace(/[^0-9.]/g, '').trim()) || 0;
+                const match = label.match(/^(\d+)-(\d+)/);
+                const binEnd = match ? parseFloat(match[2]) : (label.includes('+') ? threshold + 1 : upper);
+                return binEnd <= threshold ? '#4CAF50' : '#f44336';
+            });
+
             allCharts.dist = new Chart(ctx, {
                 type: 'bar',
                 data: {
-                    labels: Object.keys(bins),
+                    labels: labels,
                     datasets: [{
-                        label: 'Count',
-                        data: Object.values(bins),
-                        backgroundColor: '#2874f0',
-                        borderRadius: 4
+                        label: 'Orders',
+                        data: values,
+                        backgroundColor: colors,
+                        borderRadius: 4,
                     }]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
                     plugins: {
-                        annotation: {
-                            annotations: {}
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: (ctx) => `${ctx.parsed.y.toLocaleString()} orders`
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            ticks: {
+                                callback: (v) => v >= 1000000 ? (v/1000000).toFixed(1) + 'M' : v >= 1000 ? (v/1000).toFixed(0) + 'K' : v
+                            }
                         }
                     }
                 }
             });
         }
 
-        function renderRangeChart(data) {
+        function renderRangeChart(data, threshold) {
             const ctx = document.getElementById('rangeChart')?.getContext('2d');
             if (!ctx) return;
             if (allCharts.range) allCharts.range.destroy();
             const ranges = data.range_bins || {};
+            const labels = Object.keys(ranges);
+            const th = threshold || currentThreshold || 3;
+
+            const colors = labels.map(label => {
+                const match = label.match(/^(\d+)-(\d+)/);
+                if (match) {
+                    const binEnd = parseFloat(match[2]);
+                    return binEnd <= th ? '#4CAF50' : '#f44336';
+                }
+                // "5+ km" or similar open-ended bucket — always beyond
+                return '#f44336';
+            });
+
             allCharts.range = new Chart(ctx, {
                 type: 'doughnut',
                 data: {
-                    labels: Object.keys(ranges),
+                    labels: labels,
                     datasets: [{
                         data: Object.values(ranges),
-                        backgroundColor: ['#4CAF50', '#FF9800', '#f44336', '#9C27B0', '#607D8B']
+                        backgroundColor: colors,
+                        borderWidth: 2,
+                        borderColor: 'white',
                     }]
                 },
-                options: { responsive: true, maintainAspectRatio: false }
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: { padding: 15, boxWidth: 12, font: { size: 12 } }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: (ctx) => {
+                                    const total = ctx.dataset.data.reduce((a, b) => a + b, 0);
+                                    const pct = ((ctx.parsed / total) * 100).toFixed(1);
+                                    return `${ctx.label}: ${ctx.parsed.toLocaleString()} (${pct}%)`;
+                                }
+                            }
+                        }
+                    }
+                }
             });
         }
 
