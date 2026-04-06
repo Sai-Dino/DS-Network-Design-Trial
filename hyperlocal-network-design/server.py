@@ -1136,7 +1136,7 @@ def get_store_orders_chart(job_id):
 @app.route('/api/map/<job_id>', methods=['GET'])
 def get_map_data(job_id):
     """Get sampled map data."""
-    sample_size = int(request.args.get('sample', 5000))
+    sample_size = int(request.args.get('sample', 0))
     store_filter = request.args.get('store', None)
 
     with JOBS_LOCK:
@@ -1156,8 +1156,7 @@ def get_map_data(job_id):
     if store_filter:
         results = [r for r in results if str(r.get('store_id')) == store_filter]
 
-    # Sample results
-    if len(results) > sample_size:
+    if sample_size > 0 and len(results) > sample_size:
         results = np.random.choice(results, sample_size, replace=False).tolist()
 
     # Format map data

@@ -579,7 +579,7 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            z-index: 50;
+            z-index: 200;
             opacity: 0;
             pointer-events: none;
             transition: opacity 0.3s;
@@ -2019,7 +2019,16 @@
                     if (needsReload) loadDashboard();
                 }
                 else if (tabName === 'map') loadMap();
-                else if (tabName === 'table') loadTable();
+                else if (tabName === 'table') {
+                    // Check job status before loading table — avoids error if still processing
+                    fetch(`/api/progress/${currentJobId}`).then(r => r.json()).then(d => {
+                        if (d.status === 'complete') {
+                            loadTable();
+                        } else {
+                            showAlert(`Dataset is still ${d.status || 'processing'}. Please wait for it to complete.`, 'warning');
+                        }
+                    }).catch(() => loadTable());
+                }
             } else {
                 if (tabName !== 'upload' && tabName !== 'setup') {
                     showAlert('Please upload and calculate a dataset first', 'warning');
@@ -2207,7 +2216,7 @@
                 if (!response.ok) throw new Error('Failed to fetch progress');
                 const data = await response.json();
 
-                const percent = Math.round((data.processed / data.total) * 100);
+                const percent = data.total > 0 ? Math.round((data.processed / data.total) * 100) : 0;
                 document.getElementById('progressBar').style.width = percent + '%';
                 document.getElementById('progressBar').textContent = percent + '%';
                 document.getElementById('progressPercent').textContent = percent + '%';
@@ -2264,20 +2273,26 @@
         async function loadDashboard() {
             if (!currentJobId) return;
 
-            showDashboardLoading(true, `Recalculating metrics for ${currentThreshold} km threshold...`);
+            const isFirstLoad = !dashboardLoadedForJob;
+            const loadingMsg = isFirstLoad
+                ? `Analyzing network data for ${currentThreshold} km threshold...`
+                : `Recalculating metrics for ${currentThreshold} km threshold...`;
+            showDashboardLoading(true, loadingMsg);
 
             try {
-                const [netResponse, statsResponse, chartsResponse, chartResponse] = await Promise.all([
+                const [netResponse, statsResponse, chartsResponse, chartResponse, dailyResponse] = await Promise.all([
                     fetch(`/api/network-analysis/${currentJobId}?threshold=${currentThreshold}`),
                     fetch(`/api/stats/${currentJobId}`),
                     fetch(`/api/chart/store_avg/${currentJobId}`),
-                    fetch(`/api/chart/store_orders/${currentJobId}`)
+                    fetch(`/api/chart/store_orders/${currentJobId}`),
+                    fetch(`/api/chart/daily/${currentJobId}`)
                 ]);
 
                 const networkData = netResponse.ok ? await netResponse.json() : null;
                 const stats = statsResponse.ok ? await statsResponse.json() : {};
-                const chartsData = await chartsResponse.json();
-                const chartData = await chartResponse.json();
+                const chartsData = chartsResponse.ok ? await chartsResponse.json() : { labels: [], values: [] };
+                const chartData = chartResponse.ok ? await chartResponse.json() : { labels: [], values: [] };
+                const dailyData = dailyResponse.ok ? await dailyResponse.json() : { labels: [], orders: [], avg_distances: [] };
 
                 document.getElementById('thresholdInput').value = currentThreshold;
                 appliedThreshold = currentThreshold;
@@ -2306,13 +2321,18 @@
                     renderStoreAvgChart(chartsData, currentThreshold);
                     renderStoreOrdersChart(chartData);
                     renderAdditionalCharts(stats);
-                    renderDailyTrends(stats);
+                    renderDailyTrends(dailyData);
                 }, 100);
 
             } catch (error) {
                 showAlert('Error loading dashboard: ' + error.message, 'error');
             } finally {
                 showDashboardLoading(false);
+                const applyBtn = document.getElementById('thresholdApplyBtn');
+                if (applyBtn) {
+                    applyBtn.classList.remove('loading');
+                    applyBtn.innerHTML = 'Recalculate';
+                }
             }
         }
 
@@ -2366,14 +2386,14 @@
 
                 return `
                     <tr class="${breachClass}">
-                        <td><strong>${store.store_id}</strong></td>
-                        <td>${store.total_orders.toLocaleString()}</td>
-                        <td>${store.within_threshold.toLocaleString()}</td>
-                        <td>${store.beyond_threshold.toLocaleString()}</td>
+                        <td><strong>${store.store_id || '--'}</strong></td>
+                        <td>${(store.total_orders || 0).toLocaleString()}</td>
+                        <td>${(store.within_threshold || 0).toLocaleString()}</td>
+                        <td>${(store.beyond_threshold || 0).toLocaleString()}</td>
                         <td><strong>${breachPct.toFixed(1)}%</strong></td>
-                        <td>${store.avg_distance.toFixed(2)} km</td>
-                        <td>${store.p90_distance.toFixed(2)} km</td>
-                        <td>${store.max_distance.toFixed(2)} km</td>
+                        <td>${(store.avg_distance || 0).toFixed(2)} km</td>
+                        <td>${(store.p90_distance || 0).toFixed(2)} km</td>
+                        <td>${(store.max_distance || 0).toFixed(2)} km</td>
                     </tr>
                 `;
             }).join('');
@@ -2813,7 +2833,7 @@
                 }
 
                 // Fetch map data
-                const response = await fetch(`/api/map/${currentJobId}?sample=10000`);
+                const response = await fetch(`/api/map/${currentJobId}?sample=0`);
                 if (!response.ok) throw new Error('Failed to fetch map data');
                 mapData = await response.json();
 
@@ -2821,7 +2841,7 @@
                 const storeFilter = document.getElementById('storeFilter');
                 const currentValue = storeFilter.value;
                 storeFilter.innerHTML = '<option value="">All Stores</option>';
-                mapData.stores.forEach(store => {
+                (mapData.stores || []).forEach(store => {
                     const option = document.createElement('option');
                     option.value = store.store_id;
                     const breachPct = store.order_count > 0 ? ((store.breach_count || 0) / store.order_count * 100).toFixed(0) : '0';
@@ -2879,15 +2899,18 @@
             const showCircles = document.getElementById('showCoverageCircles').checked;
             const threshold = currentThreshold;
 
+            const allStores = mapData.stores || [];
+            const allOrders = mapData.orders || [];
+
             // Filter stores
             const stores = selectedStore
-                ? mapData.stores.filter(s => s.store_id === selectedStore)
-                : mapData.stores;
+                ? allStores.filter(s => s.store_id === selectedStore)
+                : allStores;
 
             // Filter orders by store and view mode
             let orders = selectedStore
-                ? mapData.orders.filter(o => o.store_id === selectedStore)
-                : mapData.orders;
+                ? allOrders.filter(o => o.store_id === selectedStore)
+                : allOrders;
 
             if (viewMode === 'breach') {
                 orders = orders.filter(o => o.road_distance > threshold);
@@ -2945,15 +2968,14 @@
             const allPoints = [
                 ...stores.map(s => [s.lat, s.lon]),
                 ...orders.slice(0, 2000).map(o => [o.order_lat, o.order_lon])
-            ].filter(p => p[0] && p[1]);
+            ].filter(p => p[0] != null && p[1] != null);
             if (allPoints.length > 0) {
                 mapInstance.fitBounds(allPoints, { padding: [30, 30] });
             }
 
             // Update info
             document.getElementById('mapInfo').textContent =
-                `Showing ${orders.length.toLocaleString()} orders (${withinCount.toLocaleString()} within ${threshold}km, ${breachCount.toLocaleString()} beyond) across ${stores.length} store${stores.length !== 1 ? 's' : ''}` +
-                (mapData.total_orders > mapData.orders.length ? ` — sampled from ${mapData.total_orders.toLocaleString()} total` : '');
+                `Showing ${orders.length.toLocaleString()} orders (${withinCount.toLocaleString()} within ${threshold}km, ${breachCount.toLocaleString()} beyond) across ${stores.length} store${stores.length !== 1 ? 's' : ''}`;
         }
 
         // ========== DATA TABLE TAB ==========
@@ -2997,9 +3019,10 @@
                 document.getElementById('tableBody').innerHTML = tableHtml || '<tr><td colspan="7" style="text-align: center; padding: 20px;">No data</td></tr>';
 
                 // Update pagination
-                document.getElementById('pageStart').textContent = (currentPage - 1) * pageSize + 1;
-                document.getElementById('pageEnd').textContent = Math.min(currentPage * pageSize, data.total);
-                document.getElementById('pageTotal').textContent = data.total;
+                const total = data.total || 0;
+                document.getElementById('pageStart').textContent = total > 0 ? (currentPage - 1) * pageSize + 1 : 0;
+                document.getElementById('pageEnd').textContent = Math.min(currentPage * pageSize, total);
+                document.getElementById('pageTotal').textContent = total;
 
                 document.getElementById('prevPageBtn').disabled = currentPage === 1;
                 document.getElementById('nextPageBtn').disabled = currentPage * pageSize >= data.total;

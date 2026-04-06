@@ -39,5 +39,10 @@ osrm-data/
 # Logs
 *.log
 
+# Database
+instance/
+*.db
+*.sqlite3
+
 # Environment
 .env

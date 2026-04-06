@@ -1,134 +1,152 @@
-# Hyperlocal Network Design Tool
+# Flipkart Hyperlocal Distance Analyzer
 
-A network design and analysis tool for Flipkart's hyperlocal delivery operations. Calculates and visualizes road distances between dark stores and customer order locations to ensure every delivery stays within a configurable threshold (default: 3 km).
+Analyze store-to-delivery distances at scale with OSRM integration. Upload a CSV with millions of orders, compute road distances, and get instant dashboards with coverage metrics, threshold analysis, and store-level insights.
 
-## What It Does
+## Architecture
 
-- **Upload** order data as CSV/XLSX (with or without pre-calculated distances)
-- **Calculate** shortest road distances via OSRM (Open Source Routing Machine)
-- **Analyze** network coverage, identify problem stores, and spot service gaps
-- **Visualize** stores and orders on an interactive map with coverage circles
-- **Export** results as CSV for further analysis
+```
+┌─────────────────────────────────────────────────────────┐
+│                     Browser (SPA)                       │
+│              static/index.html + Chart.js               │
+└───────────────────────┬─────────────────────────────────┘
+                        │ HTTP/JSON
+┌───────────────────────▼─────────────────────────────────┐
+│              Flask API (Gunicorn)                        │
+│  app/routes/api.py  •  app/routes/health.py             │
+├─────────────────────────────────────────────────────────┤
+│              Services Layer                              │
+│  app/services/stats.py  •  app/services/osrm.py         │
+├──────────┬──────────────┬───────────────────────────────┤
+│ PostgreSQL│    Redis     │        OSRM Server            │
+│ (metadata)│  (task queue)│  (road distance engine)       │
+└──────────┘──────────────┘───────────────────────────────┘
+```
 
 ## Quick Start
 
-### Prerequisites
-
-- Python 3.9+
-- OSRM with India map data (only needed for distance calculation; skip if uploading pre-calculated files)
-
-### 1. Install Dependencies
+### Option A: Docker (recommended)
 
 ```bash
+cp .env.example .env          # Configure settings
+docker compose up --build     # Start app + DB + Redis
+```
+
+Open http://localhost:8080
+
+### Option B: Local development
+
+```bash
+# 1. Create virtual environment
+python3 -m venv venv && source venv/bin/activate
+
+# 2. Install dependencies
 pip install -r requirements.txt
+
+# 3. Start the server
+python run.py
 ```
 
-### 2. Start the App
+Open http://localhost:8080
+
+### Option C: Production (Gunicorn)
 
 ```bash
-python3 server.py
+gunicorn -c gunicorn.conf.py 'app:create_app()'
 ```
-
-Open [http://localhost:8080](http://localhost:8080) in your browser.
-
-### 3. (Optional) Set Up OSRM for Distance Calculation
-
-If you need to calculate road distances from scratch (i.e., your data doesn't already have a distance column):
-
-```bash
-# Install OSRM (macOS)
-brew install osrm-backend
-
-# Download and prepare India map data (~500MB download)
-make osrm-setup
-
-# Start the OSRM server
-make osrm-start
-```
-
-This runs OSRM on `localhost:5000`. The app connects to it automatically.
-
-## Input Data Format
-
-Your CSV/XLSX needs these columns (names are auto-detected):
-
-| Column | Example Names |
-|--------|--------------|
-| Store ID | `Dark store`, `store_id`, `hub_id` |
-| Order ID | `Order ID`, `order_id`, `consignment_id` |
-| Store Latitude | `Lat Store`, `store_lat`, `hub_lat` |
-| Store Longitude | `Long Store`, `store_lon`, `hub_lon` |
-| Order Latitude | `Lat Order`, `order_lat`, `dest_lat` |
-| Order Longitude | `Long Order`, `order_lon`, `dest_lon` |
-| Distance (optional) | `road_distance_km`, `distance_km`, `distance` |
-
-If a distance column is present, the tool skips OSRM calculation and loads results directly.
-
-## Features
-
-### Dashboard
-- Configurable delivery radius threshold
-- Network health score and coverage percentage
-- Per-store breach analysis (problem/critical store identification)
-- Auto-generated insights and recommendations
-- Distribution histogram and store-level charts
-
-### Map View
-- Dark stores shown as labeled markers with coverage radius circles
-- Orders color-coded: green (within threshold) / red (breach)
-- Filter by store, show breach-only or within-only orders
-- Toggle coverage circles on/off
-
-### Data Table
-- Sortable, filterable, paginated view of all orders
-- Filter by store, distance range, or search by ID
-- Export filtered or full results as CSV
 
 ## Project Structure
 
 ```
 hyperlocal-network-design/
-├── server.py              # Flask backend (API + OSRM integration)
+├── app/                        # Application package
+│   ├── __init__.py             # App factory
+│   ├── config.py               # Configuration (env vars)
+│   ├── extensions.py           # Flask extensions (DB, migrations)
+│   ├── models.py               # Database models (Job, AuditLog)
+│   ├── routes/
+│   │   ├── api.py              # All API endpoints
+│   │   └── health.py           # Health check (/health)
+│   ├── services/
+│   │   ├── osrm.py             # OSRM integration + batch engine
+│   │   └── stats.py            # Statistics computation
+│   ├── tasks/
+│   │   ├── celery_app.py       # Celery configuration
+│   │   └── distance_tasks.py   # Async distance calculation tasks
+│   └── utils/
+│       ├── columns.py          # Column auto-detection
+│       ├── geo.py              # Haversine distance
+│       └── validation.py       # Input validation + SSRF protection
 ├── static/
-│   └── index.html         # Frontend (single-file HTML/CSS/JS)
-├── scripts/
-│   ├── setup_osrm.sh      # OSRM data download and preparation
-│   ├── start_osrm.sh      # Start OSRM routing server
-│   └── start_app.sh       # Start the application
-├── data/                   # Place your CSV/XLSX files here (gitignored)
-├── requirements.txt
-├── Makefile
-└── README.md
+│   └── index.html              # Frontend SPA
+├── tests/                      # pytest test suite
+│   ├── conftest.py             # Shared fixtures
+│   ├── test_api.py             # API integration tests
+│   ├── test_columns.py         # Column detection tests
+│   ├── test_stats.py           # Statistics tests
+│   └── test_validation.py      # Validation tests
+├── .github/workflows/ci.yml   # CI/CD pipeline
+├── Dockerfile                  # Container image
+├── docker-compose.yml          # Full stack orchestration
+├── gunicorn.conf.py            # Production server config
+├── requirements.txt            # Python dependencies
+├── run.py                      # Development entry point
+├── server.py                   # Legacy monolith (kept as reference)
+└── .env.example                # Environment variable template
 ```
+
+## Configuration
+
+All settings are driven by environment variables. See `.env.example` for the full list.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `APP_ENV` | `development` | `development`, `production`, or `testing` |
+| `APP_PORT` | `8080` | Server port |
+| `DATABASE_URL` | `sqlite:///hyperlocal.db` | Database connection string |
+| `REDIS_URL` | `redis://localhost:6379/0` | Redis for Celery |
+| `OSRM_URL` | `http://localhost:5000` | Default OSRM server |
+| `OSRM_ALLOWED_HOSTS` | `localhost,127.0.0.1` | SSRF protection allow-list |
+| `AUTH_ENABLED` | `false` | Enable API authentication |
+| `SECRET_KEY` | `change-me` | Flask secret key |
 
 ## API Endpoints
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `GET` | `/` | Serve frontend |
-| `POST` | `/api/upload` | Upload CSV/XLSX file |
-| `POST` | `/api/calculate/<job_id>` | Start OSRM distance calculation |
-| `GET` | `/api/progress/<job_id>` | Poll calculation progress |
-| `GET` | `/api/stats/<job_id>` | Get job statistics |
-| `GET` | `/api/network-analysis/<job_id>` | Threshold-based network analysis |
-| `GET` | `/api/map/<job_id>` | Map data (stores + sampled orders) |
-| `GET` | `/api/table/<job_id>` | Paginated, filterable table data |
-| `GET` | `/api/download/<job_id>` | Download results as CSV |
+| `GET` | `/health` | Health check |
+| `POST` | `/api/upload` | Upload CSV/XLSX |
+| `POST` | `/api/calculate/<job_id>` | Start OSRM calculation |
+| `GET` | `/api/progress/<job_id>` | Poll job progress |
+| `GET` | `/api/stats/<job_id>` | Get computed statistics |
+| `GET` | `/api/network-analysis/<job_id>` | Threshold analysis |
+| `GET` | `/api/stores/<job_id>` | Per-store metrics |
+| `GET` | `/api/chart/daily/<job_id>` | Daily trend data |
+| `GET` | `/api/map/<job_id>` | Map visualization data |
+| `GET` | `/api/table/<job_id>` | Paginated results table |
+| `GET` | `/api/download/<job_id>` | CSV export |
 | `GET` | `/api/jobs` | List all jobs |
-| `GET` | `/api/test-osrm` | Test OSRM connectivity |
+| `DELETE` | `/api/jobs/<job_id>` | Delete a job |
 
-## Configuration
+## Running Tests
 
-Environment variables / defaults:
+```bash
+pytest tests/ -v
+```
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `APP_PORT` | `8080` | Application server port |
-| `OSRM_PORT` | `5000` | OSRM server port |
-| `OSRM_DATA_DIR` | `~/osrm-data` | OSRM map data directory |
+## Running Celery Worker
 
-## Performance
+```bash
+celery -A app.tasks.celery_app worker --loglevel=info --concurrency=4
+```
 
-- **OSRM calculation**: ~650 requests/sec with 24 parallel workers
-- **Pre-calculated files**: 3.38M rows loads in ~5 seconds
-- **Max file size**: 500 MB
+## OSRM Setup
+
+```bash
+# Download and prepare India map data
+make osrm-setup
+
+# Start OSRM server
+make osrm-start
+```
+
+See `scripts/setup_osrm.sh` for details.
