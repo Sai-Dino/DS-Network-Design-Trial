@@ -5,8 +5,10 @@ without creating circular imports.
 Think of this as a "shared toolbox" that every part of the app can reach into.
 """
 
+from flask_bcrypt import Bcrypt
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 
 db = SQLAlchemy()
 migrate = Migrate()
+bcrypt = Bcrypt()

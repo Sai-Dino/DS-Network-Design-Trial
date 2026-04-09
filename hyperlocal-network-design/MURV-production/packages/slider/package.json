@@ -1,0 +1,40 @@
+{
+  "name": "@murv/slider",
+  "version": "1.0.0",
+  "main": "dist/murv-slider.cjs.js",
+  "module": "dist/murv-slider.esm.js",
+  "exports": {
+    ".": {
+      "import": "./dist/murv-slider.esm.js",
+      "require": "./dist/murv-slider.cjs.js",
+      "default": "./dist/murv-slider.cjs.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "author": "Mohd Rehan Mohiuddin",
+  "license": "MIT",
+  "peerDependencies": {
+    "react": "^17.0.0",
+    "styled-components": "^5.0.0"
+  },
+  "publishConfig": {
+    "registry": "https://jfrog.fkinternal.com/artifactory/api/npm/npm_virtual/"
+  },
+  "volta": {
+    "extends": "../../package.json"
+  },
+  "dependencies": {
+    "@murv/input": "^1.0.0"
+  },
+  "preconstruct": {
+    "exports": {
+      "extra": {
+        ".": {
+          "import": "./dist/murv-slider.esm.js",
+          "require": "./dist/murv-slider.cjs.js",
+          "default": "./dist/murv-slider.cjs.js"
+        }
+      }
+    }
+  }
+}

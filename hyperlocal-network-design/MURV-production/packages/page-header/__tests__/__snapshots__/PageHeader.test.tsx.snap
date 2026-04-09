@@ -1,0 +1,370 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`PageHeader component testing PageHeader with all props 1`] = `
+<div>
+  <div
+    class="styles__PageHeaderContainer-sc-16nuspy-0 bJIfAB"
+  >
+    <div
+      class="styles__PageHeaderContent-sc-16nuspy-1 hAaiGJ"
+    >
+      <div
+        class="styles__BreadcrumbContainer-sc-mpspjq-0 gPEnAi"
+      >
+        <div
+          class="styles__BreadcrumbElement-sc-mpspjq-1 knMtAI"
+        >
+          <svg
+            class="fk-icon breadcrumb-icon"
+            color=""
+            height="20px"
+            style="fill: currentColor; stroke: currentColor;"
+            viewBox="0 -960 960 960"
+            width="20px"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <title>
+              Home
+            </title>
+            <path
+              d="M220-180h150v-220q0-12.75 8.625-21.375T400-430h160q12.75 0 21.375 8.625T590-400v220h150v-390L480-765 220-570v390Zm-60 0v-390q0-14.25 6.375-27T184-618l260-195q15.68-12 35.84-12Q500-825 516-813l260 195q11.25 8.25 17.625 21T800-570v390q0 24.75-17.625 42.375T740-120H560q-12.75 0-21.375-8.625T530-150v-220H430v220q0 12.75-8.625 21.375T400-120H220q-24.75 0-42.375-17.625T160-180Zm320-293Z"
+            />
+          </svg>
+          <a
+            class="styles__StyledAnchor-sc-h14uw5-1 hFdXrh"
+            data-testid=""
+            href="/"
+            id=""
+          >
+            Home
+            <span
+              class="styles__IconWrapper-sc-h14uw5-2 fjuBNh"
+            />
+          </a>
+        </div>
+        <div
+          class="styles__BreadcrumbElement-sc-mpspjq-1 knMtAI"
+        >
+          <svg
+            class="fk-icon breadcrumb-icon"
+            color=""
+            height="20px"
+            style="fill: currentColor; stroke: currentColor;"
+            viewBox="0 -960 960 960"
+            width="20px"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <title>
+              ChevronRight
+            </title>
+            <path
+              d="M530-481 353-658q-9-9-8.5-21t9.5-21q9-9 21.5-9t21.5 9l198 198q5 5 7 10t2 11q0 6-2 11t-7 10L396-261q-9 9-21 8.5t-21-9.5q-9-9-9-21.5t9-21.5l176-176Z"
+            />
+          </svg>
+          <a
+            class="styles__StyledAnchor-sc-h14uw5-1 hFdXrh"
+            data-testid=""
+            href="/"
+            id=""
+          >
+            Link
+            <span
+              class="styles__IconWrapper-sc-h14uw5-2 fjuBNh"
+            />
+          </a>
+        </div>
+        <div
+          class="styles__BreadcrumbElement-sc-mpspjq-1 knMtAI"
+        >
+          <svg
+            class="fk-icon breadcrumb-icon"
+            color=""
+            height="20px"
+            style="fill: currentColor; stroke: currentColor;"
+            viewBox="0 -960 960 960"
+            width="20px"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <title>
+              ChevronRight
+            </title>
+            <path
+              d="M530-481 353-658q-9-9-8.5-21t9.5-21q9-9 21.5-9t21.5 9l198 198q5 5 7 10t2 11q0 6-2 11t-7 10L396-261q-9 9-21 8.5t-21-9.5q-9-9-9-21.5t9-21.5l176-176Z"
+            />
+          </svg>
+          <span
+            style="font-size: 11px; font-weight: 400; line-height: 16px; letter-spacing: -.15px; color: rgb(102, 102, 102);"
+          >
+            Link
+          </span>
+        </div>
+      </div>
+    </div>
+    <div
+      class="styles__PageHeaderContent-sc-16nuspy-1 hAaiGJ"
+    >
+      <div
+        class="styles__LeftContent-sc-16nuspy-2 gMaXNx"
+      >
+        <button
+          aria-disabled="false"
+          class="styles__StyledButton-sc-5pc2aq-1 ckUGZw secondary temp"
+          type="button"
+        >
+          <span
+            class="styles__BtnChild-sc-5pc2aq-2 cBBqTe temp_child_container"
+          >
+            <svg
+              class="fk-icon"
+              color=""
+              height="20px"
+              style="fill: currentColor; stroke: currentColor;"
+              viewBox="0 -960 960 960"
+              width="20px"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <title>
+                ChevronLeft
+              </title>
+              <path
+                d="m406-481 177 177q9 9 8.5 21t-9.5 21q-9 9-21.5 9t-21.5-9L341-460q-5-5-7-10t-2-11q0-6 2-11t7-10l199-199q9-9 21.5-9t21.5 9q9 9 9 21.5t-9 21.5L406-481Z"
+              />
+            </svg>
+          </span>
+        </button>
+        <h1
+          class="styles__HeaderText-sc-16nuspy-5 lmseCN"
+          tabindex="0"
+        >
+          Page Title
+        </h1>
+        <div
+          class="styles__TagsWrapper-sc-16nuspy-4 fKHDlI"
+        >
+          <div
+            class="styles__TagContainer-sc-1qkmyn8-0 dUpTdI"
+          >
+            <div
+              class="styles__TagText-sc-1qkmyn8-1 gHXyDU"
+            >
+              Label 1
+            </div>
+          </div>
+          <div
+            class="styles__TagContainer-sc-1qkmyn8-0 dUpTdI"
+          >
+            <div
+              class="styles__TagText-sc-1qkmyn8-1 gHXyDU"
+            >
+              Label 2
+            </div>
+          </div>
+          <div
+            class="styles__TagContainer-sc-1qkmyn8-0 dUpTdI"
+          >
+            <div
+              class="styles__TagText-sc-1qkmyn8-1 gHXyDU"
+            >
+              Label 3
+            </div>
+          </div>
+        </div>
+      </div>
+      <div
+        class="styles__RightContent-sc-16nuspy-3 noexD"
+      >
+        <div
+          class="styles__FlexConatiner-sc-m0xo0e-0 styles__StyledContainer-sc-m0xo0e-1 QCbyf fXaKRi"
+        >
+          <button
+            aria-disabled="false"
+            class="styles__StyledButton-sc-5pc2aq-1 iprlNm tertiary "
+            type="button"
+          >
+            <span
+              class="styles__BtnChild-sc-5pc2aq-2 cBBqTe"
+            >
+              Tertiary
+            </span>
+          </button>
+          <button
+            aria-disabled="false"
+            class="styles__StyledButton-sc-5pc2aq-1 ckUGZw secondary "
+            type="button"
+          >
+            <span
+              class="styles__BtnChild-sc-5pc2aq-2 cBBqTe"
+            >
+              Secondary
+            </span>
+          </button>
+          <button
+            aria-disabled="false"
+            class="styles__StyledButton-sc-5pc2aq-1 fEzqKk primary "
+            type="button"
+          >
+            <span
+              class="styles__BtnChild-sc-5pc2aq-2 cBBqTe"
+            >
+              Primary
+            </span>
+          </button>
+          <button
+            aria-disabled="false"
+            class="styles__StyledButton-sc-5pc2aq-1 ckUGZw secondary "
+            type="button"
+          >
+            <span
+              class="styles__BtnChild-sc-5pc2aq-2 cBBqTe"
+            >
+              More
+            </span>
+            <div
+              class="styles__FlexConatiner-sc-5pc2aq-0 styles__SuffixContainer-sc-5pc2aq-5 YjfA"
+              data-testid="dropdown-icon"
+            >
+              <svg
+                class="fk-icon"
+                color="#2a55e5"
+                height="20px"
+                style="fill: currentColor; stroke: currentColor;"
+                viewBox="0 -960 960 960"
+                width="20px"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <title>
+                  ExpandMore
+                </title>
+                <path
+                  d="M480-357q-6 0-11-2t-10-7L261-564q-9-9-9-21t9-21q9-9 21.5-9t21.5 9l176 176 176-176q9-9 21-9t21 9q9 9 9 21.5t-9 21.5L501-366q-5 5-10 7t-11 2Z"
+                />
+              </svg>
+            </div>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+`;
+
+exports[`PageHeader component testing PageHeader with required props 1`] = `
+<div>
+  <div
+    class="styles__PageHeaderContainer-sc-16nuspy-0 bJIfAB"
+  >
+    <div
+      class="styles__PageHeaderContent-sc-16nuspy-1 hAaiGJ"
+    >
+      <div
+        class="styles__BreadcrumbContainer-sc-mpspjq-0 gPEnAi"
+      >
+        <div
+          class="styles__BreadcrumbElement-sc-mpspjq-1 knMtAI"
+        >
+          <svg
+            class="fk-icon breadcrumb-icon"
+            color=""
+            height="20px"
+            style="fill: currentColor; stroke: currentColor;"
+            viewBox="0 -960 960 960"
+            width="20px"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <title>
+              Home
+            </title>
+            <path
+              d="M220-180h150v-220q0-12.75 8.625-21.375T400-430h160q12.75 0 21.375 8.625T590-400v220h150v-390L480-765 220-570v390Zm-60 0v-390q0-14.25 6.375-27T184-618l260-195q15.68-12 35.84-12Q500-825 516-813l260 195q11.25 8.25 17.625 21T800-570v390q0 24.75-17.625 42.375T740-120H560q-12.75 0-21.375-8.625T530-150v-220H430v220q0 12.75-8.625 21.375T400-120H220q-24.75 0-42.375-17.625T160-180Zm320-293Z"
+            />
+          </svg>
+          <a
+            class="styles__StyledAnchor-sc-h14uw5-1 hFdXrh"
+            data-testid=""
+            href="/"
+            id=""
+          >
+            Home
+            <span
+              class="styles__IconWrapper-sc-h14uw5-2 fjuBNh"
+            />
+          </a>
+        </div>
+        <div
+          class="styles__BreadcrumbElement-sc-mpspjq-1 knMtAI"
+        >
+          <svg
+            class="fk-icon breadcrumb-icon"
+            color=""
+            height="20px"
+            style="fill: currentColor; stroke: currentColor;"
+            viewBox="0 -960 960 960"
+            width="20px"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <title>
+              ChevronRight
+            </title>
+            <path
+              d="M530-481 353-658q-9-9-8.5-21t9.5-21q9-9 21.5-9t21.5 9l198 198q5 5 7 10t2 11q0 6-2 11t-7 10L396-261q-9 9-21 8.5t-21-9.5q-9-9-9-21.5t9-21.5l176-176Z"
+            />
+          </svg>
+          <a
+            class="styles__StyledAnchor-sc-h14uw5-1 hFdXrh"
+            data-testid=""
+            href="/"
+            id=""
+          >
+            Link
+            <span
+              class="styles__IconWrapper-sc-h14uw5-2 fjuBNh"
+            />
+          </a>
+        </div>
+        <div
+          class="styles__BreadcrumbElement-sc-mpspjq-1 knMtAI"
+        >
+          <svg
+            class="fk-icon breadcrumb-icon"
+            color=""
+            height="20px"
+            style="fill: currentColor; stroke: currentColor;"
+            viewBox="0 -960 960 960"
+            width="20px"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <title>
+              ChevronRight
+            </title>
+            <path
+              d="M530-481 353-658q-9-9-8.5-21t9.5-21q9-9 21.5-9t21.5 9l198 198q5 5 7 10t2 11q0 6-2 11t-7 10L396-261q-9 9-21 8.5t-21-9.5q-9-9-9-21.5t9-21.5l176-176Z"
+            />
+          </svg>
+          <span
+            style="font-size: 11px; font-weight: 400; line-height: 16px; letter-spacing: -.15px; color: rgb(102, 102, 102);"
+          >
+            Link
+          </span>
+        </div>
+      </div>
+    </div>
+    <div
+      class="styles__PageHeaderContent-sc-16nuspy-1 hAaiGJ"
+    >
+      <div
+        class="styles__LeftContent-sc-16nuspy-2 gMaXNx"
+      >
+        <h1
+          class="styles__HeaderText-sc-16nuspy-5 lmseCN"
+          tabindex="0"
+        >
+          test
+        </h1>
+      </div>
+      <div
+        class="styles__RightContent-sc-16nuspy-3 noexD"
+      />
+    </div>
+  </div>
+</div>
+`;

@@ -1,26 +1,26 @@
 """
 Core API routes.
 
-Every endpoint that the frontend talks to lives here, registered
-on the ``api_bp`` Blueprint.  The old monolithic server.py is now
-split: route-level code here, business logic in app/services/*.
+All state is persisted via ``app.services.storage`` (DB + Parquet files).
+No in-memory job dictionary — every Gunicorn worker and Celery task
+shares the same data through the database and filesystem.
 """
 
-import csv
 import logging
 import os
 import threading
 import uuid
 from collections import defaultdict
-from datetime import datetime
-from io import BytesIO, StringIO
+from datetime import datetime, timezone
+from io import BytesIO
 from typing import Any, Dict, List
 
 import numpy as np
 import pandas as pd
-from flask import Blueprint, current_app, jsonify, request, send_file
+from flask import Blueprint, current_app, jsonify, request, send_file, session
 
-from app.services.osrm import background_distance_calculation, test_osrm_connection
+from app.services import storage
+from app.services.osrm import test_osrm_connection
 from app.services.stats import calculate_stats, calculate_store_stats
 from app.utils.columns import detect_distance_column, get_column_mapping
 from app.utils.validation import allowed_file, safe_float, safe_int, validate_osrm_url
@@ -28,47 +28,6 @@ from app.utils.validation import allowed_file, safe_float, safe_int, validate_os
 logger = logging.getLogger(__name__)
 
 api_bp = Blueprint("api", __name__)
-
-
-# ════════════════════════════════════════════════════════════════════════
-# In-memory job storage (kept for backward compat; DB-backed version
-# is layered on top in models.py for persistence).
-# ════════════════════════════════════════════════════════════════════════
-
-
-class JobState:
-    """Runtime state for a single distance-calculation job."""
-
-    def __init__(self, job_id: str, filename: str, df: pd.DataFrame, mapping: Dict[str, str]):
-        self.job_id = job_id
-        self.filename = filename
-        self.df = df
-        self.mapping = mapping
-        self.created_at = datetime.now()
-        self.status = "idle"
-        self.processed = 0
-        self.total = len(df)
-        self.failed = 0
-        self.start_time = None
-        self.error_message = None
-        self.results: List[Dict] = []
-        self.stats_cache = None
-        self.stores_cache = None
-        self.lock = threading.Lock()
-
-    def to_dict(self):
-        return {
-            "id": self.job_id,
-            "job_id": self.job_id,
-            "filename": self.filename,
-            "rows": self.total,
-            "status": self.status,
-            "created_at": self.created_at.isoformat(),
-        }
-
-
-JOBS: Dict[str, JobState] = {}
-JOBS_LOCK = threading.Lock()
 
 
 # ════════════════════════════════════════════════════════════════════════
@@ -98,11 +57,9 @@ def serve_frontend():
 @api_bp.route("/api/test-osrm", methods=["GET"])
 def api_test_osrm():
     osrm_url = request.args.get("url", current_app.config["OSRM_DEFAULT_URL"]).rstrip("/")
-
     err = validate_osrm_url(osrm_url, current_app.config["OSRM_ALLOWED_HOSTS"])
     if err:
         return jsonify({"ok": False, "error": err}), 400
-
     result = test_osrm_connection(osrm_url)
     return jsonify(result), 200
 
@@ -144,28 +101,19 @@ def upload_file():
         has_distance = dist_col is not None
 
         job_id = str(uuid.uuid4())
-        job = JobState(job_id, filename, df, mapping)
+        job = storage.create_job(job_id, filename, df, mapping, has_distance, user_id=session.get("user_id"))
 
         if has_distance:
-            job.status = "running"
-            job.start_time = datetime.now()
-            logger.info("Job %s: pre-calculated distances in '%s'", job_id, dist_col)
-
-        with JOBS_LOCK:
-            JOBS[job_id] = job
-
-        store_count = df[mapping["store_id"]].nunique() if mapping.get("store_id") else 0
-
-        if has_distance:
-            _process_precalculated_bg(job, df, dist_col, mapping)
+            storage.update_progress(job_id, 0, 0, status="running")
+            _process_precalculated_bg(job_id, df, dist_col, mapping)
 
         return jsonify({
             "job_id": job_id,
             "filename": filename,
             "rows": len(df),
             "row_count": len(df),
-            "stores": store_count,
-            "store_count": store_count,
+            "stores": job.store_count,
+            "store_count": job.store_count,
             "columns": list(df.columns),
             "available_columns": list(df.columns),
             "detected_mapping": mapping,
@@ -183,10 +131,9 @@ def upload_file():
 
 
 @api_bp.route("/api/calculate/<job_id>", methods=["POST"])
-def calculate_distances(job_id):
+def calculate_distances_route(job_id):
     try:
-        with JOBS_LOCK:
-            job = JOBS.get(job_id)
+        job = storage.get_job(job_id)
         if not job:
             return jsonify({"error": "Job not found"}), 404
         if job.status == "running":
@@ -200,18 +147,20 @@ def calculate_distances(job_id):
             return jsonify({"error": err}), 400
 
         if "mapping" in body:
-            job.mapping = body["mapping"]
+            import json
+            job.mapping_json = json.dumps(body["mapping"])
+            from app.extensions import db
+            db.session.commit()
 
         max_workers = current_app.config["OSRM_MAX_WORKERS"]
         chunk_limit = current_app.config["OSRM_CHUNK_LIMIT"]
 
-        thread = threading.Thread(
-            target=background_distance_calculation,
-            args=(job, osrm_url, max_workers, chunk_limit),
-            daemon=True,
-        )
-        thread.start()
-        logger.info("Started calculation for job %s", job_id)
+        if _celery_available():
+            from app.tasks.distance_tasks import calculate_distances_task
+            calculate_distances_task.delay(job_id, osrm_url, max_workers, chunk_limit)
+            logger.info("Job %s dispatched to Celery", job_id)
+        else:
+            _run_osrm_in_thread(job_id, osrm_url, max_workers, chunk_limit)
 
         return jsonify({"status": "started"}), 202
 
@@ -227,72 +176,66 @@ def calculate_distances(job_id):
 
 @api_bp.route("/api/progress/<job_id>", methods=["GET"])
 def get_progress(job_id):
-    with JOBS_LOCK:
-        job = JOBS.get(job_id)
+    job = storage.get_job(job_id)
     if not job:
         return jsonify({"error": "Job not found"}), 404
 
-    with job.lock:
-        ok = max(0, job.processed - job.failed)
-        progress: Dict[str, Any] = {
-            "status": job.status,
-            "processed": job.processed,
-            "total": job.total,
-            "failed": job.failed,
-            "failed_count": job.failed,
-            "ok_count": ok,
-        }
-        if job.error_message:
-            progress["error"] = job.error_message
-        if job.start_time and job.status == "running" and job.processed > 0:
-            elapsed = (datetime.now() - job.start_time).total_seconds()
-            rate = job.processed / elapsed
-            remaining = job.total - job.processed
-            eta = remaining / rate if rate > 0 else None
-            progress["rate"] = rate
-            progress["eta"] = f"{int(eta // 60)}m {int(eta % 60)}s" if eta else "--"
-        elif job.status == "running":
-            progress["rate"] = 0
-            progress["eta"] = "--"
+    ok = max(0, job.processed_rows - job.failed_rows)
+    progress: Dict[str, Any] = {
+        "status": job.status,
+        "processed": job.processed_rows,
+        "total": job.total_rows,
+        "failed": job.failed_rows,
+        "failed_count": job.failed_rows,
+        "ok_count": ok,
+    }
+    if job.error_message:
+        progress["error"] = job.error_message
+    if job.started_at and job.status == "running" and job.processed_rows > 0:
+        now = datetime.now(timezone.utc)
+        started = job.started_at.replace(tzinfo=timezone.utc) if job.started_at.tzinfo is None else job.started_at
+        elapsed = (now - started).total_seconds()
+        rate = job.processed_rows / elapsed if elapsed > 0 else 0
+        remaining = job.total_rows - job.processed_rows
+        eta = remaining / rate if rate > 0 else None
+        progress["rate"] = rate
+        progress["eta"] = f"{int(eta // 60)}m {int(eta % 60)}s" if eta else "--"
+    elif job.status == "running":
+        progress["rate"] = 0
+        progress["eta"] = "--"
 
     return jsonify(progress), 200
 
 
 @api_bp.route("/api/stats/<job_id>", methods=["GET"])
 def get_stats(job_id):
-    with JOBS_LOCK:
-        job = JOBS.get(job_id)
+    job = storage.get_job(job_id)
     if not job:
         return jsonify({"error": "Job not found"}), 404
+    if job.status != "complete":
+        return jsonify({"error": "Job not complete", "status": job.status}), 400
 
-    with job.lock:
-        if job.status != "complete":
-            return jsonify({"error": "Job not complete", "status": job.status}), 400
-        stats = dict(job.stats_cache or {})
-        store_count = len(job.stores_cache) if job.stores_cache else 0
-        stats["store_count"] = store_count
-        stats["total_stores"] = store_count
-        stats["total"] = job.total
-        stats["total_orders"] = job.total
-        stats["failed"] = job.failed
-        stats["failed_count"] = job.failed
-        stats["successful"] = job.total - job.failed
-        stats["successful_count"] = job.total - job.failed
-
+    stats = storage.get_stats(job_id)
+    stats["store_count"] = job.store_count
+    stats["total_stores"] = job.store_count
+    stats["total"] = job.total_rows
+    stats["total_orders"] = job.total_rows
+    stats["failed"] = job.failed_rows
+    stats["failed_count"] = job.failed_rows
+    stats["successful"] = job.total_rows - job.failed_rows
+    stats["successful_count"] = job.total_rows - job.failed_rows
     return jsonify(stats), 200
 
 
 @api_bp.route("/api/stores/<job_id>", methods=["GET"])
 def get_stores(job_id):
-    with JOBS_LOCK:
-        job = JOBS.get(job_id)
+    job = storage.get_job(job_id)
     if not job:
         return jsonify({"error": "Job not found"}), 404
-    with job.lock:
-        if job.status != "complete":
-            return jsonify({"error": "Job not complete", "status": job.status}), 400
-        stores = list(job.stores_cache.values()) if job.stores_cache else []
-    return jsonify(stores), 200
+    if job.status != "complete":
+        return jsonify({"error": "Job not complete", "status": job.status}), 400
+    stores_dict = storage.get_stores(job_id)
+    return jsonify(list(stores_dict.values())), 200
 
 
 # ════════════════════════════════════════════════════════════════════════
@@ -304,40 +247,39 @@ def get_stores(job_id):
 def get_network_analysis(job_id):
     threshold = safe_float(request.args.get("threshold", 3.0), 3.0)
 
-    with JOBS_LOCK:
-        job = JOBS.get(job_id)
+    job = storage.get_job(job_id)
     if not job:
         return jsonify({"error": "Job not found"}), 404
-    with job.lock:
-        if job.status != "complete":
-            return jsonify({"error": "Job not complete"}), 400
-        results = job.results
-        stores = job.stores_cache or {}
+    if job.status != "complete":
+        return jsonify({"error": "Job not complete"}), 400
 
-    all_dists = [
-        r["distance_km"] for r in results
-        if r.get("distance_km") is not None and r["distance_km"] == r["distance_km"]
-    ]
-    total = len(all_dists)
-    within = sum(1 for d in all_dists if d <= threshold)
+    df = storage.load_results_df(job_id)
+    if df is None or df.empty:
+        return jsonify({"error": "No results data"}), 404
+
+    stores = storage.get_stores(job_id)
+    mapping = storage.get_mapping(job_id)
+
+    dists = df["distance_km"].dropna()
+    total = len(dists)
+    within = int((dists <= threshold).sum())
     beyond = total - within
 
-    store_analysis = _build_store_analysis(results, stores, threshold)
-    store_analysis.sort(key=lambda x: x["breach_pct"], reverse=True)
-
-    problem_stores = [s for s in store_analysis if s["breach_pct"] > 0]
-    critical_stores = [s for s in store_analysis if s["breach_pct"] > 20]
-
+    band_mid = int(((dists > threshold) & (dists <= threshold * 2)).sum())
     bands = {
         f"0-{threshold}km": within,
-        f"{threshold}-{threshold * 2}km": sum(1 for d in all_dists if threshold < d <= threshold * 2),
-        f"{threshold * 2}km+": sum(1 for d in all_dists if d > threshold * 2),
+        f"{threshold}-{threshold * 2}km": band_mid,
+        f"{threshold * 2}km+": total - within - band_mid,
     }
 
     coverage_pct = round((within / total) * 100, 1) if total > 0 else 0
     health_score = min(100, round(coverage_pct))
 
-    beyond_orders = _sample_beyond_orders(results, threshold, job.mapping, limit=10000)
+    store_analysis = _build_store_analysis_df(df, stores, threshold)
+    problem_stores_count = sum(1 for s in store_analysis if s["breach_pct"] > 0)
+    critical_stores_count = sum(1 for s in store_analysis if s["breach_pct"] > 20)
+
+    beyond_orders = _sample_beyond_orders_df(df, threshold, mapping, limit=10000)
 
     return jsonify({
         "threshold": threshold,
@@ -348,8 +290,8 @@ def get_network_analysis(job_id):
         "health_score": health_score,
         "bands": bands,
         "store_analysis": store_analysis,
-        "problem_stores_count": len(problem_stores),
-        "critical_stores_count": len(critical_stores),
+        "problem_stores_count": problem_stores_count,
+        "critical_stores_count": critical_stores_count,
         "beyond_orders": beyond_orders,
     }), 200
 
@@ -361,55 +303,53 @@ def get_network_analysis(job_id):
 
 @api_bp.route("/api/chart/daily/<job_id>", methods=["GET"])
 def get_daily_chart(job_id):
-    with JOBS_LOCK:
-        job = JOBS.get(job_id)
+    job = storage.get_job(job_id)
     if not job:
         return jsonify({"error": "Job not found"}), 404
-    with job.lock:
-        if job.status != "complete":
-            return jsonify({"error": "Job not complete"}), 400
-        results = job.results
-        mapping = job.mapping
+    if job.status != "complete":
+        return jsonify({"error": "Job not complete"}), 400
 
-    daily: Dict[str, Dict] = defaultdict(lambda: {"count": 0, "distances": []})
+    df = storage.load_results_df(job_id)
+    if df is None or df.empty:
+        return jsonify({"labels": [], "orders": [], "avg_distances": []}), 200
+
+    mapping = storage.get_mapping(job_id)
+
     date_col = mapping.get("date")
+    if not date_col or date_col not in df.columns:
+        for k in ("Date", "date", "DATE", "order_date", "Order_Date"):
+            if k in df.columns:
+                date_col = k
+                break
 
-    for r in results:
-        dk = None
-        if date_col and r.get(date_col):
-            dk = str(r[date_col])[:10]
-        if not dk:
-            for k in ("Date", "date", "DATE", "order_date", "Order_Date"):
-                if r.get(k):
-                    dk = str(r[k])[:10]
-                    break
-        dk = dk or "unknown"
-        daily[dk]["count"] += 1
-        if r.get("distance_km") is not None:
-            daily[dk]["distances"].append(r["distance_km"])
+    if date_col and date_col in df.columns:
+        df = df.copy()
+        df["_date_key"] = df[date_col].astype(str).str[:10]
+    else:
+        return jsonify({"labels": ["all"], "orders": [len(df)],
+                        "avg_distances": [round(float(df["distance_km"].mean()), 2) if "distance_km" in df.columns else 0]}), 200
 
-    sorted_dates = sorted(daily)
+    grp = df.groupby("_date_key", sort=True)
+    labels = list(grp.groups.keys())
+    orders = grp.size().tolist()
+    avg_distances = grp["distance_km"].mean().fillna(0).round(2).tolist()
+
     return jsonify({
-        "labels": sorted_dates,
-        "orders": [daily[d]["count"] for d in sorted_dates],
-        "avg_distances": [
-            float(np.mean(daily[d]["distances"])) if daily[d]["distances"] else 0
-            for d in sorted_dates
-        ],
+        "labels": labels,
+        "orders": orders,
+        "avg_distances": avg_distances,
     }), 200
 
 
 @api_bp.route("/api/chart/store_avg/<job_id>", methods=["GET"])
 def get_store_avg_chart(job_id):
     limit = safe_int(request.args.get("limit", 30), 30, minimum=1, maximum=200)
-    with JOBS_LOCK:
-        job = JOBS.get(job_id)
+    job = storage.get_job(job_id)
     if not job:
         return jsonify({"error": "Job not found"}), 404
-    with job.lock:
-        if job.status != "complete":
-            return jsonify({"error": "Job not complete"}), 400
-        stores = job.stores_cache or {}
+    if job.status != "complete":
+        return jsonify({"error": "Job not complete"}), 400
+    stores = storage.get_stores(job_id)
 
     top = sorted(stores.values(), key=lambda s: s.get("avg_dist", 0), reverse=True)[:limit]
     return jsonify({
@@ -421,14 +361,12 @@ def get_store_avg_chart(job_id):
 @api_bp.route("/api/chart/store_orders/<job_id>", methods=["GET"])
 def get_store_orders_chart(job_id):
     limit = safe_int(request.args.get("limit", 30), 30, minimum=1, maximum=200)
-    with JOBS_LOCK:
-        job = JOBS.get(job_id)
+    job = storage.get_job(job_id)
     if not job:
         return jsonify({"error": "Job not found"}), 404
-    with job.lock:
-        if job.status != "complete":
-            return jsonify({"error": "Job not complete"}), 400
-        stores = job.stores_cache or {}
+    if job.status != "complete":
+        return jsonify({"error": "Job not complete"}), 400
+    stores = storage.get_stores(job_id)
 
     top = sorted(stores.values(), key=lambda s: s.get("orders", 0), reverse=True)[:limit]
     return jsonify({
@@ -446,24 +384,28 @@ def get_store_orders_chart(job_id):
 def get_map_data(job_id):
     sample_size = safe_int(request.args.get("sample", 0), 0, minimum=0, maximum=500000)
     store_filter = request.args.get("store")
+    threshold = safe_float(request.args.get("threshold", 3.0), 3.0)
+    aggregate_limit = 200_000
 
-    with JOBS_LOCK:
-        job = JOBS.get(job_id)
+    job = storage.get_job(job_id)
     if not job:
         return jsonify({"error": "Job not found"}), 404
-    with job.lock:
-        if job.status != "complete":
-            return jsonify({"error": "Job not complete"}), 400
-        results = job.results
-        stores = job.stores_cache or {}
+    if job.status != "complete":
+        return jsonify({"error": "Job not complete"}), 400
+
+    df = storage.load_results_df(job_id)
+    if df is None or df.empty:
+        return jsonify({"stores": [], "orders": [], "total_orders": 0}), 200
+
+    stores = storage.get_stores(job_id)
+    mapping = storage.get_mapping(job_id)
 
     if store_filter:
-        results = [r for r in results if str(r.get("store_id")) == store_filter]
+        df = df[df["store_id"].astype(str) == store_filter]
 
-    if sample_size > 0 and len(results) > sample_size:
-        results = np.random.choice(results, sample_size, replace=False).tolist()
+    if sample_size > 0 and len(df) > sample_size:
+        df = df.sample(n=sample_size, random_state=42)
 
-    mapping = job.mapping
     map_stores = [
         {
             "id": str(s["id"]), "store_id": str(s["id"]),
@@ -475,26 +417,80 @@ def get_map_data(job_id):
         if s.get("lat") is not None and s.get("lon") is not None
     ]
 
-    map_orders = []
-    for r in results:
-        try:
-            d = safe_float(r.get("distance_km"), 0)
-            map_orders.append({
-                "slat": safe_float(r.get(mapping.get("store_lat", ""))),
-                "slon": safe_float(r.get(mapping.get("store_lon", ""))),
-                "order_lat": safe_float(r.get(mapping.get("order_lat", ""))),
-                "order_lon": safe_float(r.get(mapping.get("order_lon", ""))),
-                "olat": safe_float(r.get(mapping.get("order_lat", ""))),
-                "olon": safe_float(r.get(mapping.get("order_lon", ""))),
-                "road_distance": round(d, 2), "dist": round(d, 2),
-                "store_id": str(r.get("store_id", r.get(mapping.get("store_id", ""), ""))),
-                "store": str(r.get("store_id", r.get(mapping.get("store_id", ""), ""))),
-                "order_id": str(r.get("order_id", r.get(mapping.get("order_id", ""), ""))),
-            })
-        except (ValueError, TypeError):
-            continue
+    slat_col = mapping.get("store_lat", "")
+    slon_col = mapping.get("store_lon", "")
+    olat_col = mapping.get("order_lat", "")
+    olon_col = mapping.get("order_lon", "")
 
-    return jsonify({"stores": map_stores, "orders": map_orders, "total_orders": len(job.results)}), 200
+    out = pd.DataFrame()
+    out["slat"] = pd.to_numeric(df.get(slat_col, pd.Series(dtype=float)), errors="coerce")
+    out["slon"] = pd.to_numeric(df.get(slon_col, pd.Series(dtype=float)), errors="coerce")
+    out["olat"] = pd.to_numeric(df.get(olat_col, pd.Series(dtype=float)), errors="coerce")
+    out["olon"] = pd.to_numeric(df.get(olon_col, pd.Series(dtype=float)), errors="coerce")
+    out["dist"] = df["distance_km"].fillna(0).round(2)
+    out["store_id"] = df["store_id"].astype(str) if "store_id" in df.columns else ""
+    out["order_id"] = df["order_id"].astype(str) if "order_id" in df.columns else ""
+    out = out.dropna(subset=["olat", "olon"])
+
+    total_in_view = int(len(out))
+    within_total = int((out["dist"] <= threshold).sum())
+    beyond_total = total_in_view - within_total
+
+    if sample_size == 0 and total_in_view > aggregate_limit:
+        precision = 2 if total_in_view > 1_000_000 else 3
+        bucketed = out.copy()
+        bucketed["lat_bucket"] = bucketed["olat"].round(precision)
+        bucketed["lon_bucket"] = bucketed["olon"].round(precision)
+        bucketed["within"] = (bucketed["dist"] <= threshold).astype(int)
+        bucketed["beyond"] = (bucketed["dist"] > threshold).astype(int)
+
+        grouped = bucketed.groupby(["lat_bucket", "lon_bucket"], sort=False).agg(
+            total_count=("dist", "size"),
+            within_count=("within", "sum"),
+            beyond_count=("beyond", "sum"),
+            avg_distance=("dist", "mean"),
+            max_distance=("dist", "max"),
+        ).reset_index()
+
+        grouped["avg_distance"] = grouped["avg_distance"].round(2)
+        grouped["max_distance"] = grouped["max_distance"].round(2)
+
+        return jsonify({
+            "stores": map_stores,
+            "orders": [],
+            "buckets": grouped.rename(columns={
+                "lat_bucket": "lat",
+                "lon_bucket": "lon",
+            }).to_dict("records"),
+            "render_mode": "aggregated",
+            "total_orders": job.total_rows,
+            "total_in_view": total_in_view,
+            "within_total": within_total,
+            "beyond_total": beyond_total,
+            "bucket_precision": precision,
+        }), 200
+
+    if sample_size > 0 and total_in_view > sample_size:
+        out = out.sample(n=sample_size, random_state=42)
+
+    map_orders = out.rename(columns={
+        "olat": "order_lat", "olon": "order_lon",
+        "dist": "road_distance",
+    }).to_dict("records")
+    for o in map_orders:
+        o["store"] = o["store_id"]
+        o["dist"] = o["road_distance"]
+
+    return jsonify({
+        "stores": map_stores,
+        "orders": map_orders,
+        "buckets": [],
+        "render_mode": "raw",
+        "total_orders": job.total_rows,
+        "total_in_view": total_in_view,
+        "within_total": within_total,
+        "beyond_total": beyond_total,
+    }), 200
 
 
 @api_bp.route("/api/table/<job_id>", methods=["GET"])
@@ -508,67 +504,71 @@ def get_table_data(job_id):
     sort_field = request.args.get("sort", "distance")
     order = request.args.get("order", "desc")
 
-    with JOBS_LOCK:
-        job = JOBS.get(job_id)
+    job = storage.get_job(job_id)
     if not job:
         return jsonify({"error": "Job not found"}), 404
-    with job.lock:
-        if job.status != "complete":
-            return jsonify({"error": "Job not complete"}), 400
-        results = list(job.results)
+    if job.status != "complete":
+        return jsonify({"error": "Job not complete"}), 400
+
+    df = storage.load_results_df(job_id)
+    if df is None or df.empty:
+        return jsonify({"data": [], "rows": [], "total": 0, "page": 1, "per_page": per_page, "pages": 0, "stores": []}), 200
+
+    mapping = storage.get_mapping(job_id)
 
     if store_filter:
-        results = [r for r in results if str(r.get("store_id")) == store_filter]
+        df = df[df["store_id"].astype(str) == store_filter]
     if min_dist is not None:
         mn = safe_float(min_dist)
-        results = [r for r in results if r.get("distance_km", float("inf")) >= mn]
+        df = df[df["distance_km"].fillna(float("inf")) >= mn]
     if max_dist is not None:
         mx = safe_float(max_dist)
-        results = [r for r in results if r.get("distance_km", 0) <= mx]
+        df = df[df["distance_km"].fillna(0) <= mx]
     if search:
         s = search.lower()
-        results = [
-            r for r in results
-            if s in str(r.get("order_id", "")).lower() or s in str(r.get("store_id", "")).lower()
-        ]
+        mask = (
+            df["order_id"].astype(str).str.lower().str.contains(s, na=False)
+            | df["store_id"].astype(str).str.lower().str.contains(s, na=False)
+        )
+        df = df[mask]
 
-    rev = order.lower() == "desc"
-    sort_keys = {
-        "distance": lambda x: x.get("distance_km", 0) or 0,
-        "road_distance": lambda x: x.get("distance_km", 0) or 0,
-        "store": lambda x: str(x.get("store_id", "")),
-        "store_id": lambda x: str(x.get("store_id", "")),
-        "order_id": lambda x: str(x.get("order_id", "")),
-        "store_lat": lambda x: float(x.get(mapping.get("store_lat", ""), 0) or 0),
-        "store_lon": lambda x: float(x.get(mapping.get("store_lon", ""), 0) or 0),
-        "order_lat": lambda x: float(x.get(mapping.get("order_lat", ""), 0) or 0),
-        "order_lon": lambda x: float(x.get(mapping.get("order_lon", ""), 0) or 0),
+    sort_col_map = {
+        "distance": "distance_km", "road_distance": "distance_km",
+        "store": "store_id", "store_id": "store_id", "order_id": "order_id",
+        "store_lat": mapping.get("store_lat", ""), "store_lon": mapping.get("store_lon", ""),
+        "order_lat": mapping.get("order_lat", ""), "order_lon": mapping.get("order_lon", ""),
     }
-    key_fn = sort_keys.get(sort_field)
-    if key_fn:
-        results.sort(key=key_fn, reverse=rev)
+    col = sort_col_map.get(sort_field, "distance_km")
+    if col and col in df.columns:
+        ascending = order.lower() != "desc"
+        df = df.sort_values(col, ascending=ascending, na_position="last")
 
-    total = len(results)
+    total = len(df)
     pages = (total + per_page - 1) // per_page
     start = (page - 1) * per_page
-    page_data = results[start : start + per_page]
+    page_df = df.iloc[start : start + per_page]
 
-    mapping = job.mapping
+    slat_col = mapping.get("store_lat", "")
+    slon_col = mapping.get("store_lon", "")
+    olat_col = mapping.get("order_lat", "")
+    olon_col = mapping.get("order_lon", "")
+
     cleaned = []
-    for r in page_data:
+    for _, r in page_df.iterrows():
         d = r.get("distance_km")
+        d_val = round(float(d), 3) if pd.notna(d) else None
         cleaned.append({
-            "order_id": str(r.get("order_id", r.get(mapping.get("order_id", ""), ""))),
-            "store_id": str(r.get("store_id", r.get(mapping.get("store_id", ""), ""))),
-            "store_lat": r.get(mapping.get("store_lat", ""), ""),
-            "store_lon": r.get(mapping.get("store_lon", ""), ""),
-            "order_lat": r.get(mapping.get("order_lat", ""), ""),
-            "order_lon": r.get(mapping.get("order_lon", ""), ""),
-            "distance_km": round(d, 3) if d else None,
-            "road_distance": round(d, 3) if d else None,
+            "order_id": str(r.get("order_id", "")),
+            "store_id": str(r.get("store_id", "")),
+            "store_lat": r.get(slat_col, "") if slat_col else "",
+            "store_lon": r.get(slon_col, "") if slon_col else "",
+            "order_lat": r.get(olat_col, "") if olat_col else "",
+            "order_lon": r.get(olon_col, "") if olon_col else "",
+            "distance_km": d_val,
+            "road_distance": d_val,
         })
 
-    all_stores = sorted({str(r.get("store_id", "")) for r in job.results if r.get("store_id")})
+    all_stores = storage.get_unique_store_ids(job_id)
 
     return jsonify({
         "data": cleaned, "rows": cleaned,
@@ -581,31 +581,23 @@ def get_table_data(job_id):
 def download_data(job_id):
     store_filter = request.args.get("store")
 
-    with JOBS_LOCK:
-        job = JOBS.get(job_id)
+    job = storage.get_job(job_id)
     if not job:
         return jsonify({"error": "Job not found"}), 404
-    with job.lock:
-        if job.status != "complete":
-            return jsonify({"error": "Job not complete"}), 400
-        results = list(job.results)
+    if job.status != "complete":
+        return jsonify({"error": "Job not complete"}), 400
+
+    df = storage.load_results_df(job_id)
+    if df is None or df.empty:
+        return jsonify({"error": "No results data"}), 404
 
     if store_filter:
-        results = [r for r in results if str(r.get("store_id")) == store_filter]
+        df = df[df["store_id"].astype(str) == store_filter]
 
-    output = StringIO()
-    if results:
-        writer = csv.DictWriter(output, fieldnames=results[0].keys())
-        writer.writeheader()
-        for row in results:
-            try:
-                writer.writerow({k: v for k, v in row.items() if not isinstance(v, (dict, list))})
-            except (TypeError, ValueError):
-                pass
-
+    output = BytesIO()
+    df.to_csv(output, index=False)
     output.seek(0)
-    binary = BytesIO(output.getvalue().encode("utf-8"))
-    return send_file(binary, mimetype="text/csv", as_attachment=True, download_name=f"hyperlocal_{job_id}.csv")
+    return send_file(output, mimetype="text/csv", as_attachment=True, download_name=f"hyperlocal_{job_id}.csv")
 
 
 # ════════════════════════════════════════════════════════════════════════
@@ -615,24 +607,20 @@ def download_data(job_id):
 
 @api_bp.route("/api/jobs", methods=["GET"])
 def list_jobs():
-    with JOBS_LOCK:
-        return jsonify([j.to_dict() for j in JOBS.values()]), 200
+    jobs = storage.list_jobs(user_id=session.get("user_id"))
+    return jsonify([j.to_dict() for j in jobs]), 200
 
 
 @api_bp.route("/api/jobs/<job_id>", methods=["DELETE"])
 def delete_job(job_id):
-    with JOBS_LOCK:
-        if job_id in JOBS:
-            del JOBS[job_id]
-            logger.info("Job %s deleted", job_id)
-            return jsonify({"status": "deleted"}), 200
+    if storage.delete_job(job_id):
+        return jsonify({"status": "deleted"}), 200
     return jsonify({"error": "Job not found"}), 404
 
 
 @api_bp.route("/api/upload-precalculated/<job_id>", methods=["POST"])
 def upload_precalculated(job_id):
-    with JOBS_LOCK:
-        job = JOBS.get(job_id)
+    job = storage.get_job(job_id)
     if not job:
         return jsonify({"error": "Job not found"}), 404
 
@@ -644,21 +632,18 @@ def upload_precalculated(job_id):
         if not allowed_file(filename):
             return jsonify({"error": "File must be CSV or XLSX"}), 400
 
-        df = pd.read_csv(file) if filename.endswith(".csv") else pd.read_excel(file)
-        if "Road_Distance_km" not in df.columns:
+        df_upload = pd.read_csv(file) if filename.endswith(".csv") else pd.read_excel(file)
+        if "Road_Distance_km" not in df_upload.columns:
             return jsonify({"error": "File must contain Road_Distance_km column"}), 400
 
         results = [
             {"order_id": row.get("Order_ID", idx), "store_id": row.get("Store_ID", ""), "distance_km": row.get("Road_Distance_km", 0)}
-            for idx, row in df.iterrows()
+            for idx, row in df_upload.iterrows()
         ]
 
-        with job.lock:
-            job.results = results
-            job.processed = len(results)
-            job.status = "complete"
-            job.stats_cache = calculate_stats(results)
-            job.stores_cache = calculate_store_stats(results, job.df, job.mapping)
+        orig_df = storage.load_upload(job_id) or df_upload
+        mapping = storage.get_mapping(job_id)
+        storage.complete_job(job_id, results, orig_df, mapping, 0)
 
         return jsonify({"status": "loaded", "rows": len(results)}), 200
 
@@ -672,99 +657,166 @@ def upload_precalculated(job_id):
 # ════════════════════════════════════════════════════════════════════════
 
 
-def _process_precalculated_bg(job: JobState, df: pd.DataFrame, dist_col: str, mapping: dict):
-    """Process pre-calculated distance data in a background thread."""
+def _celery_available() -> bool:
+    """Check if Redis is reachable for Celery dispatch."""
+    try:
+        import redis
+        url = current_app.config.get("REDIS_URL", "redis://localhost:6379/0")
+        r = redis.from_url(url, socket_connect_timeout=1)
+        r.ping()
+        return True
+    except Exception:
+        return False
+
+
+def _run_osrm_in_thread(job_id: str, osrm_url: str, max_workers: int, chunk_limit: int):
+    """Fallback: run OSRM calculation in a daemon thread (local dev)."""
+    from flask import current_app
+    app = current_app._get_current_object()
 
     def _work():
-        try:
-            store_col = mapping.get("store_id", "")
-            order_col = mapping.get("order_id", "")
-            dist_values = pd.to_numeric(df[dist_col], errors="coerce")
-            failed_count = int((~dist_values.notna()).sum())
+        with app.app_context():
+            try:
+                from app.services.osrm import calculate_distances
+                df = storage.load_upload(job_id)
+                mapping = storage.get_mapping(job_id)
+                if df is None:
+                    storage.fail_job(job_id, "Upload data not found")
+                    return
 
-            chunk_size = 200_000
-            all_results: List[dict] = []
+                storage.update_progress(job_id, 0, 0, status="running")
 
-            for start in range(0, len(df), chunk_size):
-                end = min(start + chunk_size, len(df))
-                chunk = df.iloc[start:end].to_dict("records")
-                dists = dist_values.iloc[start:end].tolist()
+                def _on_progress(processed, failed):
+                    storage.update_progress(job_id, processed, failed)
 
-                for i, r in enumerate(chunk):
-                    d = dists[i]
-                    r["distance_km"] = float(d) if pd.notna(d) else None
-                    if store_col and store_col in r:
-                        r["store_id"] = str(r[store_col])
-                    if order_col and order_col in r:
-                        r["order_id"] = str(r[order_col])
+                def _on_checkpoint(partial_results, processed):
+                    storage.save_checkpoint(job_id, partial_results, processed)
 
-                all_results.extend(chunk)
-                with job.lock:
-                    job.processed = end
-                logger.info("Job %s: processed %d/%d rows", job.job_id, end, len(df))
+                results, failed = calculate_distances(
+                    df, mapping, osrm_url,
+                    on_progress=_on_progress,
+                    on_checkpoint=_on_checkpoint,
+                    max_workers=max_workers,
+                    chunk_limit=chunk_limit,
+                )
+                storage.complete_job(job_id, results, df, mapping, failed)
+                storage.clear_checkpoint(job_id)
 
-            with job.lock:
-                job.results = all_results
-                job.total = len(all_results)
-                job.processed = len(all_results)
-                job.failed = failed_count
-                job.stats_cache = calculate_stats(all_results)
-                job.stores_cache = calculate_store_stats(all_results, df, mapping)
-                job.status = "complete"
-            logger.info("Job %s: pre-calculated done (%d rows)", job.job_id, len(all_results))
+            except Exception as exc:
+                storage.fail_job(job_id, str(exc))
 
-        except Exception as exc:
-            logger.error("Job %s pre-calculated error: %s", job.job_id, exc)
-            with job.lock:
-                job.status = "error"
-                job.error_message = str(exc)
-
-    threading.Thread(target=_work, daemon=True).start()
+    if app.config.get("TESTING"):
+        _work()
+    else:
+        threading.Thread(target=_work, daemon=True).start()
+    logger.info("Job %s started in thread (no Redis)", job_id)
 
 
-def _build_store_analysis(results, stores, threshold):
+def _process_precalculated_bg(job_id: str, df: pd.DataFrame, dist_col: str, mapping: dict):
+    """Process pre-calculated distance data in a background thread."""
+    from flask import current_app
+    app = current_app._get_current_object()
+
+    def _work():
+        with app.app_context():
+            try:
+                store_col = mapping.get("store_id", "")
+                order_col = mapping.get("order_id", "")
+                dist_values = pd.to_numeric(df[dist_col], errors="coerce")
+                failed_count = int((~dist_values.notna()).sum())
+
+                chunk_size = 200_000
+                all_results: List[dict] = []
+
+                for start in range(0, len(df), chunk_size):
+                    end = min(start + chunk_size, len(df))
+                    chunk = df.iloc[start:end].to_dict("records")
+                    dists = dist_values.iloc[start:end].tolist()
+
+                    for i, r in enumerate(chunk):
+                        d = dists[i]
+                        r["distance_km"] = float(d) if pd.notna(d) else None
+                        if store_col and store_col in r:
+                            r["store_id"] = str(r[store_col])
+                        if order_col and order_col in r:
+                            r["order_id"] = str(r[order_col])
+
+                    all_results.extend(chunk)
+                    storage.update_progress(job_id, end, failed_count, status="running")
+                    logger.info("Job %s: processed %d/%d rows", job_id, end, len(df))
+
+                storage.complete_job(job_id, all_results, df, mapping, failed_count)
+                logger.info("Job %s: pre-calculated done (%d rows)", job_id, len(all_results))
+
+            except Exception as exc:
+                logger.error("Job %s pre-calculated error: %s", job_id, exc)
+                storage.fail_job(job_id, str(exc))
+
+    if app.config.get("TESTING"):
+        _work()
+    else:
+        threading.Thread(target=_work, daemon=True).start()
+
+
+def _build_store_analysis_df(df: pd.DataFrame, stores: Dict, threshold: float) -> List[Dict]:
+    if "store_id" not in df.columns or "distance_km" not in df.columns:
+        return []
+
+    valid = df[df["distance_km"].notna()].copy()
+    if valid.empty:
+        return []
+
+    valid["_sid"] = valid["store_id"].astype(str)
+    grp = valid.groupby("_sid")["distance_km"]
+
+    agg = grp.agg(["count", "mean", "max"])
+    agg.columns = ["total_orders", "avg_distance", "max_distance"]
+    agg["within"] = grp.apply(lambda x: (x <= threshold).sum())
+    agg["beyond"] = agg["total_orders"] - agg["within"]
+    agg["breach_pct"] = ((agg["beyond"] / agg["total_orders"]) * 100).round(1)
+    agg["avg_distance"] = agg["avg_distance"].round(2)
+    agg["max_distance"] = agg["max_distance"].round(2)
+    agg["p90_distance"] = grp.quantile(0.9).round(2)
+
     analysis = []
-    for sid, s in stores.items():
-        dists = [
-            r["distance_km"] for r in results
-            if str(r.get("store_id", "")) == sid
-            and r.get("distance_km") is not None
-            and r["distance_km"] == r["distance_km"]
-        ]
-        if not dists:
-            continue
-        w = sum(1 for d in dists if d <= threshold)
-        b = len(dists) - w
+    for sid, row in agg.iterrows():
+        s = stores.get(str(sid), {})
         analysis.append({
-            "store_id": sid,
-            "total_orders": len(dists),
-            "within_threshold": w,
-            "beyond_threshold": b,
-            "breach_pct": round((b / len(dists)) * 100, 1),
-            "avg_distance": round(float(np.mean(dists)), 2),
-            "max_distance": round(float(max(dists)), 2),
-            "p90_distance": round(float(np.percentile(dists, 90)), 2) if len(dists) >= 2 else round(float(max(dists)), 2),
+            "store_id": str(sid),
+            "total_orders": int(row["total_orders"]),
+            "within_threshold": int(row["within"]),
+            "beyond_threshold": int(row["beyond"]),
+            "breach_pct": float(row["breach_pct"]),
+            "avg_distance": float(row["avg_distance"]),
+            "max_distance": float(row["max_distance"]),
+            "p90_distance": float(row["p90_distance"]),
             "lat": s.get("lat"),
             "lon": s.get("lon"),
         })
+
+    analysis.sort(key=lambda x: x["breach_pct"], reverse=True)
     return analysis
 
 
-def _sample_beyond_orders(results, threshold, mapping, limit=10000):
-    beyond = []
-    for r in results:
-        d = r.get("distance_km")
-        if d is not None and d > threshold:
-            olat = r.get(mapping.get("order_lat", ""))
-            olon = r.get(mapping.get("order_lon", ""))
-            try:
-                beyond.append({
-                    "lat": float(olat), "lon": float(olon),
-                    "distance": round(d, 2),
-                    "store_id": str(r.get("store_id", "")),
-                })
-                if len(beyond) >= limit:
-                    break
-            except (TypeError, ValueError):
-                continue
-    return beyond
+def _sample_beyond_orders_df(df: pd.DataFrame, threshold: float, mapping: Dict, limit: int = 10000) -> List[Dict]:
+    if "distance_km" not in df.columns:
+        return []
+
+    beyond_df = df[df["distance_km"].notna() & (df["distance_km"] > threshold)]
+    if beyond_df.empty:
+        return []
+
+    if len(beyond_df) > limit:
+        beyond_df = beyond_df.head(limit)
+
+    olat_col = mapping.get("order_lat", "")
+    olon_col = mapping.get("order_lon", "")
+
+    result = pd.DataFrame()
+    result["lat"] = pd.to_numeric(beyond_df.get(olat_col, pd.Series(dtype=float)), errors="coerce")
+    result["lon"] = pd.to_numeric(beyond_df.get(olon_col, pd.Series(dtype=float)), errors="coerce")
+    result["distance"] = beyond_df["distance_km"].round(2)
+    result["store_id"] = beyond_df["store_id"].astype(str) if "store_id" in beyond_df.columns else ""
+
+    result = result.dropna(subset=["lat", "lon"])
+    return result.to_dict("records")

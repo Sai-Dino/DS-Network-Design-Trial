@@ -1,0 +1,40 @@
+{
+  "name": "@murv/button-group",
+  "version": "1.0.0",
+  "main": "dist/murv-button-group.cjs.js",
+  "module": "dist/murv-button-group.esm.js",
+  "exports": {
+    ".": {
+      "import": "./dist/murv-button-group.esm.js",
+      "require": "./dist/murv-button-group.cjs.js",
+      "default": "./dist/murv-button-group.cjs.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "author": "Murugan Athmagnanam",
+  "license": "MIT",
+  "peerDependencies": {
+    "react": "^17.0.0",
+    "styled-components": "^5.0.0"
+  },
+  "publishConfig": {
+    "registry": "https://jfrog.fkinternal.com/artifactory/api/npm/npm_virtual/"
+  },
+  "volta": {
+    "extends": "../../package.json"
+  },
+  "dependencies": {
+    "@murv/button": "^1.0.0"
+  },
+  "preconstruct": {
+    "exports": {
+      "extra": {
+        ".": {
+          "import": "./dist/murv-button-group.esm.js",
+          "require": "./dist/murv-button-group.cjs.js",
+          "default": "./dist/murv-button-group.cjs.js"
+        }
+      }
+    }
+  }
+}

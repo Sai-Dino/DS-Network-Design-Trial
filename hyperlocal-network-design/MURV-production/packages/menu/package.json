@@ -1,0 +1,43 @@
+{
+  "name": "@murv/menu",
+  "version": "1.8.2",
+  "main": "dist/murv-menu.cjs.js",
+  "module": "dist/murv-menu.esm.js",
+  "exports": {
+    ".": {
+      "import": "./dist/murv-menu.esm.js",
+      "require": "./dist/murv-menu.cjs.js",
+      "default": "./dist/murv-menu.cjs.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "author": "vivek.sharma7",
+  "license": "MIT",
+  "peerDependencies": {
+    "react": "^17.0.0",
+    "styled-components": "^5.0.0"
+  },
+  "publishConfig": {
+    "registry": "https://jfrog.fkinternal.com/artifactory/api/npm/npm_virtual/"
+  },
+  "volta": {
+    "extends": "../../package.json"
+  },
+  "dependencies": {
+    "@murv/core": "^1.0.0",
+    "@murv/icons": "^0.0.68",
+    "@murv/provider": "^1.4.1",
+    "@murv/visibility-toggle": "^1.1.0"
+  },
+  "preconstruct": {
+    "exports": {
+      "extra": {
+        ".": {
+          "import": "./dist/murv-menu.esm.js",
+          "require": "./dist/murv-menu.cjs.js",
+          "default": "./dist/murv-menu.cjs.js"
+        }
+      }
+    }
+  }
+}

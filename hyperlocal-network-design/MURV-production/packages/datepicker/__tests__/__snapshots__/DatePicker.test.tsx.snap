@@ -1,0 +1,1649 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`Date Range Picker Date Range options Snapshot 1`] = `
+<div
+  class="styles__FlexDiv-sc-oey23u-0 styles__DatePickerContainer-sc-oey23u-11 egsvjT iWeRZR"
+  data-testid="date-range-picker-with-range-options"
+  type="RANGE"
+>
+  <table
+    aria-label="Calender for DAY"
+    aria-modal="true"
+    aria-roledescription="Dialog Showing List of Available Dates"
+    class="styles__Table-sc-oey23u-2 styles__MonthGridContainer-sc-oey23u-3 dXajfD"
+    role="dialog"
+  >
+    <div
+      class="styles__RangeBarContainer-sc-oey23u-13 gaKpSk"
+    >
+      <fieldset
+        aria-orientation="horizontal"
+        class="styles__SegmentedControlWrapper-sc-b0rj5j-0 YJOnf"
+        data-testid="date-range-option-selector"
+        id="date-range-option-selector"
+      >
+        <legend
+          class="styles__StyledLegend-sc-b0rj5j-1 kSnzbj"
+        >
+          Please select the applicable option
+        </legend>
+        <label
+          aria-disabled="false"
+          class="styles__SegmentedControlOptionWrapper-sc-b0rj5j-2 mZea-D"
+        >
+          Custom
+          <input
+            checked=""
+            class="styles__OptionsInput-sc-b0rj5j-3 csQYzb"
+            id="Custom"
+            name="Custom"
+            type="radio"
+            value="Custom"
+          />
+        </label>
+        <label
+          aria-disabled="false"
+          class="styles__SegmentedControlOptionWrapper-sc-b0rj5j-2 bXmLAU"
+        >
+          last 3 days
+          <input
+            class="styles__OptionsInput-sc-b0rj5j-3 csQYzb"
+            id="last 3 days"
+            name="last 3 days"
+            type="radio"
+            value="last 3 days"
+          />
+        </label>
+        <label
+          aria-disabled="false"
+          class="styles__SegmentedControlOptionWrapper-sc-b0rj5j-2 bXmLAU"
+        >
+          last 7 days
+          <input
+            class="styles__OptionsInput-sc-b0rj5j-3 csQYzb"
+            id="last 7 days"
+            name="last 7 days"
+            type="radio"
+            value="last 7 days"
+          />
+        </label>
+        <label
+          aria-disabled="false"
+          class="styles__SegmentedControlOptionWrapper-sc-b0rj5j-2 bXmLAU"
+        >
+          <div
+            class="styles__SingleSelectContainer-sc-zkytp-0 bHfnSA"
+          >
+            <button
+              aria-controls="content-single-select"
+              aria-expanded="false"
+              aria-selected="false"
+              class="styles__DropdownButton-sc-lf8o9y-0 WCTCq"
+              data-testid="trigger-single-select"
+              id="trigger-single-select"
+              role="combobox"
+              tabindex="0"
+            >
+              <div
+                class="styles__ButtonText-sc-lf8o9y-1 lUolD"
+              >
+                More
+              </div>
+              <svg
+                class="fk-icon"
+                color=""
+                height="20px"
+                style="fill: currentColor; stroke: currentColor;"
+                viewBox="0 -960 960 960"
+                width="20px"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <title>
+                  ExpandMore
+                </title>
+                <path
+                  d="M480-357q-6 0-11-2t-10-7L261-564q-9-9-9-21t9-21q9-9 21.5-9t21.5 9l176 176 176-176q9-9 21-9t21 9q9 9 9 21.5t-9 21.5L501-366q-5 5-10 7t-11 2Z"
+                />
+              </svg>
+            </button>
+          </div>
+        </label>
+      </fieldset>
+    </div>
+    <tbody
+      class="styles__TableBody-sc-oey23u-10 kGJnUq"
+    >
+      <tr
+        class="styles__TableRow-sc-oey23u-7 fyGNrt"
+      >
+        <td
+          class="styles__TableData-sc-oey23u-8 kvEiDk"
+          colspan="2"
+        >
+          <table
+            aria-labelledby="Calender Grid No 0"
+            class="styles__Table-sc-oey23u-2 styles__SubGridContainer-sc-oey23u-4 dXajfD"
+            role="grid"
+          >
+            <thead
+              class="styles__TableHead-sc-oey23u-5 ivbAAe"
+            >
+              <tr
+                class="styles__TableRow-sc-oey23u-7 fyGNrt"
+              >
+                <label
+                  class="styles__TextLabel-sc-1byulzo-3 duwvGS"
+                >
+                  Mar 2026
+                </label>
+              </tr>
+              <tr
+                class="styles__TableRow-sc-oey23u-7 etYEOX"
+              >
+                <th
+                  class="styles__TableHeadData-sc-oey23u-6 cJQYWR"
+                  id="M"
+                >
+                  M
+                </th>
+                <th
+                  class="styles__TableHeadData-sc-oey23u-6 cJQYWR"
+                  id="T"
+                >
+                  T
+                </th>
+                <th
+                  class="styles__TableHeadData-sc-oey23u-6 cJQYWR"
+                  id="W"
+                >
+                  W
+                </th>
+                <th
+                  class="styles__TableHeadData-sc-oey23u-6 cJQYWR"
+                  id="T"
+                >
+                  T
+                </th>
+                <th
+                  class="styles__TableHeadData-sc-oey23u-6 cJQYWR"
+                  id="F"
+                >
+                  F
+                </th>
+                <th
+                  class="styles__TableHeadData-sc-oey23u-6 cxyeEv"
+                  id="S"
+                >
+                  S
+                </th>
+                <th
+                  class="styles__TableHeadData-sc-oey23u-6 cxyeEv"
+                  id="S"
+                >
+                  S
+                </th>
+              </tr>
+            </thead>
+            <tbody
+              class="styles__TableBody-sc-oey23u-10 kGJnUq"
+            >
+              <tr
+                class="styles__TableRow-sc-oey23u-7 etYEOX"
+              >
+                <td
+                  class="styles__TableData-sc-oey23u-8 fopaAW"
+                  data-date-index="0"
+                  data-date-value="Mon Feb 23 2026"
+                  data-key="key-0-23"
+                  disabled=""
+                  tabindex="-1"
+                >
+                  23
+                </td>
+                <td
+                  class="styles__TableData-sc-oey23u-8 fopaAW"
+                  data-date-index="1"
+                  data-date-value="Tue Feb 24 2026"
+                  data-key="key-0-24"
+                  disabled=""
+                  tabindex="-1"
+                >
+                  24
+                </td>
+                <td
+                  class="styles__TableData-sc-oey23u-8 fopaAW"
+                  data-date-index="2"
+                  data-date-value="Wed Feb 25 2026"
+                  data-key="key-0-25"
+                  disabled=""
+                  tabindex="-1"
+                >
+                  25
+                </td>
+                <td
+                  class="styles__TableData-sc-oey23u-8 fopaAW"
+                  data-date-index="3"
+                  data-date-value="Thu Feb 26 2026"
+                  data-key="key-0-26"
+                  disabled=""
+                  tabindex="-1"
+                >
+                  26
+                </td>
+                <td
+                  class="styles__TableData-sc-oey23u-8 fopaAW"
+                  data-date-index="4"
+                  data-date-value="Fri Feb 27 2026"
+                  data-key="key-0-27"
+                  disabled=""
+                  tabindex="-1"
+                >
+                  27
+                </td>
+                <td
+                  class="styles__TableData-sc-oey23u-8 fopaAW"
+                  data-date-index="5"
+                  data-date-value="Sat Feb 28 2026"
+                  data-key="key-0-28"
+                  disabled=""
+                  tabindex="-1"
+                >
+                  28
+                </td>
+                <td
+                  class="styles__TableData-sc-oey23u-8 dAxZHz"
+                  data-date-index="6"
+                  data-date-value="Sun Mar 01 2026"
+                  data-key="key-0-01"
+                  tabindex="-1"
+                >
+                  1
+                </td>
+              </tr>
+              <tr
+                class="styles__TableRow-sc-oey23u-7 etYEOX"
+              >
+                <td
+                  class="styles__TableData-sc-oey23u-8 dAxZHz"
+                  data-date-index="0"
+                  data-date-value="Mon Mar 02 2026"
+                  data-key="key-1-02"
+                  tabindex="-1"
+                >
+                  2
+                </td>
+                <td
+                  class="styles__TableData-sc-oey23u-8 dAxZHz"
+                  data-date-index="1"
+                  data-date-value="Tue Mar 03 2026"
+                  data-key="key-1-03"
+                  tabindex="-1"
+                >
+                  3
+                </td>
+                <td
+                  class="styles__TableData-sc-oey23u-8 dAxZHz"
+                  data-date-index="2"
+                  data-date-value="Wed Mar 04 2026"
+                  data-key="key-1-04"
+                  tabindex="-1"
+                >
+                  4
+                </td>
+                <td
+                  class="styles__TableData-sc-oey23u-8 dAxZHz"
+                  data-date-index="3"
+                  data-date-value="Thu Mar 05 2026"
+                  data-key="key-1-05"
+                  tabindex="-1"
+                >
+                  5
+                </td>
+                <td
+                  class="styles__TableData-sc-oey23u-8 dAxZHz"
+                  data-date-index="4"
+                  data-date-value="Fri Mar 06 2026"
+                  data-key="key-1-06"
+                  tabindex="-1"
+                >
+                  6
+                </td>
+                <td
+                  class="styles__TableData-sc-oey23u-8 dAxZHz"
+                  data-date-index="5"
+                  data-date-value="Sat Mar 07 2026"
+                  data-key="key-1-07"
+                  tabindex="-1"
+                >
+                  7
+                </td>
+                <td
+                  class="styles__TableData-sc-oey23u-8 dAxZHz"
+                  data-date-index="6"
+                  data-date-value="Sun Mar 08 2026"
+                  data-key="key-1-08"
+                  tabindex="-1"
+                >
+                  8
+                </td>
+              </tr>
+              <tr
+                class="styles__TableRow-sc-oey23u-7 etYEOX"
+              >
+                <td
+                  class="styles__TableData-sc-oey23u-8 dAxZHz"
+                  data-date-index="0"
+                  data-date-value="Mon Mar 09 2026"
+                  data-key="key-2-09"
+                  tabindex="-1"
+                >
+                  9
+                </td>
+                <td
+                  class="styles__TableData-sc-oey23u-8 dAxZHz"
+                  data-date-index="1"
+                  data-date-value="Tue Mar 10 2026"
+                  data-key="key-2-10"
+                  tabindex="-1"
+                >
+                  10
+                </td>
+                <td
+                  class="styles__TableData-sc-oey23u-8 dAxZHz"
+                  data-date-index="2"
+                  data-date-value="Wed Mar 11 2026"
+                  data-key="key-2-11"
+                  tabindex="-1"
+                >
+                  11
+                </td>
+                <td
+                  class="styles__TableData-sc-oey23u-8 dAxZHz"
+                  data-date-index="3"
+                  data-date-value="Thu Mar 12 2026"
+                  data-key="key-2-12"
+                  tabindex="-1"
+                >
+                  12
+                </td>
+                <td
+                  class="styles__TableData-sc-oey23u-8 dAxZHz"
+                  data-date-index="4"
+                  data-date-value="Fri Mar 13 2026"
+                  data-key="key-2-13"
+                  tabindex="-1"
+                >
+                  13
+                </td>
+                <td
+                  class="styles__TableData-sc-oey23u-8 dAxZHz"
+                  data-date-index="5"
+                  data-date-value="Sat Mar 14 2026"
+                  data-key="key-2-14"
+                  tabindex="-1"
+                >
+                  14
+                </td>
+                <td
+                  class="styles__TableData-sc-oey23u-8 dAxZHz"
+                  data-date-index="6"
+                  data-date-value="Sun Mar 15 2026"
+                  data-key="key-2-15"
+                  tabindex="-1"
+                >
+                  15
+                </td>
+              </tr>
+              <tr
+                class="styles__TableRow-sc-oey23u-7 etYEOX"
+              >
+                <td
+                  class="styles__TableData-sc-oey23u-8 dAxZHz"
+                  data-date-index="0"
+                  data-date-value="Mon Mar 16 2026"
+                  data-key="key-3-16"
+                  tabindex="-1"
+                >
+                  16
+                </td>
+                <td
+                  class="styles__TableData-sc-oey23u-8 dAxZHz"
+                  data-date-index="1"
+                  data-date-value="Tue Mar 17 2026"
+                  data-key="key-3-17"
+                  tabindex="-1"
+                >
+                  17
+                </td>
+                <td
+                  class="styles__TableData-sc-oey23u-8 dAxZHz"
+                  data-date-index="2"
+                  data-date-value="Wed Mar 18 2026"
+                  data-key="key-3-18"
+                  tabindex="-1"
+                >
+                  18
+                </td>
+                <td
+                  class="styles__TableData-sc-oey23u-8 dAxZHz"
+                  data-date-index="3"
+                  data-date-value="Thu Mar 19 2026"
+                  data-key="key-3-19"
+                  tabindex="-1"
+                >
+                  19
+                </td>
+                <td
+                  class="styles__TableData-sc-oey23u-8 dAxZHz"
+                  data-date-index="4"
+                  data-date-value="Fri Mar 20 2026"
+                  data-key="key-3-20"
+                  tabindex="-1"
+                >
+                  20
+                </td>
+                <td
+                  class="styles__TableData-sc-oey23u-8 dAxZHz"
+                  data-date-index="5"
+                  data-date-value="Sat Mar 21 2026"
+                  data-key="key-3-21"
+                  tabindex="-1"
+                >
+                  21
+                </td>
+                <td
+                  class="styles__TableData-sc-oey23u-8 dAxZHz"
+                  data-date-index="6"
+                  data-date-value="Sun Mar 22 2026"
+                  data-key="key-3-22"
+                  tabindex="-1"
+                >
+                  22
+                </td>
+              </tr>
+              <tr
+                class="styles__TableRow-sc-oey23u-7 etYEOX"
+              >
+                <td
+                  class="styles__TableData-sc-oey23u-8 dAxZHz"
+                  data-date-index="0"
+                  data-date-value="Mon Mar 23 2026"
+                  data-key="key-4-23"
+                  tabindex="-1"
+                >
+                  23
+                </td>
+                <td
+                  class="styles__TableData-sc-oey23u-8 dAxZHz"
+                  data-date-index="1"
+                  data-date-value="Tue Mar 24 2026"
+                  data-key="key-4-24"
+                  tabindex="-1"
+                >
+                  24
+                </td>
+                <td
+                  class="styles__TableData-sc-oey23u-8 dAxZHz"
+                  data-date-index="2"
+                  data-date-value="Wed Mar 25 2026"
+                  data-key="key-4-25"
+                  tabindex="-1"
+                >
+                  25
+                </td>
+                <td
+                  class="styles__TableData-sc-oey23u-8 dAxZHz"
+                  data-date-index="3"
+                  data-date-value="Thu Mar 26 2026"
+                  data-key="key-4-26"
+                  tabindex="-1"
+                >
+                  26
+                </td>
+                <td
+                  class="styles__TableData-sc-oey23u-8 dAxZHz"
+                  data-date-index="4"
+                  data-date-value="Fri Mar 27 2026"
+                  data-key="key-4-27"
+                  tabindex="-1"
+                >
+                  27
+                </td>
+                <td
+                  class="styles__TableData-sc-oey23u-8 dAxZHz"
+                  data-date-index="5"
+                  data-date-value="Sat Mar 28 2026"
+                  data-key="key-4-28"
+                  tabindex="-1"
+                >
+                  28
+                </td>
+                <td
+                  class="styles__TableData-sc-oey23u-8 dAxZHz"
+                  data-date-index="6"
+                  data-date-value="Sun Mar 29 2026"
+                  data-key="key-4-29"
+                  tabindex="-1"
+                >
+                  29
+                </td>
+              </tr>
+              <tr
+                class="styles__TableRow-sc-oey23u-7 etYEOX"
+              >
+                <td
+                  class="styles__TableData-sc-oey23u-8 dAxZHz"
+                  data-date-index="0"
+                  data-date-value="Mon Mar 30 2026"
+                  data-key="key-5-30"
+                  tabindex="-1"
+                >
+                  30
+                </td>
+                <td
+                  class="styles__TableData-sc-oey23u-8 dAxZHz"
+                  data-date-index="1"
+                  data-date-value="Tue Mar 31 2026"
+                  data-key="key-5-31"
+                  tabindex="-1"
+                >
+                  31
+                </td>
+                <td
+                  class="styles__TableData-sc-oey23u-8 fopaAW"
+                  data-date-index="2"
+                  data-date-value="Wed Apr 01 2026"
+                  data-key="key-5-01"
+                  disabled=""
+                  tabindex="-1"
+                >
+                  1
+                </td>
+                <td
+                  class="styles__TableData-sc-oey23u-8 fopaAW"
+                  data-date-index="3"
+                  data-date-value="Thu Apr 02 2026"
+                  data-key="key-5-02"
+                  disabled=""
+                  tabindex="-1"
+                >
+                  2
+                </td>
+                <td
+                  class="styles__TableData-sc-oey23u-8 fopaAW"
+                  data-date-index="4"
+                  data-date-value="Fri Apr 03 2026"
+                  data-key="key-5-03"
+                  disabled=""
+                  tabindex="-1"
+                >
+                  3
+                </td>
+                <td
+                  class="styles__TableData-sc-oey23u-8 fopaAW"
+                  data-date-index="5"
+                  data-date-value="Sat Apr 04 2026"
+                  data-key="key-5-04"
+                  disabled=""
+                  tabindex="-1"
+                >
+                  4
+                </td>
+                <td
+                  class="styles__TableData-sc-oey23u-8 fopaAW"
+                  data-date-index="6"
+                  data-date-value="Sun Apr 05 2026"
+                  data-key="key-5-05"
+                  disabled=""
+                  tabindex="-1"
+                >
+                  5
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <table
+            aria-labelledby="Calender Grid No 1"
+            class="styles__Table-sc-oey23u-2 styles__SubGridContainer-sc-oey23u-4 dXajfD"
+            role="grid"
+          >
+            <thead
+              class="styles__TableHead-sc-oey23u-5 ivbAAe"
+            >
+              <tr
+                class="styles__TableRow-sc-oey23u-7 fyGNrt"
+              >
+                <label
+                  class="styles__TextLabel-sc-1byulzo-3 duwvGS"
+                >
+                  Apr 2026
+                </label>
+                <td
+                  aria-live="polite"
+                  class="styles-sc-1byulzo-0 styles__NavigationControls-sc-1byulzo-2 XusGC iCcgez"
+                >
+                  <div
+                    aria-label="Previous DAY"
+                    data-value="nav-left"
+                    role="button"
+                    tabindex="0"
+                  >
+                    <svg
+                      class="fk-icon chevron-icon"
+                      color=""
+                      height="20px"
+                      style="fill: currentColor; stroke: currentColor;"
+                      viewBox="0 -960 960 960"
+                      width="20px"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <title>
+                        ChevronLeft
+                      </title>
+                      <path
+                        d="m406-481 177 177q9 9 8.5 21t-9.5 21q-9 9-21.5 9t-21.5-9L341-460q-5-5-7-10t-2-11q0-6 2-11t7-10l199-199q9-9 21.5-9t21.5 9q9 9 9 21.5t-9 21.5L406-481Z"
+                      />
+                    </svg>
+                  </div>
+                  <div
+                    aria-label="Next DAY"
+                    data-value="nav-right"
+                    role="button"
+                    tabindex="0"
+                  >
+                    <svg
+                      class="fk-icon chevron-icon"
+                      color=""
+                      height="20px"
+                      style="fill: currentColor; stroke: currentColor;"
+                      viewBox="0 -960 960 960"
+                      width="20px"
+                      xmlns="http://www.w3.org/2000/svg"
+                    >
+                      <title>
+                        ChevronRight
+                      </title>
+                      <path
+                        d="M530-481 353-658q-9-9-8.5-21t9.5-21q9-9 21.5-9t21.5 9l198 198q5 5 7 10t2 11q0 6-2 11t-7 10L396-261q-9 9-21 8.5t-21-9.5q-9-9-9-21.5t9-21.5l176-176Z"
+                      />
+                    </svg>
+                  </div>
+                </td>
+              </tr>
+              <tr
+                class="styles__TableRow-sc-oey23u-7 etYEOX"
+              >
+                <th
+                  class="styles__TableHeadData-sc-oey23u-6 cJQYWR"
+                  id="M"
+                >
+                  M
+                </th>
+                <th
+                  class="styles__TableHeadData-sc-oey23u-6 cJQYWR"
+                  id="T"
+                >
+                  T
+                </th>
+                <th
+                  class="styles__TableHeadData-sc-oey23u-6 cJQYWR"
+                  id="W"
+                >
+                  W
+                </th>
+                <th
+                  class="styles__TableHeadData-sc-oey23u-6 cJQYWR"
+                  id="T"
+                >
+                  T
+                </th>
+                <th
+                  class="styles__TableHeadData-sc-oey23u-6 cJQYWR"
+                  id="F"
+                >
+                  F
+                </th>
+                <th
+                  class="styles__TableHeadData-sc-oey23u-6 cxyeEv"
+                  id="S"
+                >
+                  S
+                </th>
+                <th
+                  class="styles__TableHeadData-sc-oey23u-6 cxyeEv"
+                  id="S"
+                >
+                  S
+                </th>
+              </tr>
+            </thead>
+            <tbody
+              class="styles__TableBody-sc-oey23u-10 kGJnUq"
+            >
+              <tr
+                class="styles__TableRow-sc-oey23u-7 etYEOX"
+              >
+                <td
+                  class="styles__TableData-sc-oey23u-8 fopaAW"
+                  data-date-index="0"
+                  data-date-value="Mon Mar 30 2026"
+                  data-key="key-0-30"
+                  disabled=""
+                  tabindex="-1"
+                >
+                  30
+                </td>
+                <td
+                  class="styles__TableData-sc-oey23u-8 fopaAW"
+                  data-date-index="1"
+                  data-date-value="Tue Mar 31 2026"
+                  data-key="key-0-31"
+                  disabled=""
+                  tabindex="-1"
+                >
+                  31
+                </td>
+                <td
+                  class="styles__TableData-sc-oey23u-8 dAxZHz"
+                  data-date-index="2"
+                  data-date-value="Wed Apr 01 2026"
+                  data-key="key-0-01"
+                  tabindex="-1"
+                >
+                  1
+                </td>
+                <td
+                  class="styles__TableData-sc-oey23u-8 dAxZHz"
+                  data-date-index="3"
+                  data-date-value="Thu Apr 02 2026"
+                  data-key="key-0-02"
+                  tabindex="-1"
+                >
+                  2
+                </td>
+                <td
+                  class="styles__TableData-sc-oey23u-8 dAxZHz"
+                  data-date-index="4"
+                  data-date-value="Fri Apr 03 2026"
+                  data-key="key-0-03"
+                  tabindex="-1"
+                >
+                  3
+                </td>
+                <td
+                  class="styles__TableData-sc-oey23u-8 dAxZHz"
+                  data-date-index="5"
+                  data-date-value="Sat Apr 04 2026"
+                  data-key="key-0-04"
+                  tabindex="-1"
+                >
+                  4
+                </td>
+                <td
+                  class="styles__TableData-sc-oey23u-8 dAxZHz"
+                  data-date-index="6"
+                  data-date-value="Sun Apr 05 2026"
+                  data-key="key-0-05"
+                  tabindex="-1"
+                >
+                  5
+                </td>
+              </tr>
+              <tr
+                class="styles__TableRow-sc-oey23u-7 etYEOX"
+              >
+                <td
+                  class="styles__TableData-sc-oey23u-8 dAxZHz"
+                  data-date-index="0"
+                  data-date-value="Mon Apr 06 2026"
+                  data-key="key-1-06"
+                  tabindex="-1"
+                >
+                  6
+                </td>
+                <td
+                  class="styles__TableData-sc-oey23u-8 dAxZHz"
+                  data-date-index="1"
+                  data-date-value="Tue Apr 07 2026"
+                  data-key="key-1-07"
+                  tabindex="-1"
+                >
+                  7
+                </td>
+                <td
+                  class="styles__TableData-sc-oey23u-8 dAxZHz"
+                  data-date-index="2"
+                  data-date-value="Wed Apr 08 2026"
+                  data-key="key-1-08"
+                  tabindex="-1"
+                >
+                  8
+                </td>
+                <td
+                  class="styles__TableData-sc-oey23u-8 dAxZHz"
+                  data-date-index="3"
+                  data-date-value="Thu Apr 09 2026"
+                  data-key="key-1-09"
+                  tabindex="-1"
+                >
+                  9
+                </td>
+                <td
+                  class="styles__TableData-sc-oey23u-8 dAxZHz"
+                  data-date-index="4"
+                  data-date-value="Fri Apr 10 2026"
+                  data-key="key-1-10"
+                  tabindex="-1"
+                >
+                  10
+                </td>
+                <td
+                  class="styles__TableData-sc-oey23u-8 dAxZHz"
+                  data-date-index="5"
+                  data-date-value="Sat Apr 11 2026"
+                  data-key="key-1-11"
+                  tabindex="-1"
+                >
+                  11
+                </td>
+                <td
+                  class="styles__TableData-sc-oey23u-8 dAxZHz"
+                  data-date-index="6"
+                  data-date-value="Sun Apr 12 2026"
+                  data-key="key-1-12"
+                  tabindex="-1"
+                >
+                  12
+                </td>
+              </tr>
+              <tr
+                class="styles__TableRow-sc-oey23u-7 etYEOX"
+              >
+                <td
+                  class="styles__TableData-sc-oey23u-8 dAxZHz"
+                  data-date-index="0"
+                  data-date-value="Mon Apr 13 2026"
+                  data-key="key-2-13"
+                  tabindex="-1"
+                >
+                  13
+                </td>
+                <td
+                  class="styles__TableData-sc-oey23u-8 dAxZHz"
+                  data-date-index="1"
+                  data-date-value="Tue Apr 14 2026"
+                  data-key="key-2-14"
+                  tabindex="-1"
+                >
+                  14
+                </td>
+                <td
+                  class="styles__TableData-sc-oey23u-8 dAxZHz"
+                  data-date-index="2"
+                  data-date-value="Wed Apr 15 2026"
+                  data-key="key-2-15"
+                  tabindex="-1"
+                >
+                  15
+                </td>
+                <td
+                  class="styles__TableData-sc-oey23u-8 dAxZHz"
+                  data-date-index="3"
+                  data-date-value="Thu Apr 16 2026"
+                  data-key="key-2-16"
+                  tabindex="-1"
+                >
+                  16
+                </td>
+                <td
+                  class="styles__TableData-sc-oey23u-8 dAxZHz"
+                  data-date-index="4"
+                  data-date-value="Fri Apr 17 2026"
+                  data-key="key-2-17"
+                  tabindex="-1"
+                >
+                  17
+                </td>
+                <td
+                  class="styles__TableData-sc-oey23u-8 dAxZHz"
+                  data-date-index="5"
+                  data-date-value="Sat Apr 18 2026"
+                  data-key="key-2-18"
+                  tabindex="-1"
+                >
+                  18
+                </td>
+                <td
+                  class="styles__TableData-sc-oey23u-8 dAxZHz"
+                  data-date-index="6"
+                  data-date-value="Sun Apr 19 2026"
+                  data-key="key-2-19"
+                  tabindex="-1"
+                >
+                  19
+                </td>
+              </tr>
+              <tr
+                class="styles__TableRow-sc-oey23u-7 etYEOX"
+              >
+                <td
+                  class="styles__TableData-sc-oey23u-8 dAxZHz"
+                  data-date-index="0"
+                  data-date-value="Mon Apr 20 2026"
+                  data-key="key-3-20"
+                  tabindex="-1"
+                >
+                  20
+                </td>
+                <td
+                  class="styles__TableData-sc-oey23u-8 dAxZHz"
+                  data-date-index="1"
+                  data-date-value="Tue Apr 21 2026"
+                  data-key="key-3-21"
+                  tabindex="-1"
+                >
+                  21
+                </td>
+                <td
+                  class="styles__TableData-sc-oey23u-8 dAxZHz"
+                  data-date-index="2"
+                  data-date-value="Wed Apr 22 2026"
+                  data-key="key-3-22"
+                  tabindex="-1"
+                >
+                  22
+                </td>
+                <td
+                  class="styles__TableData-sc-oey23u-8 dAxZHz"
+                  data-date-index="3"
+                  data-date-value="Thu Apr 23 2026"
+                  data-key="key-3-23"
+                  tabindex="-1"
+                >
+                  23
+                </td>
+                <td
+                  class="styles__TableData-sc-oey23u-8 dAxZHz"
+                  data-date-index="4"
+                  data-date-value="Fri Apr 24 2026"
+                  data-key="key-3-24"
+                  tabindex="-1"
+                >
+                  24
+                </td>
+                <td
+                  class="styles__TableData-sc-oey23u-8 dAxZHz"
+                  data-date-index="5"
+                  data-date-value="Sat Apr 25 2026"
+                  data-key="key-3-25"
+                  tabindex="-1"
+                >
+                  25
+                </td>
+                <td
+                  class="styles__TableData-sc-oey23u-8 dAxZHz"
+                  data-date-index="6"
+                  data-date-value="Sun Apr 26 2026"
+                  data-key="key-3-26"
+                  tabindex="-1"
+                >
+                  26
+                </td>
+              </tr>
+              <tr
+                class="styles__TableRow-sc-oey23u-7 etYEOX"
+              >
+                <td
+                  class="styles__TableData-sc-oey23u-8 dAxZHz"
+                  data-date-index="0"
+                  data-date-value="Mon Apr 27 2026"
+                  data-key="key-4-27"
+                  tabindex="-1"
+                >
+                  27
+                </td>
+                <td
+                  class="styles__TableData-sc-oey23u-8 dAxZHz"
+                  data-date-index="1"
+                  data-date-value="Tue Apr 28 2026"
+                  data-key="key-4-28"
+                  tabindex="-1"
+                >
+                  28
+                </td>
+                <td
+                  class="styles__TableData-sc-oey23u-8 dAxZHz"
+                  data-date-index="2"
+                  data-date-value="Wed Apr 29 2026"
+                  data-key="key-4-29"
+                  tabindex="-1"
+                >
+                  29
+                </td>
+                <td
+                  class="styles__TableData-sc-oey23u-8 dAxZHz"
+                  data-date-index="3"
+                  data-date-value="Thu Apr 30 2026"
+                  data-key="key-4-30"
+                  tabindex="-1"
+                >
+                  30
+                </td>
+                <td
+                  class="styles__TableData-sc-oey23u-8 fopaAW"
+                  data-date-index="4"
+                  data-date-value="Fri May 01 2026"
+                  data-key="key-4-01"
+                  disabled=""
+                  tabindex="-1"
+                >
+                  1
+                </td>
+                <td
+                  class="styles__TableData-sc-oey23u-8 fopaAW"
+                  data-date-index="5"
+                  data-date-value="Sat May 02 2026"
+                  data-key="key-4-02"
+                  disabled=""
+                  tabindex="-1"
+                >
+                  2
+                </td>
+                <td
+                  class="styles__TableData-sc-oey23u-8 fopaAW"
+                  data-date-index="6"
+                  data-date-value="Sun May 03 2026"
+                  data-key="key-4-03"
+                  disabled=""
+                  tabindex="-1"
+                >
+                  3
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </td>
+      </tr>
+    </tbody>
+    <div
+      class="styles__FlexDiv-sc-oey23u-0 styles__FooterContainer-sc-oey23u-12 egsvjT fcRydg"
+    >
+      <button
+        aria-disabled="false"
+        class="styles__StyledButton-sc-5pc2aq-1 iprlNm tertiary "
+        data-action="cancel"
+        type="reset"
+      >
+        <span
+          class="styles__BtnChild-sc-5pc2aq-2 cBBqTe"
+        >
+          Cancel
+        </span>
+      </button>
+      <button
+        aria-disabled="false"
+        class="styles__StyledButton-sc-5pc2aq-1 iprlNm tertiary "
+        data-action="done"
+        type="submit"
+      >
+        <span
+          class="styles__BtnChild-sc-5pc2aq-2 cBBqTe"
+        >
+          Done
+        </span>
+      </button>
+    </div>
+  </table>
+</div>
+`;
+
+exports[`Single Date Picker Test Single Date Picker Snapshot 1`] = `
+<div
+  class="styles__FlexDiv-sc-oey23u-0 styles__DatePickerContainer-sc-oey23u-11 egsvjT gKGfNU"
+  data-testid="date-picker"
+>
+  <table
+    aria-label="Calender for DAY"
+    aria-modal="true"
+    aria-roledescription="Dialog Showing List of Available Dates"
+    class="styles__Table-sc-oey23u-2 styles__MonthGridContainer-sc-oey23u-3 dXajfD"
+    role="dialog"
+  >
+    <thead
+      class="styles__TableHead-sc-oey23u-5 ivbAAe"
+    >
+      <tr
+        class="styles__TableRow-sc-oey23u-7 kuumQm"
+      >
+        <td
+          aria-live="polite"
+          class="styles-sc-1byulzo-0 styles__HeaderContainer-sc-1byulzo-1 XusGC jICMci"
+        >
+          <label
+            class="styles__TextLabel-sc-1byulzo-3 duwvGS"
+          >
+            Jun 2023
+          </label>
+        </td>
+        <td
+          aria-live="polite"
+          class="styles-sc-1byulzo-0 styles__NavigationControls-sc-1byulzo-2 XusGC iJhHvw"
+        >
+          <div
+            aria-label="Previous DAY"
+            data-value="nav-left"
+            role="button"
+            tabindex="0"
+          >
+            <svg
+              class="fk-icon chevron-icon"
+              color=""
+              height="20px"
+              style="fill: currentColor; stroke: currentColor;"
+              viewBox="0 -960 960 960"
+              width="20px"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <title>
+                ChevronLeft
+              </title>
+              <path
+                d="m406-481 177 177q9 9 8.5 21t-9.5 21q-9 9-21.5 9t-21.5-9L341-460q-5-5-7-10t-2-11q0-6 2-11t7-10l199-199q9-9 21.5-9t21.5 9q9 9 9 21.5t-9 21.5L406-481Z"
+              />
+            </svg>
+          </div>
+          <div
+            aria-label="Next DAY"
+            data-value="nav-right"
+            role="button"
+            tabindex="0"
+          >
+            <svg
+              class="fk-icon chevron-icon"
+              color=""
+              height="20px"
+              style="fill: currentColor; stroke: currentColor;"
+              viewBox="0 -960 960 960"
+              width="20px"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <title>
+                ChevronRight
+              </title>
+              <path
+                d="M530-481 353-658q-9-9-8.5-21t9.5-21q9-9 21.5-9t21.5 9l198 198q5 5 7 10t2 11q0 6-2 11t-7 10L396-261q-9 9-21 8.5t-21-9.5q-9-9-9-21.5t9-21.5l176-176Z"
+              />
+            </svg>
+          </div>
+        </td>
+      </tr>
+    </thead>
+    <tbody
+      class="styles__TableBody-sc-oey23u-10 kGJnUq"
+    >
+      <tr
+        class="styles__TableRow-sc-oey23u-7 fyGNrt"
+      >
+        <td
+          class="styles__TableData-sc-oey23u-8 liLvKn"
+          colspan="1"
+        >
+          <table
+            aria-labelledby="Calender Grid No 0"
+            class="styles__Table-sc-oey23u-2 styles__SubGridContainer-sc-oey23u-4 dXajfD"
+            role="grid"
+          >
+            <thead
+              class="styles__TableHead-sc-oey23u-5 ivbAAe"
+            >
+              <tr
+                class="styles__TableRow-sc-oey23u-7 etYEOX"
+              >
+                <th
+                  class="styles__TableHeadData-sc-oey23u-6 cJQYWR"
+                  id="M"
+                >
+                  M
+                </th>
+                <th
+                  class="styles__TableHeadData-sc-oey23u-6 cJQYWR"
+                  id="T"
+                >
+                  T
+                </th>
+                <th
+                  class="styles__TableHeadData-sc-oey23u-6 cJQYWR"
+                  id="W"
+                >
+                  W
+                </th>
+                <th
+                  class="styles__TableHeadData-sc-oey23u-6 cJQYWR"
+                  id="T"
+                >
+                  T
+                </th>
+                <th
+                  class="styles__TableHeadData-sc-oey23u-6 cJQYWR"
+                  id="F"
+                >
+                  F
+                </th>
+                <th
+                  class="styles__TableHeadData-sc-oey23u-6 cxyeEv"
+                  id="S"
+                >
+                  S
+                </th>
+                <th
+                  class="styles__TableHeadData-sc-oey23u-6 cxyeEv"
+                  id="S"
+                >
+                  S
+                </th>
+              </tr>
+            </thead>
+            <tbody
+              class="styles__TableBody-sc-oey23u-10 kGJnUq"
+            >
+              <tr
+                class="styles__TableRow-sc-oey23u-7 etYEOX"
+              >
+                <td
+                  class="styles__TableData-sc-oey23u-8 dAxZHz"
+                  data-date-index="0"
+                  data-date-value="Mon Jun 05 2023"
+                  data-key="key-0-05"
+                  tabindex="-1"
+                >
+                  5
+                </td>
+                <td
+                  class="styles__TableData-sc-oey23u-8 dAxZHz"
+                  data-date-index="1"
+                  data-date-value="Tue Jun 06 2023"
+                  data-key="key-0-06"
+                  tabindex="-1"
+                >
+                  6
+                </td>
+                <td
+                  class="styles__TableData-sc-oey23u-8 dAxZHz"
+                  data-date-index="2"
+                  data-date-value="Wed Jun 07 2023"
+                  data-key="key-0-07"
+                  tabindex="-1"
+                >
+                  7
+                </td>
+                <td
+                  class="styles__TableData-sc-oey23u-8 dAxZHz"
+                  data-date-index="3"
+                  data-date-value="Thu Jun 08 2023"
+                  data-key="key-0-08"
+                  tabindex="-1"
+                >
+                  8
+                </td>
+                <td
+                  class="styles__TableData-sc-oey23u-8 dAxZHz"
+                  data-date-index="4"
+                  data-date-value="Fri Jun 09 2023"
+                  data-key="key-0-09"
+                  tabindex="-1"
+                >
+                  9
+                </td>
+                <td
+                  class="styles__TableData-sc-oey23u-8 dAxZHz"
+                  data-date-index="5"
+                  data-date-value="Sat Jun 10 2023"
+                  data-key="key-0-10"
+                  tabindex="-1"
+                >
+                  10
+                </td>
+                <td
+                  class="styles__TableData-sc-oey23u-8 dAxZHz"
+                  data-date-index="6"
+                  data-date-value="Sun Jun 11 2023"
+                  data-key="key-0-11"
+                  tabindex="-1"
+                >
+                  11
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </td>
+      </tr>
+    </tbody>
+    <div
+      class="styles__FlexDiv-sc-oey23u-0 styles__FooterContainer-sc-oey23u-12 egsvjT fcRydg"
+    >
+      <button
+        aria-disabled="false"
+        class="styles__StyledButton-sc-5pc2aq-1 iprlNm tertiary "
+        data-action="cancel"
+        type="reset"
+      >
+        <span
+          class="styles__BtnChild-sc-5pc2aq-2 cBBqTe"
+        >
+          Cancel
+        </span>
+      </button>
+      <button
+        aria-disabled="false"
+        class="styles__StyledButton-sc-5pc2aq-1 iprlNm tertiary "
+        data-action="done"
+        type="submit"
+      >
+        <span
+          class="styles__BtnChild-sc-5pc2aq-2 cBBqTe"
+        >
+          Done
+        </span>
+      </button>
+    </div>
+  </table>
+</div>
+`;
+
+exports[`Single Date Picker Test Single Date Picker with Time Snapshot 1`] = `
+<div
+  class="styles__FlexDiv-sc-oey23u-0 styles__DatePickerContainer-sc-oey23u-11 egsvjT gKGfNU"
+  data-testid="date-picker"
+>
+  <table
+    aria-label="Calender for DAY"
+    aria-modal="true"
+    aria-roledescription="Dialog Showing List of Available Dates"
+    class="styles__Table-sc-oey23u-2 styles__MonthGridContainer-sc-oey23u-3 dXajfD"
+    role="dialog"
+  >
+    <thead
+      class="styles__TableHead-sc-oey23u-5 ivbAAe"
+    >
+      <tr
+        class="styles__TableRow-sc-oey23u-7 kuumQm"
+      >
+        <td
+          aria-live="polite"
+          class="styles-sc-1byulzo-0 styles__HeaderContainer-sc-1byulzo-1 XusGC jICMci"
+        >
+          <label
+            class="styles__TextLabel-sc-1byulzo-3 duwvGS"
+          >
+            Jun 2023
+          </label>
+        </td>
+        <td
+          aria-live="polite"
+          class="styles-sc-1byulzo-0 styles__NavigationControls-sc-1byulzo-2 XusGC iJhHvw"
+        >
+          <div
+            aria-label="Previous DAY"
+            data-value="nav-left"
+            role="button"
+            tabindex="0"
+          >
+            <svg
+              class="fk-icon chevron-icon"
+              color=""
+              height="20px"
+              style="fill: currentColor; stroke: currentColor;"
+              viewBox="0 -960 960 960"
+              width="20px"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <title>
+                ChevronLeft
+              </title>
+              <path
+                d="m406-481 177 177q9 9 8.5 21t-9.5 21q-9 9-21.5 9t-21.5-9L341-460q-5-5-7-10t-2-11q0-6 2-11t7-10l199-199q9-9 21.5-9t21.5 9q9 9 9 21.5t-9 21.5L406-481Z"
+              />
+            </svg>
+          </div>
+          <div
+            aria-label="Next DAY"
+            data-value="nav-right"
+            role="button"
+            tabindex="0"
+          >
+            <svg
+              class="fk-icon chevron-icon"
+              color=""
+              height="20px"
+              style="fill: currentColor; stroke: currentColor;"
+              viewBox="0 -960 960 960"
+              width="20px"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <title>
+                ChevronRight
+              </title>
+              <path
+                d="M530-481 353-658q-9-9-8.5-21t9.5-21q9-9 21.5-9t21.5 9l198 198q5 5 7 10t2 11q0 6-2 11t-7 10L396-261q-9 9-21 8.5t-21-9.5q-9-9-9-21.5t9-21.5l176-176Z"
+              />
+            </svg>
+          </div>
+        </td>
+      </tr>
+    </thead>
+    <tbody
+      class="styles__TableBody-sc-oey23u-10 kGJnUq"
+    >
+      <tr
+        class="styles__TableRow-sc-oey23u-7 fyGNrt"
+      >
+        <td
+          class="styles__TableData-sc-oey23u-8 liLvKn"
+          colspan="1"
+        >
+          <table
+            aria-labelledby="Calender Grid No 0"
+            class="styles__Table-sc-oey23u-2 styles__SubGridContainer-sc-oey23u-4 dXajfD"
+            role="grid"
+          >
+            <thead
+              class="styles__TableHead-sc-oey23u-5 ivbAAe"
+            >
+              <tr
+                class="styles__TableRow-sc-oey23u-7 etYEOX"
+              >
+                <th
+                  class="styles__TableHeadData-sc-oey23u-6 cJQYWR"
+                  id="M"
+                >
+                  M
+                </th>
+                <th
+                  class="styles__TableHeadData-sc-oey23u-6 cJQYWR"
+                  id="T"
+                >
+                  T
+                </th>
+                <th
+                  class="styles__TableHeadData-sc-oey23u-6 cJQYWR"
+                  id="W"
+                >
+                  W
+                </th>
+                <th
+                  class="styles__TableHeadData-sc-oey23u-6 cJQYWR"
+                  id="T"
+                >
+                  T
+                </th>
+                <th
+                  class="styles__TableHeadData-sc-oey23u-6 cJQYWR"
+                  id="F"
+                >
+                  F
+                </th>
+                <th
+                  class="styles__TableHeadData-sc-oey23u-6 cxyeEv"
+                  id="S"
+                >
+                  S
+                </th>
+                <th
+                  class="styles__TableHeadData-sc-oey23u-6 cxyeEv"
+                  id="S"
+                >
+                  S
+                </th>
+              </tr>
+            </thead>
+            <tbody
+              class="styles__TableBody-sc-oey23u-10 kGJnUq"
+            >
+              <tr
+                class="styles__TableRow-sc-oey23u-7 etYEOX"
+              >
+                <td
+                  class="styles__TableData-sc-oey23u-8 dAxZHz"
+                  data-date-index="0"
+                  data-date-value="Mon Jun 05 2023"
+                  data-key="key-0-05"
+                  tabindex="-1"
+                >
+                  5
+                </td>
+                <td
+                  class="styles__TableData-sc-oey23u-8 dAxZHz"
+                  data-date-index="1"
+                  data-date-value="Tue Jun 06 2023"
+                  data-key="key-0-06"
+                  tabindex="-1"
+                >
+                  6
+                </td>
+                <td
+                  class="styles__TableData-sc-oey23u-8 dAxZHz"
+                  data-date-index="2"
+                  data-date-value="Wed Jun 07 2023"
+                  data-key="key-0-07"
+                  tabindex="-1"
+                >
+                  7
+                </td>
+                <td
+                  class="styles__TableData-sc-oey23u-8 dAxZHz"
+                  data-date-index="3"
+                  data-date-value="Thu Jun 08 2023"
+                  data-key="key-0-08"
+                  tabindex="-1"
+                >
+                  8
+                </td>
+                <td
+                  class="styles__TableData-sc-oey23u-8 dAxZHz"
+                  data-date-index="4"
+                  data-date-value="Fri Jun 09 2023"
+                  data-key="key-0-09"
+                  tabindex="-1"
+                >
+                  9
+                </td>
+                <td
+                  class="styles__TableData-sc-oey23u-8 dAxZHz"
+                  data-date-index="5"
+                  data-date-value="Sat Jun 10 2023"
+                  data-key="key-0-10"
+                  tabindex="-1"
+                >
+                  10
+                </td>
+                <td
+                  class="styles__TableData-sc-oey23u-8 dAxZHz"
+                  data-date-index="6"
+                  data-date-value="Sun Jun 11 2023"
+                  data-key="key-0-11"
+                  tabindex="-1"
+                >
+                  11
+                </td>
+              </tr>
+            </tbody>
+            <div
+              class="styles__TimePickerContainer-sc-oey23u-15 gMnVAw"
+            >
+              <div
+                class="styles__TimePickerWrapper-sc-oey23u-14 etuZnH"
+              >
+                <div
+                  class="styles__FlexDiv-sc-oey23u-0 egsvjT"
+                >
+                  <input
+                    class="styles__Input-sc-oey23u-16 jYXJa"
+                    maxlength="2"
+                    placeholder="00"
+                    type="text"
+                    value="12"
+                  />
+                  <span
+                    class="styles__Colon-sc-oey23u-17 dKOALp"
+                  >
+                    :
+                  </span>
+                  <input
+                    class="styles__Input-sc-oey23u-16 jYXJa"
+                    maxlength="2"
+                    placeholder="00"
+                    type="text"
+                    value="00"
+                  />
+                  <div
+                    class="styles__MeridiemContainer-sc-oey23u-18 cqXNlw"
+                  >
+                    <div
+                      class="styles__MeridiemBox-sc-oey23u-19 frsmyJ"
+                    >
+                      AM
+                    </div>
+                    <div
+                      class="styles__MeridiemBox-sc-oey23u-19 eSRSrp"
+                    >
+                      PM
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </table>
+        </td>
+      </tr>
+    </tbody>
+    <div
+      class="styles__FlexDiv-sc-oey23u-0 styles__FooterContainer-sc-oey23u-12 egsvjT fcRydg"
+    >
+      <button
+        aria-disabled="false"
+        class="styles__StyledButton-sc-5pc2aq-1 iprlNm tertiary "
+        data-action="cancel"
+        type="reset"
+      >
+        <span
+          class="styles__BtnChild-sc-5pc2aq-2 cBBqTe"
+        >
+          Cancel
+        </span>
+      </button>
+      <button
+        aria-disabled="false"
+        class="styles__StyledButton-sc-5pc2aq-1 iprlNm tertiary "
+        data-action="done"
+        type="submit"
+      >
+        <span
+          class="styles__BtnChild-sc-5pc2aq-2 cBBqTe"
+        >
+          Done
+        </span>
+      </button>
+    </div>
+  </table>
+</div>
+`;

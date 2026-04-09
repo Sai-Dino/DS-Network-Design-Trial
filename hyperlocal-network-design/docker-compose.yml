@@ -26,7 +26,10 @@ services:
       OSRM_URL: http://osrm:5000
       OSRM_ALLOWED_HOSTS: osrm,localhost,127.0.0.1
       SECRET_KEY: ${SECRET_KEY:-change-me-in-production}
+      DATA_DIR: /app/data
       LOG_LEVEL: INFO
+    volumes:
+      - appdata:/app/data
     depends_on:
       db:
         condition: service_healthy
@@ -45,6 +48,9 @@ services:
       CELERY_BROKER_URL: redis://redis:6379/0
       OSRM_URL: http://osrm:5000
       OSRM_ALLOWED_HOSTS: osrm,localhost,127.0.0.1
+      DATA_DIR: /app/data
+    volumes:
+      - appdata:/app/data
     depends_on:
       db:
         condition: service_healthy
@@ -96,3 +102,4 @@ services:
 
 volumes:
   pgdata:
+  appdata:

@@ -1,0 +1,120 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`DropdownTrigger matches snapshot 1`] = `
+<DocumentFragment>
+  <button
+    class="styles__DropdownButton-sc-lf8o9y-0 kqGwsA"
+    data-testid="dropdown-trigger"
+    role="combobox"
+  >
+    <div
+      class="styles__ButtonText-sc-lf8o9y-1 lUolD"
+    >
+      Test Dropdown
+    </div>
+    <div
+      aria-disabled="false"
+      aria-label="4"
+      aria-labelledby="4"
+      class="styles__StyledBadge-sc-1x6v4lh-0 hxupkE styles__StyledBadge-sc-lf8o9y-2 fPBQqF"
+      tabindex="0"
+      title="4"
+      type="subtle"
+    >
+      4
+    </div>
+    <svg
+      class="fk-icon"
+      color=""
+      height="20px"
+      style="fill: currentColor; stroke: currentColor;"
+      viewBox="0 -960 960 960"
+      width="20px"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <title>
+        ExpandMore
+      </title>
+      <path
+        d="M480-357q-6 0-11-2t-10-7L261-564q-9-9-9-21t9-21q9-9 21.5-9t21.5 9l176 176 176-176q9-9 21-9t21 9q9 9 9 21.5t-9 21.5L501-366q-5 5-10 7t-11 2Z"
+      />
+    </svg>
+  </button>
+</DocumentFragment>
+`;
+
+exports[`DropdownTrigger matches snapshot when disabled 1`] = `
+<DocumentFragment>
+  <button
+    class="styles__DropdownButton-sc-lf8o9y-0 kqGwsA"
+    data-testid="dropdown-trigger"
+    disabled=""
+    role="combobox"
+  >
+    <div
+      class="styles__ButtonText-sc-lf8o9y-1 lUolD"
+    >
+      Test Dropdown
+    </div>
+    <div
+      aria-disabled="false"
+      aria-label="4"
+      aria-labelledby="4"
+      class="styles__StyledBadge-sc-1x6v4lh-0 hxupkE styles__StyledBadge-sc-lf8o9y-2 fPBQqF"
+      tabindex="0"
+      title="4"
+      type="subtle"
+    >
+      4
+    </div>
+    <svg
+      class="fk-icon"
+      color=""
+      height="20px"
+      style="fill: currentColor; stroke: currentColor;"
+      viewBox="0 -960 960 960"
+      width="20px"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <title>
+        ExpandMore
+      </title>
+      <path
+        d="M480-357q-6 0-11-2t-10-7L261-564q-9-9-9-21t9-21q9-9 21.5-9t21.5 9l176 176 176-176q9-9 21-9t21 9q9 9 9 21.5t-9 21.5L501-366q-5 5-10 7t-11 2Z"
+      />
+    </svg>
+  </button>
+</DocumentFragment>
+`;
+
+exports[`DropdownTrigger matches snapshot with custom icon 1`] = `
+<DocumentFragment>
+  <button
+    class="styles__DropdownButton-sc-lf8o9y-0 kqGwsA"
+    data-testid="dropdown-trigger"
+    role="combobox"
+  >
+    <div
+      class="styles__ButtonText-sc-lf8o9y-1 lUolD"
+    >
+      Test Dropdown
+    </div>
+    <div
+      aria-disabled="false"
+      aria-label="4"
+      aria-labelledby="4"
+      class="styles__StyledBadge-sc-1x6v4lh-0 hxupkE styles__StyledBadge-sc-lf8o9y-2 fPBQqF"
+      tabindex="0"
+      title="4"
+      type="subtle"
+    >
+      4
+    </div>
+    <div
+      data-testid="custom-icon"
+    >
+      Custom Icon
+    </div>
+  </button>
+</DocumentFragment>
+`;

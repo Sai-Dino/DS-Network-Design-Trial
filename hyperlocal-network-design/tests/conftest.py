@@ -1,46 +1,52 @@
 """
 Shared test fixtures.
 
-A "fixture" is setup code that runs before each test.  For example,
-``client`` gives every test a fake browser that can call our API
-without starting a real server.
-
-The database is created fresh in memory for each test — tests never
-interfere with each other or with real data.
+Each test gets a fresh app with an in-memory SQLite database, a
+temporary data directory, and a pre-authenticated test client.
 """
 
 import io
+import os
 
 import pytest
 
 from app import create_app
 from app.config import Testing
-from app.extensions import db as _db
+from app.extensions import bcrypt, db as _db
+from app.models import User
 
 
 @pytest.fixture()
-def app():
-    """Create an app configured for testing (in-memory SQLite)."""
+def app(tmp_path):
+    """Create an app configured for testing with temp data directory."""
+    Testing.DATA_DIR = str(tmp_path / "data")
+    os.makedirs(os.path.join(Testing.DATA_DIR, "uploads"), exist_ok=True)
+    os.makedirs(os.path.join(Testing.DATA_DIR, "results"), exist_ok=True)
+
     application = create_app(Testing)
     with application.app_context():
         _db.create_all()
 
-        from app.routes.api import JOBS, JOBS_LOCK
-        with JOBS_LOCK:
-            JOBS.clear()
+        pw = bcrypt.generate_password_hash("testpass").decode("utf-8")
+        test_user = User(username="testuser", password_hash=pw, display_name="Test User")
+        _db.session.add(test_user)
+        _db.session.commit()
 
         yield application
-
-        with JOBS_LOCK:
-            JOBS.clear()
-
         _db.session.remove()
-        _db.drop_all()
 
 
 @pytest.fixture()
 def client(app):
-    """A test client — like a fake browser that can call API routes."""
+    """An authenticated test client."""
+    c = app.test_client()
+    c.post("/api/auth/login", json={"username": "testuser", "password": "testpass"})
+    return c
+
+
+@pytest.fixture()
+def anon_client(app):
+    """A test client with NO login (for testing auth enforcement)."""
     return app.test_client()
 
 

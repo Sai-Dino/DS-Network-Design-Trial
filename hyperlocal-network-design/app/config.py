@@ -29,6 +29,12 @@ class _Base:
     )
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
+    # --- Data directory (uploads + results on disk) ----------------------
+    DATA_DIR = os.getenv(
+        "DATA_DIR",
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data"),
+    )
+
     # --- Redis / Celery --------------------------------------------------
     REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
     CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL", os.getenv("REDIS_URL", "redis://localhost:6379/0"))
@@ -74,6 +80,7 @@ class Testing(_Base):
     TESTING = True
     SQLALCHEMY_DATABASE_URI = "sqlite:///:memory:"
     AUTH_ENABLED = False
+    DATA_DIR = ""  # set per-test via tmp_path
 
 
 _configs = {

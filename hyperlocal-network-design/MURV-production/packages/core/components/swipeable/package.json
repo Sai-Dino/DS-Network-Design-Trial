@@ -1,0 +1,4 @@
+{
+  "main": "dist/murv-core-components-swipeable.cjs.js",
+  "module": "dist/murv-core-components-swipeable.esm.js"
+}

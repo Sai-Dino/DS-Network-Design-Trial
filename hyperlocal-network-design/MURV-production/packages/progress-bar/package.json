@@ -1,0 +1,42 @@
+{
+  "name": "@murv/progress-bar",
+  "version": "1.0.0",
+  "main": "dist/murv-progress-bar.cjs.js",
+  "module": "dist/murv-progress-bar.esm.js",
+  "exports": {
+    ".": {
+      "import": "./dist/murv-progress-bar.esm.js",
+      "require": "./dist/murv-progress-bar.cjs.js",
+      "default": "./dist/murv-progress-bar.cjs.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "author": "Nishant Sahoo",
+  "license": "MIT",
+  "peerDependencies": {
+    "react": "^17.0.0",
+    "styled-components": "^5.0.0"
+  },
+  "dependencies": {
+    "@murv/loader": "^1.0.0",
+    "@murv/core": "^1.0.0",
+    "@murv/provider": "^1.0.0"
+  },
+  "publishConfig": {
+    "registry": "https://jfrog.fkinternal.com/artifactory/api/npm/npm_virtual/"
+  },
+  "volta": {
+    "extends": "../../package.json"
+  },
+  "preconstruct": {
+    "exports": {
+      "extra": {
+        ".": {
+          "import": "./dist/murv-progress-bar.esm.js",
+          "require": "./dist/murv-progress-bar.cjs.js",
+          "default": "./dist/murv-progress-bar.cjs.js"
+        }
+      }
+    }
+  }
+}

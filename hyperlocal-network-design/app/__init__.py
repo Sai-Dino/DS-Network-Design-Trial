@@ -2,13 +2,11 @@
 Application factory.
 
 Calling create_app() builds a fully-configured Flask application.
-This pattern (called the "app factory") lets us create multiple app
-instances with different configs — essential for testing and for
-running the same code in dev vs production.
 """
 
 import logging
 import os
+from datetime import timedelta
 
 from flask import Flask
 
@@ -26,6 +24,8 @@ def create_app(config_class=None):
     )
     app.config.from_object(cfg)
 
+    app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(hours=24)
+
     # --- Logging ---------------------------------------------------------
     logging.basicConfig(
         level=getattr(logging, cfg.LOG_LEVEL, logging.INFO),
@@ -33,37 +33,73 @@ def create_app(config_class=None):
     )
 
     # --- Extensions ------------------------------------------------------
-    from app.extensions import db, migrate
+    from app.extensions import bcrypt, db, migrate
 
     db.init_app(app)
     migrate.init_app(app, db)
+    bcrypt.init_app(app)
 
     # --- Blueprints ------------------------------------------------------
     from app.routes.api import api_bp
+    from app.routes.auth import auth_bp
     from app.routes.health import health_bp
 
     app.register_blueprint(api_bp)
+    app.register_blueprint(auth_bp)
     app.register_blueprint(health_bp)
 
     # --- CORS ------------------------------------------------------------
     _register_cors(app, cfg)
 
-    # --- Auth middleware --------------------------------------------------
-    if cfg.AUTH_ENABLED:
-        _register_auth(app, cfg)
+    # --- Session-based auth middleware -----------------------------------
+    _register_session_auth(app)
 
     # --- Error handlers --------------------------------------------------
     _register_error_handlers(app)
 
-    # --- Create tables ---------------------------------------------------
+    # --- Create tables + data directories --------------------------------
     with app.app_context():
         from app import models  # noqa: F401
         db.create_all()
+
+        data_dir = os.path.abspath(cfg.DATA_DIR)
+        os.makedirs(os.path.join(data_dir, "uploads"), exist_ok=True)
+        os.makedirs(os.path.join(data_dir, "results"), exist_ok=True)
 
     return app
 
 
 # ── helpers ──────────────────────────────────────────────────────────────
+
+_PUBLIC_PREFIXES = (
+    "/api/auth/",
+    "/api/health",
+    "/health",
+    "/static",
+)
+
+
+def _register_session_auth(app):
+    """Require a valid session for all /api/* routes except login and health."""
+
+    @app.before_request
+    def _check_session():
+        from flask import request, session, jsonify
+
+        path = request.path
+
+        if path == "/":
+            return None
+        if any(path.startswith(p) for p in _PUBLIC_PREFIXES):
+            return None
+        if request.method == "OPTIONS":
+            return None
+
+        if not path.startswith("/api"):
+            return None
+
+        if not session.get("user_id"):
+            return jsonify({"error": "Not logged in"}), 401
 
 
 def _register_cors(app, cfg):
@@ -75,32 +111,8 @@ def _register_cors(app, cfg):
         response.headers["Access-Control-Allow-Origin"] = origin
         response.headers["Access-Control-Allow-Headers"] = "Content-Type,Authorization"
         response.headers["Access-Control-Allow-Methods"] = "GET,PUT,POST,DELETE,OPTIONS"
+        response.headers["Access-Control-Allow-Credentials"] = "true"
         return response
-
-
-def _register_auth(app, cfg):
-    """Optional simple token / basic-auth gate for all /api/* routes."""
-
-    @app.before_request
-    def _check_auth():
-        from flask import request, jsonify
-
-        if not request.path.startswith("/api"):
-            return None
-        if request.path.startswith("/api/health"):
-            return None
-
-        token = request.headers.get("Authorization", "").replace("Bearer ", "")
-        if cfg.AUTH_TOKEN and token == cfg.AUTH_TOKEN:
-            return None
-
-        import base64
-
-        auth = request.authorization
-        if auth and auth.username == cfg.AUTH_USERNAME and auth.password == cfg.AUTH_PASSWORD:
-            return None
-
-        return jsonify({"error": "Unauthorized"}), 401
 
 
 def _register_error_handlers(app):

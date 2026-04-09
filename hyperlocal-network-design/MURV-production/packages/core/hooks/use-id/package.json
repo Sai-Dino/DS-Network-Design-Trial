@@ -1,0 +1,4 @@
+{
+  "main": "dist/murv-core-hooks-use-id.cjs.js",
+  "module": "dist/murv-core-hooks-use-id.esm.js"
+}

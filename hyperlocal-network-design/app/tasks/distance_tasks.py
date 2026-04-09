@@ -1,15 +1,9 @@
 """
 Celery tasks for distance calculation.
 
-These run in a SEPARATE process from the web server.  When you call
-``calculate_distances_task.delay(job_id, osrm_url)``, Celery puts a
-message on Redis.  A worker process picks it up and runs the function.
-
-Benefits over plain threads:
-  - Survives web server restarts
-  - Automatic retry on failure
-  - Scales horizontally (run more workers on more machines)
-  - Visibility: you can monitor task status via Celery Flower
+These run in a SEPARATE process from the web server.  All state is
+read from and written to the database + filesystem — never the
+web server's memory.
 """
 
 import logging
@@ -24,23 +18,51 @@ def calculate_distances_task(self, job_id: str, osrm_url: str, max_workers: int 
     """
     Celery-wrapped distance calculation.
 
-    ``bind=True`` gives us ``self`` so we can report progress and retry.
-    ``max_retries=3`` means if the OSRM server is temporarily down,
-    Celery will wait 60 seconds and try again, up to 3 times.
+    Reads the uploaded DataFrame from disk, calls the OSRM engine,
+    writes results to disk, and updates the DB throughout.
     """
-    from app.routes.api import JOBS, JOBS_LOCK
-    from app.services.osrm import background_distance_calculation
+    from app import create_app
+    app = create_app()
 
-    with JOBS_LOCK:
-        job = JOBS.get(job_id)
+    with app.app_context():
+        from app.services import storage
+        from app.services.osrm import calculate_distances
 
-    if not job:
-        logger.error("Celery task: job %s not found in memory", job_id)
-        return {"status": "error", "error": "Job not found"}
+        job = storage.get_job(job_id)
+        if not job:
+            logger.error("Celery task: job %s not found in DB", job_id)
+            return {"status": "error", "error": "Job not found"}
 
-    try:
-        background_distance_calculation(job, osrm_url, max_workers, chunk_limit)
-        return {"status": "complete", "job_id": job_id}
-    except Exception as exc:
-        logger.error("Celery task failed for job %s: %s", job_id, exc)
-        raise self.retry(exc=exc)
+        df = storage.load_upload(job_id)
+        if df is None:
+            storage.fail_job(job_id, "Upload data not found on disk")
+            return {"status": "error", "error": "Upload not found"}
+
+        mapping = storage.get_mapping(job_id)
+
+        try:
+            storage.update_progress(job_id, 0, 0, status="running")
+
+            def _on_progress(processed, failed):
+                storage.update_progress(job_id, processed, failed)
+                self.update_state(state="PROGRESS", meta={"processed": processed, "failed": failed})
+
+            def _on_checkpoint(partial_results, processed):
+                storage.save_checkpoint(job_id, partial_results, processed)
+
+            results, failed = calculate_distances(
+                df, mapping, osrm_url,
+                on_progress=_on_progress,
+                on_checkpoint=_on_checkpoint,
+                max_workers=max_workers,
+                chunk_limit=chunk_limit,
+            )
+
+            storage.complete_job(job_id, results, df, mapping, failed)
+            storage.clear_checkpoint(job_id)
+            return {"status": "complete", "job_id": job_id, "results": len(results)}
+
+        except Exception as exc:
+            logger.error("Celery task failed for job %s: %s", job_id, exc)
+            storage.fail_job(job_id, str(exc))
+            raise self.retry(exc=exc)

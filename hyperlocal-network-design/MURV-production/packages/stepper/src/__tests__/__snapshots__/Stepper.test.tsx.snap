@@ -1,0 +1,263 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`Stepper Component Test snapshot test for Stepper component 1`] = `
+<div>
+  <div
+    class="styles__StyledStepper-sc-1mbl5y-8 invVys"
+    data-testid="text-stepper"
+    orientation="horizontal"
+  >
+    <div
+      class="styles__StepWrapper-sc-1mbl5y-9 kkuwqM"
+      orientation="horizontal"
+    >
+      <div
+        class="styles__StyledStep-sc-1mbl5y-0 kDBUkz"
+        data-testid="text-stepper-step-0"
+        id="text-stepper-step-0"
+        orientation="horizontal"
+      >
+        <div
+          class="styles__StepBarContainer-sc-1mbl5y-1 bfJkGZ"
+          orientation="horizontal"
+        >
+          <div
+            class="styles__StepCircle-sc-1mbl5y-2 kCMKgP"
+            data-testid="text-stepper-step-0-circle"
+          />
+          <div
+            class="styles__StepBar-sc-1mbl5y-3 kJlYbx"
+            data-testid="text-stepper-step-0-bar"
+            orientation="horizontal"
+          />
+        </div>
+        <div
+          class="styles__StepLabelContainer-sc-1mbl5y-5 CVZdf"
+          orientation="horizontal"
+        >
+          <div
+            class="styles__TagContainer-sc-1qkmyn8-0 iQRtCb"
+          >
+            <div
+              class="styles__TagText-sc-1qkmyn8-1 gHXyDU"
+            >
+              Success
+            </div>
+          </div>
+          <div
+            class="styles__StepName-sc-1mbl5y-6 ktPcIy"
+          >
+            Step One
+          </div>
+          <div
+            class="styles__StepSubText-sc-1mbl5y-7 gDnzpF"
+          >
+            12-1-2024 
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      class="styles__StepWrapper-sc-1mbl5y-9 kkuwqM"
+      orientation="horizontal"
+    >
+      <div
+        class="styles__StyledStep-sc-1mbl5y-0 kDBUkz"
+        data-testid="text-stepper-step-1"
+        id="text-stepper-step-1"
+        orientation="horizontal"
+      >
+        <div
+          class="styles__StepBarContainer-sc-1mbl5y-1 bfJkGZ"
+          orientation="horizontal"
+        >
+          <div
+            class="styles__StepCircle-sc-1mbl5y-2 kCMKgP"
+            data-testid="text-stepper-step-1-circle"
+          />
+          <div
+            class="styles__StepBar-sc-1mbl5y-3 kJlYbx"
+            data-testid="text-stepper-step-1-bar"
+            orientation="horizontal"
+          />
+        </div>
+        <div
+          class="styles__StepLabelContainer-sc-1mbl5y-5 CVZdf"
+          orientation="horizontal"
+        >
+          <div
+            class="styles__TagContainer-sc-1qkmyn8-0 iQRtCb"
+          >
+            <div
+              class="styles__TagText-sc-1qkmyn8-1 gHXyDU"
+            >
+              Success
+            </div>
+          </div>
+          <div
+            class="styles__StepName-sc-1mbl5y-6 ktPcIy"
+          >
+            Step Two
+          </div>
+          <div
+            class="styles__StepSubText-sc-1mbl5y-7 gDnzpF"
+          >
+            12-1-2024 
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      class="styles__StepWrapper-sc-1mbl5y-9 kkuwqM"
+      orientation="horizontal"
+    >
+      <div
+        class="styles__StyledStep-sc-1mbl5y-0 kDBUkz"
+        data-testid="text-stepper-step-2"
+        id="text-stepper-step-2"
+        orientation="horizontal"
+      >
+        <div
+          class="styles__StepBarContainer-sc-1mbl5y-1 bfJkGZ"
+          orientation="horizontal"
+        >
+          <div
+            class="styles__StepCircle-sc-1mbl5y-2 kCMKgP"
+            data-testid="text-stepper-step-2-circle"
+          />
+          <div
+            class="styles__StepBar-sc-1mbl5y-3 eoxiPF"
+            data-testid="text-stepper-step-2-bar"
+            orientation="horizontal"
+          >
+            <div
+              class="styles__ProgressBar-sc-1mbl5y-4 HHddS"
+              id="progress-bar"
+              orientation="horizontal"
+            />
+          </div>
+        </div>
+        <div
+          class="styles__StepLabelContainer-sc-1mbl5y-5 CVZdf"
+          orientation="horizontal"
+        >
+          <div
+            class="styles__TagContainer-sc-1qkmyn8-0 fgBNef"
+          >
+            <div
+              class="styles__TagText-sc-1qkmyn8-1 gHXyDU"
+            >
+              Pending
+            </div>
+          </div>
+          <div
+            class="styles__StepName-sc-1mbl5y-6 ktPcIy"
+          >
+            Step Three
+          </div>
+          <div
+            class="styles__StepSubText-sc-1mbl5y-7 gDnzpF"
+          >
+            12-1-2024
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      class="styles__StepWrapper-sc-1mbl5y-9 kkuwqM"
+      orientation="horizontal"
+    >
+      <div
+        class="styles__StyledStep-sc-1mbl5y-0 kDBUkz"
+        data-testid="text-stepper-step-3"
+        id="text-stepper-step-3"
+        orientation="horizontal"
+      >
+        <div
+          class="styles__StepBarContainer-sc-1mbl5y-1 bfJkGZ"
+          orientation="horizontal"
+        >
+          <div
+            class="styles__StepCircle-sc-1mbl5y-2 fjkHTf"
+            data-testid="text-stepper-step-3-circle"
+          />
+          <div
+            class="styles__StepBar-sc-1mbl5y-3 eoxiPF"
+            data-testid="text-stepper-step-3-bar"
+            orientation="horizontal"
+          />
+        </div>
+        <div
+          class="styles__StepLabelContainer-sc-1mbl5y-5 CVZdf"
+          orientation="horizontal"
+        >
+          <div
+            class="styles__TagContainer-sc-1qkmyn8-0 FfwMZ"
+          >
+            <div
+              class="styles__TagText-sc-1qkmyn8-1 gHXyDU"
+            >
+              Pending
+            </div>
+          </div>
+          <div
+            class="styles__StepName-sc-1mbl5y-6 ktPcIy"
+          >
+            Step Four
+          </div>
+          <div
+            class="styles__StepSubText-sc-1mbl5y-7 gDnzpF"
+          >
+            12-1-2024 
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      class="styles__StepWrapper-sc-1mbl5y-9 kkuwqM"
+      orientation="horizontal"
+    >
+      <div
+        class="styles__StyledStep-sc-1mbl5y-0 kDBUkz"
+        data-testid="text-stepper-step-4"
+        id="text-stepper-step-4"
+        orientation="horizontal"
+      >
+        <div
+          class="styles__StepBarContainer-sc-1mbl5y-1 bfJkGZ"
+          orientation="horizontal"
+        >
+          <div
+            class="styles__StepCircle-sc-1mbl5y-2 fjkHTf"
+            data-testid="text-stepper-step-4-circle"
+          />
+        </div>
+        <div
+          class="styles__StepLabelContainer-sc-1mbl5y-5 CVZdf"
+          orientation="horizontal"
+        >
+          <div
+            class="styles__TagContainer-sc-1qkmyn8-0 FfwMZ"
+          >
+            <div
+              class="styles__TagText-sc-1qkmyn8-1 gHXyDU"
+            >
+              Pending
+            </div>
+          </div>
+          <div
+            class="styles__StepName-sc-1mbl5y-6 ktPcIy"
+          >
+            Step Five
+          </div>
+          <div
+            class="styles__StepSubText-sc-1mbl5y-7 gDnzpF"
+          >
+            12-1-2024 
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+`;

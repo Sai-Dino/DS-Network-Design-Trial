@@ -1,0 +1,115 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`Loader component testing Loader default 1`] = `
+<div>
+  <svg
+    viewBox="0 0 52 18"
+    width="20px"
+    x="0"
+    y="0"
+  >
+    <circle
+      cx="6"
+      cy="9"
+      fill="#2a55e5"
+      r="6"
+      stroke="none"
+    >
+      <animate
+        attributeName="opacity"
+        begin="0.1"
+        dur="1s"
+        repeatCount="indefinite"
+        values="0;1;0"
+      />
+    </circle>
+    <circle
+      cx="26"
+      cy="9"
+      fill="#2a55e5"
+      r="6"
+      stroke="none"
+    >
+      <animate
+        attributeName="opacity"
+        begin="0.2"
+        dur="1s"
+        repeatCount="indefinite"
+        values="0;1;0"
+      />
+    </circle>
+    <circle
+      cx="46"
+      cy="9"
+      fill="#2a55e5"
+      r="6"
+      stroke="none"
+    >
+      <animate
+        attributeName="opacity"
+        begin="0.3"
+        dur="1s"
+        repeatCount="indefinite"
+        values="0;1;0"
+      />
+    </circle>
+  </svg>
+</div>
+`;
+
+exports[`Loader component testing Loader with customer color 1`] = `
+<div>
+  <svg
+    viewBox="0 0 52 18"
+    width="20px"
+    x="0"
+    y="0"
+  >
+    <circle
+      cx="6"
+      cy="9"
+      fill="#3b3b3b"
+      r="6"
+      stroke="none"
+    >
+      <animate
+        attributeName="opacity"
+        begin="0.1"
+        dur="1s"
+        repeatCount="indefinite"
+        values="0;1;0"
+      />
+    </circle>
+    <circle
+      cx="26"
+      cy="9"
+      fill="#3b3b3b"
+      r="6"
+      stroke="none"
+    >
+      <animate
+        attributeName="opacity"
+        begin="0.2"
+        dur="1s"
+        repeatCount="indefinite"
+        values="0;1;0"
+      />
+    </circle>
+    <circle
+      cx="46"
+      cy="9"
+      fill="#3b3b3b"
+      r="6"
+      stroke="none"
+    >
+      <animate
+        attributeName="opacity"
+        begin="0.3"
+        dur="1s"
+        repeatCount="indefinite"
+        values="0;1;0"
+      />
+    </circle>
+  </svg>
+</div>
+`;
