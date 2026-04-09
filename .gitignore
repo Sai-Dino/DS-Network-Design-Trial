@@ -27,6 +27,7 @@ Thumbs.db
 
 # Large data files
 *.csv
+!feb_2026_distance_input.csv
 *.xlsx
 *.xls
 
