@@ -1,0 +1,108 @@
+{
+  "name": "handoff-103-to-144",
+  "first": {
+    "scenario": {
+      "name": "world-103-baseline",
+      "world": "benchmark_103",
+      "radius": 3,
+      "trigger": "run",
+      "waitForFinal": false
+    },
+    "runId": "run-1-1776017789190",
+    "coreDurationMs": 431611,
+    "decision_grade_result": {
+      "active_view_key": "rescue_first_standard_100",
+      "fixed_standard_count": 103,
+      "new_standard_count": 98,
+      "base_new_standard_count": 10,
+      "rescue_standard_count": 88,
+      "gap_fill_standard_count": 10,
+      "spacing_relaxed_standard_count": 88,
+      "total_physical_standard_count": 201,
+      "exception_hub_count": 45,
+      "mini_count": 0,
+      "proposed_hard_coverage_pct": 99.89,
+      "proposed_avg_cost": 41.99,
+      "proposed_avg_dist": 1.439,
+      "current_avg_cost": 45.55,
+      "current_avg_dist": 1.838,
+      "daily_savings": 508113,
+      "monthly_savings": 15243403,
+      "fixed_store_world": 103,
+      "fixed_store_mode": "benchmark_103",
+      "fixed_store_source_mode": "old_103_exact_locations",
+      "standard_ds_radius": 3,
+      "standard_exception_radius_km": 5,
+      "meeting_fast_mode": true
+    }
+  },
+  "second": {
+    "scenario": {
+      "name": "world-144-baseline",
+      "world": "uploaded_current",
+      "radius": 3,
+      "trigger": "run",
+      "waitForFinal": false
+    },
+    "runId": "run-2-1776018226976",
+    "coreDurationMs": 433984,
+    "decision_grade_result": {
+      "active_view_key": "rescue_first_standard_100",
+      "fixed_standard_count": 144,
+      "new_standard_count": 69,
+      "base_new_standard_count": 11,
+      "rescue_standard_count": 58,
+      "gap_fill_standard_count": 10,
+      "spacing_relaxed_standard_count": 58,
+      "total_physical_standard_count": 213,
+      "exception_hub_count": 42,
+      "mini_count": 0,
+      "proposed_hard_coverage_pct": 99.9,
+      "proposed_avg_cost": 42.14,
+      "proposed_avg_dist": 1.457,
+      "current_avg_cost": 45.02,
+      "current_avg_dist": 1.78,
+      "daily_savings": 411191,
+      "monthly_savings": 12335737,
+      "fixed_store_world": 144,
+      "fixed_store_mode": "uploaded_current",
+      "fixed_store_source_mode": "store_scope_file",
+      "standard_ds_radius": 3,
+      "standard_exception_radius_km": 5,
+      "meeting_fast_mode": true
+    },
+    "uiState": {
+      "banner": {
+        "text": "Displayed optimization result cleared. Inputs changed after the last exact run.",
+        "visible": false
+      },
+      "dashboard": {
+        "fixed": "144",
+        "new": "69",
+        "rescue": "58",
+        "exception": "42",
+        "relaxed": "58",
+        "note": "Rescue-Standard-First · fixed-store world 144 fixed-store world · 213 physical Standard sites at 99.90% hard coverage. New physical Standards: 69 (11 base + 58 rescue). Spacing-relaxed rescue Standards: 58."
+      },
+      "metrics": {
+        "propHard": "99.90",
+        "propCost": "₹42.1",
+        "propDist": "1.46"
+      },
+      "tables": {
+        "fixedRows": 144,
+        "newRows": 9,
+        "rescueRows": 46,
+        "exceptionRows": 42
+      },
+      "map": {
+        "svgNodeCount": 0,
+        "markerIconCount": 0,
+        "palette": {},
+        "legendText": "Hub Types\n      Old Fixed Store\n      Mini DS (New)\n      Mini Radius\n      New Standard DS\n      Standard Radius\n      Exception Standard DS\n      Exception Radius\n      Super DS (30k)\n      Residual Service Gap"
+      }
+    }
+  },
+  "handoffAccepted": true,
+  "timestamp": "2026-04-12T18:31:04.890Z"
+}

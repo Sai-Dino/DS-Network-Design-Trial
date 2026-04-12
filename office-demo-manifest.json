@@ -1,0 +1,28 @@
+{
+  "bundle_root": "/Users/thota/Downloads/DS-Network-Design-Trial-main",
+  "bundle_root_total": {
+    "path": "/Users/thota/Downloads/DS-Network-Design-Trial-main",
+    "file_count": 3237,
+    "total_bytes": 22085601869
+  },
+  "cache": {
+    "path": "/Users/thota/Downloads/DS-Network-Design-Trial-main/network-optimizer/cache",
+    "file_count": 121,
+    "total_bytes": 7549506564
+  },
+  "osrm_data": {
+    "path": "/Users/thota/Downloads/DS-Network-Design-Trial-main/osrm-data",
+    "file_count": 27,
+    "total_bytes": 6653282734
+  },
+  "required_files": {
+    "office_demo_start": "/Users/thota/Downloads/DS-Network-Design-Trial-main/office_demo_start.sh",
+    "office_demo_verify": "/Users/thota/Downloads/DS-Network-Design-Trial-main/office_demo_verify.sh",
+    "optimizer_start": "/Users/thota/Downloads/DS-Network-Design-Trial-main/network-optimizer/start.sh",
+    "osrm_start": "/Users/thota/Downloads/DS-Network-Design-Trial-main/network-optimizer/start_osrm.sh",
+    "stores_103": "/Users/thota/Downloads/DS-Network-Design-Trial-main/Store details - 103 old stores.csv",
+    "stores_151": "/Users/thota/Downloads/DS-Network-Design-Trial-main/Store details - 151 polygons with stores.csv",
+    "orders_csv": "/Users/thota/Downloads/DS-Network-Design-Trial-main/feb_2026_distance_input.csv",
+    "orders_zip": "/Users/thota/Downloads/DS-Network-Design-Trial-main/feb_2026_distance_input.csv.zip"
+  }
+}

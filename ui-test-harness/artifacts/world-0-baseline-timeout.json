@@ -1,0 +1,13 @@
+{
+  "name": "world-0-baseline-timeout",
+  "observed_at": "2026-04-12T22:00:00+05:30",
+  "status_snapshot": {
+    "optimization_running": true,
+    "optimization_deferred_running": false,
+    "optimization_core_ready": false,
+    "optimization_deferred_ready": false,
+    "optimization_progress": "Rescue-first completion: Exception Standard search: Radius overrides: selected 45 hub override(s)...",
+    "optimization_run_id": "run-3-1776013769560"
+  },
+  "notes": "Browser harness timed out waiting for core result after 12 minutes on clean_slate / 0 fixed stores. This snapshot reflects the live server state after that timeout."
+}

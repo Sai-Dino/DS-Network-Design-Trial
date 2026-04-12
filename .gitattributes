@@ -1,1 +1,6 @@
+osrm-data/** filter=lfs diff=lfs merge=lfs -text
+network-optimizer/cache/** filter=lfs diff=lfs merge=lfs -text
+optimization_results/** filter=lfs diff=lfs merge=lfs -text
+*.osrm* filter=lfs diff=lfs merge=lfs -text
+*.pbf filter=lfs diff=lfs merge=lfs -text
 feb_2026_distance_input.csv filter=lfs diff=lfs merge=lfs -text
