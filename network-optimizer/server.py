@@ -1370,16 +1370,12 @@ def normalize_placement_params(params):
     base['meeting_fast_mode'] = bool(base.get('meeting_fast_mode', True))
     if base['meeting_fast_mode']:
         base['meeting_fast_defer_super'] = bool(base.get('meeting_fast_defer_super', True))
-        raw_candidate_cap = base.get('exact_candidate_cap', '__missing__')
-        allow_full_candidate_pool = bool(base.get('allow_full_exact_candidate_pool', False))
-        if raw_candidate_cap is None and allow_full_candidate_pool:
-            base['exact_candidate_cap'] = None
-        else:
-            try:
-                candidate_cap = int(float(base.get('exact_candidate_cap', 5000) or 5000))
-            except (TypeError, ValueError):
-                candidate_cap = 5000
-            base['exact_candidate_cap'] = max(500, candidate_cap)
+        base['meeting_use_compact_frontier'] = bool(base.get('meeting_use_compact_frontier', False))
+        try:
+            business_target_hint = float(base.get('business_target_coverage_pct', 100.0) or 100.0)
+        except (TypeError, ValueError):
+            business_target_hint = 100.0
+        base['exact_candidate_cap'] = _canonical_meeting_exact_candidate_cap(base)
         try:
             top_k = int(float(base.get('meeting_fast_override_top_k', 80) or 80))
         except (TypeError, ValueError):
@@ -1387,20 +1383,33 @@ def normalize_placement_params(params):
         base['meeting_fast_override_top_k'] = max(10, top_k)
         base['meeting_fast_override_single_step'] = bool(base.get('meeting_fast_override_single_step', True))
         base['meeting_fast_skip_second_exception_pass'] = bool(base.get('meeting_fast_skip_second_exception_pass', True))
+        raw_near_full_pct = base.get('benchmark_near_full_coverage_pct', '__missing__')
         try:
-            target_pct = float(base.get('meeting_fast_target_coverage_pct', base.get('benchmark_near_full_coverage_pct', 99.7)) or 99.7)
+            if raw_near_full_pct == '__missing__':
+                near_full_pct = business_target_hint
+            else:
+                near_full_pct = float(base.get('benchmark_near_full_coverage_pct', business_target_hint) or business_target_hint)
         except (TypeError, ValueError):
-            target_pct = 99.7
+            near_full_pct = business_target_hint
+        base['benchmark_near_full_coverage_pct'] = min(100.0, max(90.0, near_full_pct))
+        raw_target_pct = base.get('meeting_fast_target_coverage_pct', '__missing__')
+        try:
+            if raw_target_pct == '__missing__':
+                target_pct = business_target_hint
+            else:
+                target_pct = float(base.get('meeting_fast_target_coverage_pct', business_target_hint) or business_target_hint)
+        except (TypeError, ValueError):
+            target_pct = business_target_hint
         base['meeting_fast_target_coverage_pct'] = min(100.0, max(90.0, target_pct))
         try:
             core_publish_pct = float(
                 base.get(
                     'meeting_core_publish_coverage_pct',
-                    base.get('meeting_fast_publish_coverage_pct', min(99.8, float(base['meeting_fast_target_coverage_pct']))),
+                    base.get('meeting_fast_publish_coverage_pct', 99.8),
                 ) or 99.8
             )
         except (TypeError, ValueError):
-            core_publish_pct = min(99.8, float(base['meeting_fast_target_coverage_pct']))
+            core_publish_pct = 99.8
         base['meeting_core_publish_coverage_pct'] = min(100.0, max(95.0, core_publish_pct))
         try:
             gap_fill_cap = int(float(base.get('meeting_fast_max_standard_gap_fill_sites', 40) or 40))
@@ -1438,11 +1447,11 @@ def normalize_placement_params(params):
             rescue_handover_pct = float(
                 base.get(
                     'standard_rescue_handover_coverage_pct',
-                    min(99.4, float(base.get('meeting_fast_target_coverage_pct', 100.0) or 100.0)),
-                ) or 99.4
+                    float(base.get('meeting_fast_target_coverage_pct', 100.0) or 100.0),
+                ) or float(base.get('meeting_fast_target_coverage_pct', 100.0) or 100.0)
             )
         except (TypeError, ValueError):
-            rescue_handover_pct = 99.4
+            rescue_handover_pct = float(base.get('meeting_fast_target_coverage_pct', 100.0) or 100.0)
         base['standard_rescue_handover_coverage_pct'] = min(
             float(base['meeting_fast_target_coverage_pct']),
             max(90.0, rescue_handover_pct),
@@ -1481,11 +1490,14 @@ def normalize_placement_params(params):
             exception_first_live_coverage = float(
                 base.get(
                     'exception_first_live_min_coverage_pct',
-                    min(99.7, float(base.get('meeting_fast_target_coverage_pct', 100.0) or 100.0)),
-                ) or 99.7
+                    min(
+                        float(base.get('benchmark_near_full_coverage_pct', business_target_hint) or business_target_hint),
+                        float(base.get('meeting_fast_target_coverage_pct', 100.0) or 100.0),
+                    ),
+                ) or float(base.get('benchmark_near_full_coverage_pct', business_target_hint) or business_target_hint)
             )
         except (TypeError, ValueError):
-            exception_first_live_coverage = 99.7
+            exception_first_live_coverage = float(base.get('benchmark_near_full_coverage_pct', business_target_hint) or business_target_hint)
         base['exception_first_live_min_coverage_pct'] = min(
             float(base['meeting_fast_target_coverage_pct']),
             max(95.0, exception_first_live_coverage),
@@ -1569,10 +1581,24 @@ def normalize_placement_params(params):
         except (TypeError, ValueError):
             exception_first_budget = 90.0
         base['exception_first_live_budget_seconds'] = max(15.0, exception_first_budget)
+        raw_near_full_pct = base.get('benchmark_near_full_coverage_pct', '__missing__')
         try:
-            exception_first_live_coverage = float(base.get('exception_first_live_min_coverage_pct', 99.7) or 99.7)
+            if raw_near_full_pct == '__missing__':
+                near_full_pct = float(base.get('business_target_coverage_pct', 100.0) or 100.0)
+            else:
+                near_full_pct = float(base.get('benchmark_near_full_coverage_pct', 100.0) or 100.0)
         except (TypeError, ValueError):
-            exception_first_live_coverage = 99.7
+            near_full_pct = 100.0
+        base['benchmark_near_full_coverage_pct'] = min(100.0, max(90.0, near_full_pct))
+        try:
+            exception_first_live_coverage = float(
+                base.get(
+                    'exception_first_live_min_coverage_pct',
+                    base.get('benchmark_near_full_coverage_pct', 100.0),
+                ) or base.get('benchmark_near_full_coverage_pct', 100.0)
+            )
+        except (TypeError, ValueError):
+            exception_first_live_coverage = float(base.get('benchmark_near_full_coverage_pct', 100.0) or 100.0)
         base['exception_first_live_min_coverage_pct'] = min(
             float(base['meeting_fast_target_coverage_pct']),
             max(95.0, exception_first_live_coverage),
@@ -1656,57 +1682,40 @@ def normalize_placement_params(params):
         known_counts = [v for v in target_counts.values() if v is not None]
         if known_counts:
             base['target_max_hubs'] = int(sum(known_counts))
+    try:
+        business_target_pct = float(base.get('business_target_coverage_pct', 100.0) or 100.0)
+    except (TypeError, ValueError):
+        business_target_pct = 100.0
+    base['business_target_coverage_pct'] = min(100.0, max(90.0, business_target_pct))
+
     if base.get('meeting_fast_mode'):
-        fixed_store_mode = _effective_fixed_store_mode(base)
-        if fixed_store_mode == 'clean_slate':
-            base['strict_standard_base_target_coverage_pct'] = max(
-                float(base.get('strict_standard_base_target_coverage_pct', 85.0) or 85.0),
-                85.0,
-            )
-            base['strict_standard_base_gap_fill_cap'] = max(
-                int(float(base.get('strict_standard_base_gap_fill_cap', 8) or 8)),
-                8,
-            )
-            base['standard_rescue_seed_top_k'] = min(
-                int(base.get('standard_rescue_seed_top_k', 8) or 8),
-                5,
-            )
+        if base.get('meeting_fast_exception_candidate_site_top_k') not in ('', None):
             try:
-                clean_handover = float(base.get('standard_rescue_handover_coverage_pct', 96.0) or 96.0)
+                base['meeting_fast_exception_candidate_site_top_k'] = max(
+                    16,
+                    int(float(base.get('meeting_fast_exception_candidate_site_top_k'))),
+                )
             except (TypeError, ValueError):
-                clean_handover = 96.0
-            base['standard_rescue_handover_coverage_pct'] = min(
-                float(base['meeting_fast_target_coverage_pct']),
-                max(95.0, clean_handover),
-            )
-            try:
-                exception_site_top_k = int(float(base.get('meeting_fast_exception_candidate_site_top_k', 48) or 48))
-            except (TypeError, ValueError):
-                exception_site_top_k = 48
-            base['meeting_fast_exception_candidate_site_top_k'] = max(16, min(48, exception_site_top_k))
-            try:
-                clean_override_top_k = int(float(base.get('meeting_fast_override_top_k', 48) or 48))
-            except (TypeError, ValueError):
-                clean_override_top_k = 48
-            base['meeting_fast_override_top_k'] = max(16, min(48, clean_override_top_k))
-            current_max_selected = base.get('meeting_fast_override_max_selected')
-            if current_max_selected in ('', None):
-                base['meeting_fast_override_max_selected'] = 48
-            else:
-                try:
-                    base['meeting_fast_override_max_selected'] = max(8, min(48, int(float(current_max_selected))))
-                except (TypeError, ValueError):
-                    base['meeting_fast_override_max_selected'] = 48
-        else:
-            if base.get('meeting_fast_exception_candidate_site_top_k') not in ('', None):
-                try:
-                    base['meeting_fast_exception_candidate_site_top_k'] = max(
-                        16,
-                        int(float(base.get('meeting_fast_exception_candidate_site_top_k'))),
-                    )
-                except (TypeError, ValueError):
-                    base['meeting_fast_exception_candidate_site_top_k'] = None
+                base['meeting_fast_exception_candidate_site_top_k'] = None
     return base
+
+
+def _canonical_meeting_exact_candidate_cap(params=None):
+    base = dict(params or {})
+    raw_candidate_cap = base.get('exact_candidate_cap', '__missing__')
+    allow_full_candidate_pool = bool(base.get('allow_full_exact_candidate_pool', False))
+    try:
+        business_target_hint = float(base.get('business_target_coverage_pct', 100.0) or 100.0)
+    except (TypeError, ValueError):
+        business_target_hint = 100.0
+    default_candidate_cap = 15000 if business_target_hint >= 99.95 else 5000
+    if raw_candidate_cap is None and allow_full_candidate_pool:
+        return None
+    try:
+        candidate_cap = int(float(base.get('exact_candidate_cap', default_candidate_cap) or default_candidate_cap))
+    except (TypeError, ValueError):
+        candidate_cap = default_candidate_cap
+    return max(500, candidate_cap)
 
 
 def _effective_super_base_cost(params):
@@ -5843,19 +5852,33 @@ def _copy_site_records(sites):
 def _strict_standard_base_params(params):
     strict_params = dict(params or {})
     try:
+        business_target_pct = float(strict_params.get('business_target_coverage_pct', 100.0) or 100.0)
+    except (TypeError, ValueError):
+        business_target_pct = 100.0
+    try:
+        core_publish_pct = float(
+            strict_params.get(
+                'meeting_core_publish_coverage_pct',
+                max(99.8, min(100.0, business_target_pct)),
+            ) or max(99.8, min(100.0, business_target_pct))
+        )
+    except (TypeError, ValueError):
+        core_publish_pct = max(99.8, min(100.0, business_target_pct))
+    default_strict_base_target = min(98.5, max(95.0, core_publish_pct - 2.0))
+    try:
         strict_base_target = float(
             strict_params.get(
                 'strict_standard_base_target_coverage_pct',
-                min(95.0, float(strict_params.get('meeting_fast_target_coverage_pct', 100.0) or 100.0)),
-            ) or 95.0
+                default_strict_base_target,
+            ) or default_strict_base_target
         )
     except (TypeError, ValueError):
-        strict_base_target = 95.0
+        strict_base_target = default_strict_base_target
     strict_params['meeting_fast_target_coverage_pct'] = min(100.0, max(90.0, strict_base_target))
     try:
-        strict_gap_fill_cap = int(float(strict_params.get('strict_standard_base_gap_fill_cap', 10) or 10))
+        strict_gap_fill_cap = int(float(strict_params.get('strict_standard_base_gap_fill_cap', 20) or 20))
     except (TypeError, ValueError):
-        strict_gap_fill_cap = 10
+        strict_gap_fill_cap = 20
     strict_params['meeting_fast_max_standard_gap_fill_sites'] = max(10, strict_gap_fill_cap)
     strict_params['meeting_fast_allow_standard_gap_satellites'] = False
     strict_params['meeting_fast_skip_second_exception_pass'] = True
@@ -5867,10 +5890,7 @@ def _strict_standard_base_params(params):
 
 def _exception_first_live_config(params, incumbent_plan=None):
     params = dict(params or {})
-    try:
-        meeting_target = float(params.get('meeting_fast_target_coverage_pct', 100.0) or 100.0)
-    except (TypeError, ValueError):
-        meeting_target = 100.0
+    meeting_target = _business_target_coverage_pct(params)
     try:
         budget_seconds = float(params.get('exception_first_live_budget_seconds', 90.0) or 90.0)
     except (TypeError, ValueError):
@@ -5879,11 +5899,14 @@ def _exception_first_live_config(params, incumbent_plan=None):
         min_coverage_pct = float(
             params.get(
                 'exception_first_live_min_coverage_pct',
-                min(99.7, meeting_target),
-            ) or 99.7
+                min(
+                    float(params.get('benchmark_near_full_coverage_pct', meeting_target) or meeting_target),
+                    meeting_target,
+                ),
+            ) or float(params.get('benchmark_near_full_coverage_pct', meeting_target) or meeting_target)
         )
     except (TypeError, ValueError):
-        min_coverage_pct = min(99.7, meeting_target)
+        min_coverage_pct = min(float(params.get('benchmark_near_full_coverage_pct', meeting_target) or meeting_target), meeting_target)
     try:
         max_coverage_gap_pct = float(params.get('exception_first_live_max_coverage_gap_pct', 0.15) or 0.15)
     except (TypeError, ValueError):
@@ -5930,11 +5953,21 @@ def _standard_candidate_universe_label(params, mode='open_grid'):
     return 'open_grid_cached_candidate_cells'
 
 
-def _compact_standard_frontier_limit(min_physical_standard_count):
+def _compact_standard_frontier_limit(min_physical_standard_count, params=None):
+    if not bool((params or {}).get('meeting_use_compact_frontier', False)):
+        return None
     if min_physical_standard_count in (None, 0):
         return None
     count = int(min_physical_standard_count)
     return count + max(10, int(math.ceil(0.05 * count)))
+
+
+def _business_target_coverage_pct(params):
+    try:
+        target = float((params or {}).get('business_target_coverage_pct', 100.0) or 100.0)
+    except (TypeError, ValueError):
+        target = 100.0
+    return min(100.0, max(90.0, target))
 
 
 def _actual_min_distances_to_standard_sites(scope_grid, fixed_sites, new_sites, params, cached_context=None, fixed_context=None):
@@ -6117,7 +6150,7 @@ def _complete_standard_branch_from_base(scope_grid, base_plan, params, branch_ty
     branch_completion_mode = 'exact'
     branch_stop_reason = ''
     branch_budget_seconds = None
-    branch_target_coverage_pct = float(params.get('meeting_fast_target_coverage_pct', 100.0) or 100.0)
+    branch_target_coverage_pct = _business_target_coverage_pct(params)
     branch_comparison_ready = True
     incumbent_coverage_pct = None
     incumbent_physical_count = None
@@ -6141,7 +6174,7 @@ def _complete_standard_branch_from_base(scope_grid, base_plan, params, branch_ty
         exception_sites_snapshot = _copy_site_records(exception_sites)
         all_sites_snapshot = fixed_sites_snapshot + new_sites_snapshot
         physical_count_at_100 = len(all_sites_snapshot) if not np.any(~covered_snapshot) else None
-        frontier_max = _compact_standard_frontier_limit(physical_count_at_100)
+        frontier_max = _compact_standard_frontier_limit(physical_count_at_100, params=params)
         return {
             'branch_type': branch_type,
             'fixed_sites': fixed_sites_snapshot,
@@ -6226,7 +6259,7 @@ def _complete_standard_branch_from_base(scope_grid, base_plan, params, branch_ty
         except (TypeError, ValueError):
             live_publish_threshold_pct = 99.0
         live_publish_threshold_pct = min(
-            float(params.get('meeting_fast_target_coverage_pct', 100.0) or 100.0),
+            branch_target_coverage_pct,
             max(90.0, live_publish_threshold_pct),
         )
         live_publish_state = {'published': False}
@@ -6253,13 +6286,15 @@ def _complete_standard_branch_from_base(scope_grid, base_plan, params, branch_ty
             rescue_handover_pct = float(
                 rescue_first_params.get(
                     'standard_rescue_handover_coverage_pct',
-                    rescue_first_params.get('meeting_fast_target_coverage_pct', 100.0),
+                    rescue_first_params.get('meeting_fast_target_coverage_pct', branch_target_coverage_pct),
                 ) or 100.0
             )
         except (TypeError, ValueError):
-            rescue_handover_pct = float(rescue_first_params.get('meeting_fast_target_coverage_pct', 100.0) or 100.0)
+            rescue_handover_pct = float(
+                rescue_first_params.get('meeting_fast_target_coverage_pct', branch_target_coverage_pct) or branch_target_coverage_pct
+            )
         rescue_first_params['meeting_fast_target_coverage_pct'] = min(
-            float(params.get('meeting_fast_target_coverage_pct', 100.0) or 100.0),
+            branch_target_coverage_pct,
             rescue_handover_pct,
         )
 
@@ -6268,6 +6303,16 @@ def _complete_standard_branch_from_base(scope_grid, base_plan, params, branch_ty
         _run_rescue("Rescue-first completion", milestone_cb=_rescue_milestone_cb)
         params = original_params
         _apply_exception("Rescue-first completion")
+        coverage_after_exception = 100.0 * float(np.sum(wts[covered])) / max(float(np.sum(wts)), 1e-9)
+        if np.any(~covered) and coverage_after_exception + 1e-9 < branch_target_coverage_pct:
+            final_rescue_params = dict(params or {})
+            final_rescue_params['meeting_fast_target_coverage_pct'] = branch_target_coverage_pct
+            original_params = params
+            params = final_rescue_params
+            _run_rescue("Rescue-first final completion")
+            params = original_params
+            if np.any(~covered):
+                _apply_exception("Rescue-first final completion")
         if not live_publish_state['published'] and callable(live_publish_cb):
             coverage_after_exception = 100.0 * float(np.sum(wts[covered])) / max(float(np.sum(wts)), 1e-9)
             if coverage_after_exception >= live_publish_threshold_pct - 1e-9:
@@ -6312,7 +6357,7 @@ def _complete_standard_branch_from_base(scope_grid, base_plan, params, branch_ty
             current_rescue_seed_top_k = int(exception_cfg['rescue_seed_top_k'])
         exception_first_params['standard_rescue_seed_top_k'] = min(current_rescue_seed_top_k, int(exception_cfg['rescue_seed_top_k']))
         exception_first_params['meeting_fast_target_coverage_pct'] = min(
-            float(params.get('meeting_fast_target_coverage_pct', 100.0) or 100.0),
+            branch_target_coverage_pct,
             float(exception_cfg['min_coverage_pct']),
         )
 
@@ -6371,7 +6416,20 @@ def _complete_standard_branch_from_base(scope_grid, base_plan, params, branch_ty
     uncovered_orders = float(np.sum(wts[~covered]))
     coverage_pct = 100.0 * float(np.sum(wts[covered])) / max(float(np.sum(wts)), 1e-9)
     physical_count_at_100 = len(fixed_sites) + len(new_sites) if not np.any(~covered) else None
-    frontier_max = _compact_standard_frontier_limit(physical_count_at_100)
+    frontier_max = _compact_standard_frontier_limit(physical_count_at_100, params=params)
+    refinement_site_limit = None
+    exact_total_standard_stores = base_plan.get('exact_total_standard_stores')
+    max_new_standard_stores = base_plan.get('max_new_standard_stores')
+    if exact_total_standard_stores not in (None, ''):
+        try:
+            refinement_site_limit = max(len(fixed_sites), int(exact_total_standard_stores))
+        except (TypeError, ValueError):
+            refinement_site_limit = None
+    elif max_new_standard_stores not in (None, ''):
+        try:
+            refinement_site_limit = len(fixed_sites) + max(0, int(max_new_standard_stores))
+        except (TypeError, ValueError):
+            refinement_site_limit = None
     frontier_added = 0
     frontier_daily_gain = 0.0
     allow_frontier_refine = True
@@ -6384,14 +6442,14 @@ def _complete_standard_branch_from_base(scope_grid, base_plan, params, branch_ty
                     f"branch budget reached before frontier refinement "
                     f"({time.time() - branch_started_at:.1f}s/{branch_budget_seconds:.1f}s)"
                 )
-    if allow_frontier_refine and physical_count_at_100 is not None and frontier_max is not None and len(fixed_sites) + len(new_sites) < frontier_max:
+    if allow_frontier_refine and physical_count_at_100 is not None and refinement_site_limit is not None and len(fixed_sites) + len(new_sites) < refinement_site_limit:
         actual_min_d, frontier_added, frontier_daily_gain = _run_standard_cost_frontier_pass(
             scope_grid,
             fixed_sites,
             new_sites,
             actual_min_d,
             params,
-            max_total_hubs=frontier_max,
+            max_total_hubs=refinement_site_limit,
             cached_context=cached_context,
             progress_cb=(lambda msg: progress_cb(f"{'Rescue-first' if branch_type == 'rescue_first' else 'Exception-first'} frontier: {msg}") if progress_cb else None),
         )
@@ -6814,13 +6872,6 @@ def _meeting_branch_eval_from_cached_distances(scope_grid, branch_plan, mini_sit
 
     mini_sites = list(mini_sites or [])
     standard_sites = list(branch_plan.get('all_sites') or [])
-    exception_sites = list(branch_plan.get('exception_sites') or [])
-    exception_site_ids = {str(site.get('id')) for site in exception_sites if site.get('id') is not None}
-    base_standard_hubs = [
-        site for site in standard_sites
-        if str(site.get('id')) not in exception_site_ids
-    ]
-
     rmini = float(params.get('mini_ds_radius', 1.0) or 1.0)
     rstd = float(params.get('standard_ds_radius', 3.0) or 3.0)
     rstd_exception = float(params.get('standard_exception_radius_km', rstd) or rstd)
@@ -6828,6 +6879,29 @@ def _meeting_branch_eval_from_cached_distances(scope_grid, branch_plan, mini_sit
     mvar = float(params.get('mini_variable_rate', 6) or 6)
     sb = float(params.get('standard_base_cost', 29) or 29)
     svar = float(params.get('standard_variable_rate', 9) or 9)
+    explicit_exception_sites = list(branch_plan.get('exception_sites') or [])
+    explicit_exception_site_ids = {
+        str(site.get('id'))
+        for site in explicit_exception_sites
+        if site.get('id') is not None
+    }
+    exception_standard_hubs = []
+    base_standard_hubs = []
+    for site in standard_sites:
+        try:
+            site_radius_km = float(site.get('radius_km', rstd) or rstd)
+        except (TypeError, ValueError):
+            site_radius_km = rstd
+        site_id = str(site.get('id')) if site.get('id') is not None else ''
+        is_exception_standard = (
+            site_id in explicit_exception_site_ids or
+            bool(site.get('exception_standard')) or
+            site_radius_km > rstd + 1e-5
+        )
+        if is_exception_standard:
+            exception_standard_hubs.append(site)
+        else:
+            base_standard_hubs.append(site)
 
     d_mini = _cached_min_distances_for_hubs(
         scope_grid,
@@ -6847,12 +6921,12 @@ def _meeting_branch_eval_from_cached_distances(scope_grid, branch_plan, mini_sit
     ) if base_standard_hubs else np.full(n, np.inf, dtype=np.float64)
     d_std_exception = _cached_min_distances_for_hubs(
         scope_grid,
-        exception_sites,
+        exception_standard_hubs,
         eval_params,
         rstd_exception,
         'standard_exception',
         progress_cb=None,
-    ) if exception_sites else np.full(n, np.inf, dtype=np.float64)
+    ) if exception_standard_hubs else np.full(n, np.inf, dtype=np.float64)
 
     def _score_network(include_mini):
         proposed_dists = np.full(n, np.nan, dtype=np.float64)
@@ -6916,7 +6990,7 @@ def _meeting_branch_eval_from_cached_distances(scope_grid, branch_plan, mini_sit
             'proposed_avg_cost': round(proposed_avg_cost, 2),
             'avg_modeled_cost_per_order': round(modeled_cost['avg_modeled_cost_per_order'], 2),
             'super_penalty_cost_per_day': 0.0,
-            'exception_standard_hub_count': len(exception_sites),
+            'exception_standard_hub_count': len(exception_standard_hubs),
             'current_operational_coverage_pct': current_policy['current_operational_coverage_pct'],
             'current_policy_coverage_pct': current_policy['current_policy_coverage_pct'],
             'proposed_hard_coverage_pct': proposed_policy['proposed_hard_coverage_pct'],
@@ -7049,8 +7123,22 @@ def _build_meeting_scenario_view(view_key, label, branch_plan, metrics, params, 
         annotated_site['is_standard_spacing_relaxed'] = role in {'rescue_spacing_relaxed', 'frontier_refine_spacing_relaxed'}
         annotated_site['is_standard_frontier_refine'] = role == 'frontier_refine_spacing_relaxed'
         annotated_new_sites.append(annotated_site)
+    exception_like_sites = []
+    seen_exception_like = set()
+    for site in standard_sites:
+        try:
+            site_radius_km = float(site.get('radius_km', params.get('standard_ds_radius', 3.0)) or params.get('standard_ds_radius', 3.0))
+        except (TypeError, ValueError):
+            site_radius_km = float(params.get('standard_ds_radius', 3.0) or 3.0)
+        if not (bool(site.get('exception_standard')) or site_radius_km > float(params.get('standard_ds_radius', 3.0) or 3.0) + 1e-5):
+            continue
+        key = str(site.get('id') or f"{site.get('lat')},{site.get('lon')}")
+        if key in seen_exception_like:
+            continue
+        seen_exception_like.add(key)
+        exception_like_sites.append(dict(site))
     annotated_exception_sites = []
-    for site in exception_sites:
+    for site in exception_like_sites:
         annotated_site = dict(site)
         annotated_site['standard_role'] = 'exception_override'
         annotated_site['is_exception_override'] = True
@@ -7065,6 +7153,10 @@ def _build_meeting_scenario_view(view_key, label, branch_plan, metrics, params, 
         spacing_relaxed_sites.append(dict(site))
     total_physical = len(standard_sites)
     view_metrics = dict(metrics or {})
+    exception_override_count = max(
+        int(branch_plan.get('exception_count', 0) or 0),
+        int(len(annotated_exception_sites)),
+    )
     return {
         'view_key': view_key,
         'label': label,
@@ -7084,7 +7176,7 @@ def _build_meeting_scenario_view(view_key, label, branch_plan, metrics, params, 
         'gap_fill_standard_count': int(branch_plan.get('gap_fill_count', len(gap_fill_sites)) or len(gap_fill_sites)),
         'spacing_relaxed_standard_count': int(len(spacing_relaxed_sites)),
         'total_physical_standard_count': total_physical,
-        'exception_override_count': int(branch_plan.get('exception_count', 0) or 0),
+        'exception_override_count': exception_override_count,
         'mini_count': int(len(mini_sites)),
         'proposed_hard_coverage_pct': float(view_metrics.get('proposed_hard_coverage_pct', 0.0) or 0.0),
         'proposed_avg_cost': float(view_metrics.get('proposed_avg_cost', 0.0) or 0.0),
@@ -7124,7 +7216,7 @@ def _build_meeting_scenario_view(view_key, label, branch_plan, metrics, params, 
                 'gap_fill_store_count': int(branch_plan.get('gap_fill_count', len(gap_fill_sites)) or len(gap_fill_sites)),
                 'spacing_relaxed_store_count': int(len(spacing_relaxed_sites)),
                 'exception_sites': _copy_site_records(annotated_exception_sites),
-                'exception_hub_count': int(branch_plan.get('exception_count', 0) or 0),
+                'exception_hub_count': exception_override_count,
                 'total_standard_sites': total_physical,
                 'fixed_store_world': _effective_fixed_store_world(params),
                 'fixed_store_mode': _effective_fixed_store_mode(params),
@@ -7169,8 +7261,7 @@ def _pick_active_meeting_view_key(scenario_views):
         total_sites = int(view.get('total_physical_standard_count', 0) or 0)
         rescue_count = int(view.get('rescue_standard_count', 0) or 0)
         exception_count = int(view.get('exception_override_count', 0) or 0)
-        frontier_ok = 1 if bool(view.get('within_compact_frontier', False)) else 0
-        return (comparison_ready, coverage, frontier_ok, -avg_cost, -total_sites, -rescue_count, -exception_count)
+        return (comparison_ready, coverage, -avg_cost, -total_sites, -rescue_count, -exception_count)
 
     best = max(candidates, key=_score)
     return best.get('view_key')
@@ -7571,6 +7662,38 @@ def _write_exact_superset_component_cache(cache_path, payload):
         pickle.dump(payload, f, protocol=pickle.HIGHEST_PROTOCOL)
 
 
+def _exact_graph_resume_signature(scope_grid, sites, graph_max_radius):
+    h = hashlib.sha1()
+    h.update(f"{len(scope_grid)}|{len(sites)}|{float(graph_max_radius):.4f}".encode('utf-8'))
+    if sites:
+        site_arr = np.array([
+            [float(site.get('cell_lat', site['lat'])), float(site.get('cell_lon', site['lon']))]
+            for site in sites
+        ], dtype=np.float64)
+    else:
+        site_arr = np.empty((0, 2), dtype=np.float64)
+    h.update(np.round(site_arr, 5).tobytes())
+    return {
+        'demand_count': int(len(scope_grid)),
+        'site_count': int(len(sites)),
+        'graph_max_radius_km': float(graph_max_radius),
+        'site_hash': h.hexdigest(),
+    }
+
+
+def _exact_graph_partial_matches(partial_payload, scope_grid, sites, graph_max_radius):
+    expected = _exact_graph_resume_signature(scope_grid, sites, graph_max_radius)
+    actual = dict((partial_payload or {}).get('resume_signature') or {})
+    if not actual:
+        return False
+    return (
+        int(actual.get('demand_count', -1) or -1) == int(expected['demand_count'])
+        and int(actual.get('site_count', -1) or -1) == int(expected['site_count'])
+        and abs(float(actual.get('graph_max_radius_km', -1.0) or -1.0) - float(expected['graph_max_radius_km'])) <= 1e-6
+        and str(actual.get('site_hash') or '') == str(expected['site_hash'])
+    )
+
+
 def _derive_subset_site_edge_graph(full_sites, full_graph, subset_sites, graph_max_radius):
     if not subset_sites:
         return {
@@ -7616,6 +7739,13 @@ def _demand_row_identity_key(row):
     )
 
 
+def _demand_row_spatial_key(row):
+    return (
+        round(float(row.get('cell_lat', row.get('avg_cust_lat'))), 6),
+        round(float(row.get('cell_lon', row.get('avg_cust_lon'))), 6),
+    )
+
+
 def _candidate_site_identity_key(site):
     return (
         round(float(site.get('cell_lat', site.get('lat'))), 6),
@@ -7626,11 +7756,47 @@ def _candidate_site_identity_key(site):
     )
 
 
+def _candidate_site_spatial_key(site):
+    return (
+        round(float(site.get('cell_lat', site.get('lat'))), 6),
+        round(float(site.get('cell_lon', site.get('lon'))), 6),
+    )
+
+
 def _build_full_superset_row_index(full_sites, full_graph):
     row_index_by_key = {}
     candidate_edges = list((full_graph or {}).get('candidate_edges', []))
+    # Fast path: for all-demand superset graphs, candidate site order usually matches
+    # demand-row order. Validate a small sample before trusting direct indexing.
+    if full_sites and candidate_edges and len(candidate_edges) == len(full_sites):
+        sample_count = min(25, len(full_sites))
+        if sample_count > 0:
+            sample_positions = np.linspace(0, len(full_sites) - 1, sample_count, dtype=np.int64)
+            direct_match_count = 0
+            for pos in sample_positions.tolist():
+                try:
+                    row_edges = candidate_edges[int(pos)]
+                except Exception:
+                    row_edges = []
+                for site_idx, dist in row_edges or ():
+                    try:
+                        if int(site_idx) == int(pos) and abs(float(dist)) <= 1e-9:
+                            direct_match_count += 1
+                            break
+                    except Exception:
+                        continue
+            if direct_match_count >= max(3, int(math.ceil(sample_count * 0.6))):
+                for row_idx, site in enumerate(full_sites or ()):
+                    identity_key = _candidate_site_identity_key(site)
+                    spatial_key = _candidate_site_spatial_key(site)
+                    row_index_by_key.setdefault(identity_key, int(row_idx))
+                    row_index_by_key.setdefault(spatial_key, int(row_idx))
+                if row_index_by_key:
+                    return row_index_by_key
+
     for row_idx, edges in enumerate(candidate_edges):
-        zero_keys = []
+        zero_identity_keys = []
+        zero_spatial_keys = []
         for site_idx, dist in edges:
             try:
                 if abs(float(dist)) > 1e-9:
@@ -7638,10 +7804,11 @@ def _build_full_superset_row_index(full_sites, full_graph):
                 site_idx = int(site_idx)
                 if site_idx < 0 or site_idx >= len(full_sites):
                     continue
-                zero_keys.append(_candidate_site_identity_key(full_sites[site_idx]))
+                zero_identity_keys.append(_candidate_site_identity_key(full_sites[site_idx]))
+                zero_spatial_keys.append(_candidate_site_spatial_key(full_sites[site_idx]))
             except Exception:
                 continue
-        for key in set(zero_keys):
+        for key in set(zero_identity_keys + zero_spatial_keys):
             row_index_by_key.setdefault(key, int(row_idx))
     return row_index_by_key
 
@@ -7659,13 +7826,17 @@ def _derive_demand_and_site_subset_graph(scope_grid, full_sites, full_graph, sub
     if not row_index_by_key:
         return None
 
-    full_site_idx_by_key = {}
+    full_site_idx_by_identity = {}
+    full_site_idx_by_spatial = {}
     for idx, site in enumerate(full_sites or ()):
-        full_site_idx_by_key.setdefault(_candidate_site_identity_key(site), int(idx))
+        full_site_idx_by_identity.setdefault(_candidate_site_identity_key(site), int(idx))
+        full_site_idx_by_spatial.setdefault(_candidate_site_spatial_key(site), int(idx))
 
     subset_to_full = []
     for site in subset_sites or ():
-        full_idx = full_site_idx_by_key.get(_candidate_site_identity_key(site))
+        full_idx = full_site_idx_by_identity.get(_candidate_site_identity_key(site))
+        if full_idx is None:
+            full_idx = full_site_idx_by_spatial.get(_candidate_site_spatial_key(site))
         if full_idx is None:
             return None
         subset_to_full.append(int(full_idx))
@@ -7675,6 +7846,8 @@ def _derive_demand_and_site_subset_graph(scope_grid, full_sites, full_graph, sub
     subset_edges = []
     for _, row in scope_grid.iterrows():
         demand_idx = row_index_by_key.get(_demand_row_identity_key(row))
+        if demand_idx is None:
+            demand_idx = row_index_by_key.get(_demand_row_spatial_key(row))
         if demand_idx is None or demand_idx < 0 or demand_idx >= len(full_candidate_edges):
             return None
         filtered = []
@@ -7689,6 +7862,100 @@ def _derive_demand_and_site_subset_graph(scope_grid, full_sites, full_graph, sub
         'graph_max_radius_km': float(graph_max_radius),
         'distance_rule': (full_graph or {}).get('distance_rule', 'store_to_customer_osrm_km'),
         'fixed_edges': subset_edges,
+    }
+
+
+def _build_warm_start_candidate_graph_partial(scope_grid, full_sites, full_graph, subset_sites, graph_max_radius):
+    if scope_grid is None or len(scope_grid) == 0:
+        return None
+
+    row_index_by_key = _build_full_superset_row_index(full_sites or (), full_graph or {})
+    if not row_index_by_key:
+        return None
+
+    full_site_idx_by_identity = {}
+    full_site_idx_by_spatial = {}
+    for idx, site in enumerate(full_sites or ()):
+        full_site_idx_by_identity.setdefault(_candidate_site_identity_key(site), int(idx))
+        full_site_idx_by_spatial.setdefault(_candidate_site_spatial_key(site), int(idx))
+
+    subset_to_full = []
+    missing_site_indices = []
+    matched_site_indices = []
+    for subset_idx, site in enumerate(subset_sites or ()):
+        full_idx = full_site_idx_by_identity.get(_candidate_site_identity_key(site))
+        if full_idx is None:
+            full_idx = full_site_idx_by_spatial.get(_candidate_site_spatial_key(site))
+        if full_idx is None:
+            subset_to_full.append(None)
+            missing_site_indices.append(int(subset_idx))
+            continue
+        subset_to_full.append(int(full_idx))
+        matched_site_indices.append(int(subset_idx))
+    if not matched_site_indices:
+        return None
+
+    full_to_subset = {
+        int(full_idx): int(subset_idx)
+        for subset_idx, full_idx in enumerate(subset_to_full)
+        if full_idx is not None
+    }
+    full_candidate_edges = list((full_graph or {}).get('candidate_edges', []))
+    subset_edges = []
+    missing_demand_indices = []
+    matched_demand_count = 0
+    for row_pos, (_, row) in enumerate(scope_grid.iterrows()):
+        demand_idx = row_index_by_key.get(_demand_row_identity_key(row))
+        if demand_idx is None:
+            demand_idx = row_index_by_key.get(_demand_row_spatial_key(row))
+        if demand_idx is None or demand_idx < 0 or demand_idx >= len(full_candidate_edges):
+            subset_edges.append([])
+            missing_demand_indices.append(int(row_pos))
+            continue
+        matched_demand_count += 1
+        filtered = []
+        for full_idx, dist in full_candidate_edges[demand_idx]:
+            subset_idx = full_to_subset.get(int(full_idx))
+            if subset_idx is not None:
+                filtered.append((int(subset_idx), float(dist)))
+        subset_edges.append(filtered)
+
+    nearby_matched_site_indices = []
+    if missing_demand_indices and matched_site_indices:
+        try:
+            missing_rows = scope_grid.iloc[missing_demand_indices]
+            missing_lats = missing_rows['avg_cust_lat'].values.astype(np.float64)
+            missing_lons = missing_rows['avg_cust_lon'].values.astype(np.float64)
+            matched_sites = [subset_sites[int(idx)] for idx in matched_site_indices]
+            site_lats = np.array([float(site.get('lat', site.get('cell_lat'))) for site in matched_sites], dtype=np.float64)
+            site_lons = np.array([float(site.get('lon', site.get('cell_lon'))) for site in matched_sites], dtype=np.float64)
+            ref_lat = float(np.mean(np.concatenate([missing_lats, site_lats]))) if len(site_lats) else float(np.mean(missing_lats))
+            missing_xy = _latlon_to_xy_km(missing_lats, missing_lons, ref_lat=ref_lat)
+            site_xy = _latlon_to_xy_km(site_lats, site_lons, ref_lat=ref_lat)
+            missing_tree = cKDTree(missing_xy)
+            neighbor_lists = missing_tree.query_ball_point(site_xy, float(graph_max_radius) + 0.05)
+            nearby_matched_site_indices = [
+                int(matched_site_indices[pos])
+                for pos, neighbors in enumerate(neighbor_lists)
+                if neighbors
+            ]
+        except Exception:
+            nearby_matched_site_indices = list(matched_site_indices)
+
+    return {
+        'version': 2,
+        'resume_signature': _exact_graph_resume_signature(scope_grid, subset_sites, graph_max_radius),
+        'graph': {
+            'version': 1,
+            'graph_max_radius_km': float(graph_max_radius),
+            'distance_rule': (full_graph or {}).get('distance_rule', 'store_to_customer_osrm_km'),
+            'fixed_edges': subset_edges,
+        },
+        'all_row_site_indices': list(missing_site_indices),
+        'missing_row_site_indices': list(nearby_matched_site_indices),
+        'missing_demand_indices': list(missing_demand_indices),
+        'matched_site_count': int(len(matched_site_indices)),
+        'matched_demand_count': int(matched_demand_count),
     }
 
 
@@ -7763,15 +8030,324 @@ def _try_derive_candidate_graph_from_completed_superset(scope_grid, candidate_si
     return None, None, None
 
 
-def _load_or_build_exact_site_edge_graph(scope_grid, sites, graph_max_radius, cache_path, status_label, progress_cb=None):
-    if os.path.exists(cache_path):
-        with open(cache_path, 'rb') as f:
-            cached = pickle.load(f)
-        if isinstance(cached, dict) and 'fixed_edges' in cached:
-            return cached
+def _try_seed_candidate_graph_delta_from_completed_superset(scope_grid, candidate_sites, params, graph_max_radius, progress_cb=None):
+    if scope_grid is None or len(scope_grid) == 0 or not candidate_sites:
+        return None, None, None
 
+    candidate_count_floor = max(len(scope_grid), len(candidate_sites))
+    status_paths = []
+    for name in os.listdir(GRAPH_CACHE_DIR):
+        if name.startswith('exact_std_graph_superset_') and name.endswith('.status.json'):
+            status_paths.append(os.path.join(GRAPH_CACHE_DIR, name))
+    status_paths.sort()
+
+    completed_graphs = []
+    for status_path in status_paths:
+        try:
+            status_payload = json.load(open(status_path))
+        except Exception:
+            continue
+        if str(status_payload.get('state', '')).lower() != 'complete':
+            continue
+        if abs(float(status_payload.get('graph_max_radius_km', graph_max_radius) or graph_max_radius) - float(graph_max_radius)) > 1e-6:
+            continue
+        candidate_total = int(status_payload.get('candidate_sites_total', 0) or 0)
+        graph_path = str(status_payload.get('cache_path') or '').strip()
+        if candidate_total < candidate_count_floor or not graph_path or not os.path.exists(graph_path):
+            continue
+        completed_graphs.append((candidate_total, graph_path))
+    completed_graphs.sort(key=lambda item: item[0])
+    if not completed_graphs:
+        return None, None, None
+
+    pool_paths = []
+    for name in os.listdir(GRAPH_CACHE_DIR):
+        if name.startswith('exact_std_candidates_') and name.endswith('.pkl'):
+            pool_paths.append(os.path.join(GRAPH_CACHE_DIR, name))
+    pool_paths.sort()
+
+    best_seed = None
+    for pool_path in pool_paths:
+        try:
+            with open(pool_path, 'rb') as f:
+                pool_payload = pickle.load(f)
+            full_sites = list((pool_payload or {}).get('sites', []))
+        except Exception:
+            continue
+        if len(full_sites) < candidate_count_floor:
+            continue
+        matching_graphs = [graph_path for total, graph_path in completed_graphs if total == len(full_sites)]
+        if not matching_graphs:
+            continue
+        for graph_path in matching_graphs:
+            try:
+                with open(graph_path, 'rb') as f:
+                    full_graph = pickle.load(f)
+                seeded_partial = _build_warm_start_candidate_graph_partial(
+                    scope_grid,
+                    full_sites,
+                    full_graph,
+                    candidate_sites,
+                    graph_max_radius,
+                )
+            except Exception:
+                seeded_partial = None
+            if seeded_partial is None:
+                continue
+            matched_rows = int(seeded_partial.get('matched_demand_count', 0) or 0)
+            matched_sites = int(seeded_partial.get('matched_site_count', 0) or 0)
+            row_ratio = matched_rows / max(len(scope_grid), 1)
+            site_ratio = matched_sites / max(len(candidate_sites), 1)
+            if row_ratio < 0.5 or site_ratio < 0.5:
+                continue
+            score = (row_ratio + site_ratio, row_ratio, site_ratio, len(full_sites))
+            if best_seed is None or score > best_seed[0]:
+                best_seed = (score, seeded_partial, pool_path, graph_path, row_ratio, site_ratio)
+    if best_seed is None:
+        return None, None, None
+
+    _score, seeded_partial, pool_path, graph_path, row_ratio, site_ratio = best_seed
+    if progress_cb:
+        progress_cb(
+            "Exact Standard: warm-starting candidate graph from "
+            f"{os.path.basename(graph_path)} "
+            f"(matched rows {row_ratio * 100:.1f}%, matched sites {site_ratio * 100:.1f}%)"
+        )
+    return seeded_partial, pool_path, graph_path
+
+
+def _finish_site_edge_graph_from_warm_start_partial(
+    scope_grid,
+    sites,
+    graph_max_radius,
+    cache_path,
+    partial_cache_path,
+    status_path,
+    status_label,
+    partial_payload,
+    progress_cb=None,
+):
+    graph_payload = dict((partial_payload or {}).get('graph') or {})
+    site_edges = list(graph_payload.get('fixed_edges') or [])
+    if len(site_edges) != len(scope_grid):
+        site_edges = [[] for _ in range(len(scope_grid))]
+
+    all_row_site_indices = np.array(
+        sorted({int(idx) for idx in (partial_payload or {}).get('all_row_site_indices', [])}),
+        dtype=np.int64,
+    )
+    missing_row_site_indices = np.array(
+        sorted({int(idx) for idx in (partial_payload or {}).get('missing_row_site_indices', [])}),
+        dtype=np.int64,
+    )
+    missing_demand_indices = np.array(
+        sorted({int(idx) for idx in (partial_payload or {}).get('missing_demand_indices', [])}),
+        dtype=np.int64,
+    )
+    total_sites = len(sites)
+    if total_sites == 0:
+        payload = {
+            'version': 1,
+            'graph_max_radius_km': float(graph_max_radius),
+            'distance_rule': 'store_to_customer_osrm_km',
+            'fixed_edges': site_edges,
+        }
+        _write_exact_superset_component_cache(cache_path, payload)
+        if os.path.exists(partial_cache_path):
+            os.remove(partial_cache_path)
+        with open(status_path, 'w') as f:
+            json.dump({
+                'cache_path': cache_path,
+                'partial_cache_path': partial_cache_path,
+                'state': 'complete',
+                'updated_at': time.strftime('%Y-%m-%d %H:%M:%S'),
+                'processed_sites': 0,
+                'total_sites': 0,
+                'graph_max_radius_km': float(graph_max_radius),
+            }, f, indent=2)
+        return payload
+
+    demand_lats = scope_grid['avg_cust_lat'].values.astype(np.float64)
+    demand_lons = scope_grid['avg_cust_lon'].values.astype(np.float64)
+    ref_lat = float(np.mean(demand_lats)) if len(demand_lats) else 0.0
+    demand_xy = _latlon_to_xy_km(demand_lats, demand_lons, ref_lat=ref_lat)
+    demand_tree = cKDTree(demand_xy)
+    site_lats = np.array([float(site['lat']) for site in sites], dtype=np.float64)
+    site_lons = np.array([float(site['lon']) for site in sites], dtype=np.float64)
+    site_xy = _latlon_to_xy_km(site_lats, site_lons, ref_lat=ref_lat)
+    nearby_lists = demand_tree.query_ball_point(site_xy, graph_max_radius + 0.05)
+    site_block_size = max(1, int(OSRM_BATCH_SIZE or 1))
+    checkpoint_sites = max(site_block_size, 200)
+    total_work_sites = int(all_row_site_indices.size + (missing_demand_indices.size if missing_demand_indices.size else 0))
+    processed_sites = 0
+    missing_demand_set = {int(idx) for idx in missing_demand_indices.tolist()}
+
+    def write_status(state_label):
+        payload = {
+            'cache_path': cache_path,
+            'partial_cache_path': partial_cache_path,
+            'state': state_label,
+            'updated_at': time.strftime('%Y-%m-%d %H:%M:%S'),
+            'processed_sites': int(processed_sites),
+            'total_sites': int(total_work_sites),
+            'graph_max_radius_km': float(graph_max_radius),
+        }
+        with open(status_path, 'w') as f:
+            json.dump(payload, f, indent=2)
+
+    def run_delta(active_site_indices, restricted_rows=None):
+        nonlocal processed_sites
+        if active_site_indices.size == 0:
+            return
+        ordered_site_indices = active_site_indices[np.lexsort((site_xy[active_site_indices, 1], site_xy[active_site_indices, 0]))]
+        progress_every = 100 if total_work_sites > 1000 else 10
+        for block_start in range(0, len(ordered_site_indices), site_block_size):
+            block_indices = ordered_site_indices[block_start:block_start + site_block_size]
+            demand_union = sorted({int(idx) for site_idx in block_indices for idx in nearby_lists[int(site_idx)]})
+            if restricted_rows is not None:
+                demand_union = [idx for idx in demand_union if idx in restricted_rows]
+            if not demand_union:
+                processed_sites += len(block_indices)
+                continue
+            src = [(float(site_lats[int(site_idx)]), float(site_lons[int(site_idx)])) for site_idx in block_indices]
+            for dst_indices, dm in _iter_osrm_table_batch_results(
+                src,
+                demand_lats,
+                demand_lons,
+                demand_union,
+                batch_size=OSRM_BATCH_SIZE,
+                parallelism=EXACT_GRAPH_BATCH_PARALLELISM,
+            ):
+                for local_site_pos, site_idx in enumerate(block_indices):
+                    row = dm[local_site_pos]
+                    for local_dst_pos, demand_idx in enumerate(dst_indices):
+                        dist = float(row[local_dst_pos])
+                        if not math.isfinite(dist):
+                            continue
+                        if dist <= graph_max_radius + 1e-5:
+                            site_edges[int(demand_idx)].append((int(site_idx), dist))
+            processed_sites += len(block_indices)
+            if processed_sites % checkpoint_sites == 0:
+                write_status('partial')
+            if progress_cb and processed_sites % progress_every == 0:
+                progress_cb(f"Exact Standard: {status_label} warm delta {processed_sites}/{total_work_sites}")
+
+    def run_missing_rows_exact(active_site_indices, restricted_rows):
+        nonlocal processed_sites
+        if not restricted_rows:
+            return
+        if active_site_indices.size == 0:
+            active_site_indices = np.arange(total_sites, dtype=np.int64)
+        ordered_rows = np.array(sorted({int(idx) for idx in restricted_rows}), dtype=np.int64)
+        if ordered_rows.size == 0:
+            return
+        ordered_rows = ordered_rows[
+            np.lexsort((demand_xy[ordered_rows, 1], demand_xy[ordered_rows, 0]))
+        ]
+        active_site_indices = np.array(sorted({int(idx) for idx in active_site_indices.tolist()}), dtype=np.int64)
+        active_site_xy = site_xy[active_site_indices]
+        active_site_tree = cKDTree(active_site_xy)
+        try:
+            configured_row_block_size = int(
+                (partial_payload or {}).get('missing_row_block_size')
+                or min(25, int(OSRM_BATCH_SIZE or 1))
+            )
+        except Exception:
+            configured_row_block_size = min(25, int(OSRM_BATCH_SIZE or 1))
+        row_block_size = max(1, configured_row_block_size)
+        progress_every = 25 if ordered_rows.size > 200 else 5
+        radius_limit = float(graph_max_radius) + 0.05
+        for block_start in range(0, len(ordered_rows), row_block_size):
+            row_block = ordered_rows[block_start:block_start + row_block_size]
+            row_xy = demand_xy[row_block]
+            nearby_site_lists = active_site_tree.query_ball_point(row_xy, radius_limit)
+            union_local_site_indices = sorted({
+                int(local_idx)
+                for local_list in nearby_site_lists
+                for local_idx in local_list
+            })
+            if not union_local_site_indices:
+                processed_sites += len(row_block)
+                if processed_sites % checkpoint_sites == 0:
+                    write_status('partial')
+                if progress_cb and processed_sites % progress_every == 0:
+                    progress_cb(f"Exact Standard: {status_label} warm row repair {processed_sites}/{total_work_sites}")
+                continue
+            block_site_indices = active_site_indices[np.asarray(union_local_site_indices, dtype=np.int64)]
+            for site_start in range(0, len(block_site_indices), site_block_size):
+                site_block = block_site_indices[site_start:site_start + site_block_size]
+                src = [(float(site_lats[int(site_idx)]), float(site_lons[int(site_idx)])) for site_idx in site_block]
+                for dst_indices, dm in _iter_osrm_table_batch_results(
+                    src,
+                    demand_lats,
+                    demand_lons,
+                    row_block.tolist(),
+                    batch_size=OSRM_BATCH_SIZE,
+                    parallelism=EXACT_GRAPH_BATCH_PARALLELISM,
+                ):
+                    for local_site_pos, site_idx in enumerate(site_block):
+                        row = dm[local_site_pos]
+                        for local_dst_pos, demand_idx in enumerate(dst_indices):
+                            dist = float(row[local_dst_pos])
+                            if not math.isfinite(dist):
+                                continue
+                            if dist <= graph_max_radius + 1e-5:
+                                site_edges[int(demand_idx)].append((int(site_idx), dist))
+            processed_sites += len(row_block)
+            if processed_sites % checkpoint_sites == 0:
+                write_status('partial')
+            if progress_cb and processed_sites % progress_every == 0:
+                progress_cb(f"Exact Standard: {status_label} warm row repair {processed_sites}/{total_work_sites}")
+
+    write_status('starting')
+    run_delta(all_row_site_indices, restricted_rows=None)
+    if missing_demand_set:
+        run_missing_rows_exact(missing_row_site_indices, missing_demand_set)
+
+    for demand_edges in site_edges:
+        if len(demand_edges) > 1:
+            demand_edges.sort(key=lambda item: item[1])
+
+    payload = {
+        'version': 1,
+        'graph_max_radius_km': float(graph_max_radius),
+        'distance_rule': 'store_to_customer_osrm_km',
+        'fixed_edges': site_edges,
+    }
+    _write_exact_superset_component_cache(cache_path, payload)
+    if os.path.exists(partial_cache_path):
+        os.remove(partial_cache_path)
+    write_status('complete')
+    return payload
+
+
+def _load_or_build_exact_site_edge_graph(scope_grid, sites, graph_max_radius, cache_path, status_label, progress_cb=None):
     partial_cache_path = _exact_graph_partial_cache_path(cache_path)
     status_path = _exact_graph_status_path(cache_path)
+    if os.path.exists(cache_path):
+        try:
+            with open(cache_path, 'rb') as f:
+                cached = pickle.load(f)
+            status_payload = None
+            if os.path.exists(status_path):
+                try:
+                    with open(status_path) as f:
+                        status_payload = json.load(f)
+                except Exception:
+                    status_payload = None
+            status_state = str((status_payload or {}).get('state', '')).strip().lower()
+            if status_state and status_state != 'complete':
+                cached = None
+                if progress_cb:
+                    progress_cb(
+                        f"Exact Standard: ignoring incomplete cached graph {os.path.basename(cache_path)} "
+                        f"(state={status_state})"
+                    )
+            if isinstance(cached, dict) and 'fixed_edges' in cached:
+                return cached
+        except Exception:
+            pass
+
     demand_lats = scope_grid['avg_cust_lat'].values.astype(np.float64)
     demand_lons = scope_grid['avg_cust_lon'].values.astype(np.float64)
     ref_lat = float(np.mean(demand_lats)) if len(demand_lats) else 0.0
@@ -7794,14 +8370,68 @@ def _load_or_build_exact_site_edge_graph(scope_grid, sites, graph_max_radius, ca
         try:
             with open(partial_cache_path, 'rb') as f:
                 partial = pickle.load(f)
-            if partial.get('version') == 1:
+            partial_version = int(partial.get('version', 0) or 0)
+            partial_matches = _exact_graph_partial_matches(partial, scope_grid, sites, graph_max_radius)
+            if partial_version == 2 and not partial_matches:
+                if progress_cb:
+                    progress_cb(
+                        f"Exact Standard: discarding mismatched partial graph {os.path.basename(partial_cache_path)}"
+                    )
+                try:
+                    os.remove(partial_cache_path)
+                except Exception:
+                    pass
+                try:
+                    if os.path.exists(status_path):
+                        os.remove(status_path)
+                except Exception:
+                    pass
+            elif partial_version == 2 and (
+                'all_row_site_indices' in partial
+                or 'missing_row_site_indices' in partial
+                or 'missing_demand_indices' in partial
+            ):
+                if progress_cb:
+                    progress_cb(
+                        f"Exact Standard: finishing warm-start partial {os.path.basename(partial_cache_path)}"
+                    )
+                return _finish_site_edge_graph_from_warm_start_partial(
+                    scope_grid,
+                    sites,
+                    graph_max_radius,
+                    cache_path,
+                    partial_cache_path,
+                    status_path,
+                    status_label,
+                    partial,
+                    progress_cb=progress_cb,
+                )
+            if partial_version == 2:
+                progress_state = partial.get('progress_state') or {}
                 partial_graph = partial.get('graph') or {}
                 partial_edges = partial_graph.get('fixed_edges')
                 if isinstance(partial_edges, list) and len(partial_edges) == len(site_edges):
                     site_edges = partial_edges
-                    processed_sites = min(int(partial.get('processed_sites', 0) or 0), total_sites)
+                    processed_sites = min(
+                        int(progress_state.get('processed_sites', partial.get('processed_sites', 0)) or 0),
+                        total_sites,
+                    )
                     if progress_cb:
                         progress_cb(f"Exact Standard: resuming partial graph {os.path.basename(partial_cache_path)}")
+            elif partial_version == 1:
+                if progress_cb:
+                    progress_cb(
+                        f"Exact Standard: discarding legacy partial graph {os.path.basename(partial_cache_path)}"
+                    )
+                try:
+                    os.remove(partial_cache_path)
+                except Exception:
+                    pass
+                try:
+                    if os.path.exists(status_path):
+                        os.remove(status_path)
+                except Exception:
+                    pass
         except Exception:
             processed_sites = 0
             site_edges = [[] for _ in range(len(scope_grid))]
@@ -7832,14 +8462,18 @@ def _load_or_build_exact_site_edge_graph(scope_grid, sites, graph_max_radius, ca
 
     def save_partial():
         payload = {
-            'version': 1,
+            'version': 2,
             'graph': {
-                'version': 1,
+                'version': 2,
                 'graph_max_radius_km': float(graph_max_radius),
                 'distance_rule': 'store_to_customer_osrm_km',
                 'fixed_edges': site_edges,
             },
-            'processed_sites': int(processed_sites),
+            'resume_signature': _exact_graph_resume_signature(scope_grid, sites, graph_max_radius),
+            'progress_state': {
+                'processed_sites': int(processed_sites),
+                'total_sites': int(total_sites),
+            },
         }
         with open(partial_cache_path, 'wb') as f:
             pickle.dump(payload, f, protocol=pickle.HIGHEST_PROTOCOL)
@@ -8135,6 +8769,22 @@ def _get_all_demand_candidate_context(grid_data, params, progress_cb=None):
                 progress_cb(
                     f"Exact Standard: cached candidate graph derived from {os.path.basename(derived_superset_path)}"
                 )
+    partial_candidate_cache_path = _exact_graph_partial_cache_path(candidate_cache_path)
+    if not os.path.exists(candidate_cache_path):
+        seeded_partial, seeded_pool_path, seeded_superset_path = _try_seed_candidate_graph_delta_from_completed_superset(
+            grid_data,
+            candidate_sites,
+            ctx_params,
+            graph_max_radius,
+            progress_cb=progress_cb,
+        )
+        if seeded_partial is not None:
+            with open(partial_candidate_cache_path, 'wb') as f:
+                pickle.dump(seeded_partial, f, protocol=pickle.HIGHEST_PROTOCOL)
+            if progress_cb and seeded_superset_path:
+                progress_cb(
+                    f"Exact Standard: warm delta seeded from {os.path.basename(seeded_superset_path)}"
+                )
     if progress_cb and os.path.exists(candidate_cache_path):
         progress_cb(f"Exact Standard: loading cached candidate graph {os.path.basename(candidate_cache_path)}")
     candidate_graph = _load_or_build_exact_site_edge_graph(
@@ -8330,6 +8980,10 @@ def _cached_min_distances_for_hubs(grid_data, hubs, params, radius_km, cache_lab
 
 
 def _meeting_prewarm_default_params():
+    canonical_candidate_cap = _canonical_meeting_exact_candidate_cap({
+        'meeting_fast_mode': True,
+        'business_target_coverage_pct': 100.0,
+    })
     return normalize_placement_params({
         'meeting_fast_mode': True,
         'fixed_store_mode': 'benchmark_103',
@@ -8338,7 +8992,11 @@ def _meeting_prewarm_default_params():
         'standard_exception_radius_km': 5.0,
         'super_ds_radius': 7.0,
         'exact_graph_max_radius_km': 10.0,
-        'exact_candidate_cap': 5000,
+        'business_target_coverage_pct': 100.0,
+        'benchmark_near_full_coverage_pct': 100.0,
+        'meeting_fast_target_coverage_pct': 100.0,
+        'meeting_core_publish_coverage_pct': 99.9,
+        'exact_candidate_cap': canonical_candidate_cap,
         'mini_ds_min_orders_per_day': 400,
         'mini_density_min_orders_per_day': 400,
         'reuse_tier_edge_cache': True,
@@ -12168,7 +12826,7 @@ def _build_bangalore_multilayer_core_result(core_ctx, elapsed_s):
         )
     if active_view_key in scenario_views:
         core_recommendations.append(
-            f"Map and hub table currently follow {active_view.get('label', active_view_key)} because it is the stronger meeting-mode choice inside the compact frontier."
+            f"Map and hub table currently follow {active_view.get('label', active_view_key)} because it is the stronger branch under the shared coverage-first, cost-second business objective."
         )
     return {
         'success': True,
@@ -13200,7 +13858,29 @@ class Handler(SimpleHTTPRequestHandler):
                         cold_wait_s = float(normalized_params.get('meeting_cold_start_wait_seconds', 120.0) or 0.0)
                     except (TypeError, ValueError):
                         cold_wait_s = 120.0
-                    _wait_for_meeting_prewarm_core(progress_cb=progress_setter, timeout_s=cold_wait_s)
+                    raw_candidate_cap = normalized_params.get('exact_candidate_cap')
+                    if raw_candidate_cap in ('', None, 0, '0', 'all', 'ALL'):
+                        requested_candidate_cap = None
+                    else:
+                        try:
+                            requested_candidate_cap = max(50, int(float(raw_candidate_cap)))
+                        except (TypeError, ValueError):
+                            requested_candidate_cap = None
+                    prewarm_candidate_cap = _meeting_prewarm_default_params().get('exact_candidate_cap')
+                    fixed_mode = str(normalized_params.get('fixed_store_mode', '')).strip().lower()
+                    skip_prewarm_wait = (
+                        fixed_mode == 'clean_slate'
+                        and requested_candidate_cap is not None
+                        and prewarm_candidate_cap not in (None, '', 0, '0', 'all', 'ALL')
+                        and requested_candidate_cap >= int(prewarm_candidate_cap)
+                    )
+                    if skip_prewarm_wait:
+                        progress_setter(
+                            f"Skipping shared {int(prewarm_candidate_cap)}-candidate prewarm wait; "
+                            f"running clean-slate with {requested_candidate_cap} candidates directly..."
+                        )
+                    else:
+                        _wait_for_meeting_prewarm_core(progress_cb=progress_setter, timeout_s=cold_wait_s)
 
                 def release_core_handoff(core_result_obj, progress_message=None):
                     nonlocal core_published
