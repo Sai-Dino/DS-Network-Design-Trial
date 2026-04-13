@@ -1432,6 +1432,9 @@ def normalize_placement_params(params):
     if base['meeting_fast_mode']:
         base['meeting_fast_defer_super'] = bool(base.get('meeting_fast_defer_super', True))
         base['meeting_use_compact_frontier'] = bool(base.get('meeting_use_compact_frontier', True))
+        base['meeting_include_reference_fixed_candidates'] = bool(
+            base.get('meeting_include_reference_fixed_candidates', False)
+        )
         try:
             business_target_hint = float(base.get('business_target_coverage_pct', 100.0) or 100.0)
         except (TypeError, ValueError):
@@ -5618,7 +5621,7 @@ def _build_fixed_standard_sites(params):
 def _meeting_reference_candidate_sites(params):
     if not bool((params or {}).get('meeting_fast_mode', False)):
         return []
-    if not bool((params or {}).get('meeting_include_reference_fixed_candidates', True)):
+    if not bool((params or {}).get('meeting_include_reference_fixed_candidates', False)):
         return []
 
     reference_sites = []
@@ -7598,7 +7601,7 @@ def _exact_candidate_pool_cache_path(scope_grid, fixed_sites, params, legacy_mod
     if not use_all_candidates:
         fixed_arr = np.array([[float(site['lat']), float(site['lon'])] for site in fixed_sites], dtype=np.float64) if fixed_sites else np.empty((0, 2), dtype=np.float64)
         h.update(np.round(fixed_arr, 5).tobytes())
-        if bool((params or {}).get('meeting_fast_mode', False)) and bool((params or {}).get('meeting_include_reference_fixed_candidates', True)):
+        if bool((params or {}).get('meeting_fast_mode', False)) and bool((params or {}).get('meeting_include_reference_fixed_candidates', False)):
             reference_sites = _meeting_reference_candidate_sites(params)
             if reference_sites:
                 reference_arr = np.array(
@@ -8936,6 +8939,7 @@ def _get_all_demand_candidate_context(grid_data, params, progress_cb=None):
     h = hashlib.sha1()
     h.update(f"{graph_max_radius:.4f}".encode('utf-8'))
     h.update(str(candidate_cap if candidate_cap not in ('', None) else 'all').encode('utf-8'))
+    h.update(str(bool((params or {}).get('meeting_include_reference_fixed_candidates', False))).encode('utf-8'))
     h.update(np.round(demand_frame.values.astype(np.float64), 5).tobytes())
     cache_key = ('all_demand_candidate_context', h.hexdigest())
     cached = state.site_edge_context_cache.get(cache_key)
