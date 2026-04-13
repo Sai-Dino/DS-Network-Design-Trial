@@ -5754,10 +5754,10 @@ def _run_standard_rescue_pass(
     stop_meta = stop_meta if isinstance(stop_meta, dict) else None
     try:
         meeting_target_coverage_pct = float(
-            params.get('meeting_fast_target_coverage_pct', params.get('benchmark_near_full_coverage_pct', 99.7)) or 99.7
+            params.get('meeting_fast_target_coverage_pct', _business_target_coverage_pct(params)) or _business_target_coverage_pct(params)
         )
     except (TypeError, ValueError):
-        meeting_target_coverage_pct = 99.7
+        meeting_target_coverage_pct = _business_target_coverage_pct(params)
 
     while np.any(~covered_mask):
         if meeting_fast_mode:
@@ -6558,7 +6558,7 @@ def _complete_standard_branch_from_base(scope_grid, base_plan, params, branch_ty
         'rescue_penalty_per_day_total': round(rescue_penalty_total, 2),
         'max_new_standard_stores': base_plan.get('max_new_standard_stores'),
         'exact_total_standard_stores': base_plan.get('exact_total_standard_stores'),
-        'min_physical_standard_count_for_100': physical_count_at_100,
+        'min_physical_standard_count_for_100': physical_count_at_target,
         'allowed_frontier_max_count': frontier_max,
         'within_compact_frontier': (
             True if frontier_max is None else (len(fixed_sites) + len(new_sites) <= frontier_max)
@@ -6609,10 +6609,10 @@ def _plan_standard_network(scope_grid, params, progress_cb=None):
     meeting_fast_mode = bool(planner_params.get('meeting_fast_mode', False))
     try:
         meeting_target_coverage_pct = float(
-            planner_params.get('meeting_fast_target_coverage_pct', planner_params.get('benchmark_near_full_coverage_pct', 99.7)) or 99.7
+            planner_params.get('meeting_fast_target_coverage_pct', _business_target_coverage_pct(planner_params)) or _business_target_coverage_pct(planner_params)
         )
     except (TypeError, ValueError):
-        meeting_target_coverage_pct = 99.7
+        meeting_target_coverage_pct = _business_target_coverage_pct(planner_params)
     meeting_target_coverage_pct = min(100.0, max(90.0, meeting_target_coverage_pct))
     try:
         meeting_gap_fill_cap = int(float(planner_params.get('meeting_fast_max_standard_gap_fill_sites', 40) or 40))
