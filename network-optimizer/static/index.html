@@ -141,8 +141,8 @@ input[type=range]::-moz-range-thumb{width:18px;height:18px;border-radius:50%;bac
 .table-badge{display:inline-flex;align-items:center;padding:2px 6px;border-radius:3px;font-size:9px;font-weight:700;line-height:1.2;border:1px solid transparent}
 .table-badge.fixed{background:#dbeafe;color:#1d4ed8;border-color:#bfdbfe}
 .table-badge.new{background:#ecfdf5;color:#065f46;border-color:#a7f3d0}
-.table-badge.rescue{background:#fef3c7;color:#92400e;border-color:#fde68a}
-.table-badge.exception{background:#ede9fe;color:#6d28d9;border-color:#ddd6fe}
+.table-badge.rescue{background:#ecfeff;color:#0c4a6e;border-color:#a5f3fc}
+.table-badge.exception{background:#fff7ed;color:#9a3412;border-color:#fdba74}
 .table-badge.relaxed{background:#fffbeb;color:#92400e;border-color:#fde68a}
 .table-badge.note{background:var(--gray-100);color:var(--gray-700);border-color:var(--gray-200)}
 .table-mini{font-size:10px;color:var(--gray-500);line-height:1.35}
@@ -214,6 +214,7 @@ details.target-details .inner{padding-top:4px}
 /* MAP LEGEND (Leaflet control) */
 .map-legend{background:#fff;border-radius:var(--radius);padding:12px 14px;box-shadow:var(--shadow-lg);font-size:11px;line-height:1.8;min-width:150px}
 .map-legend h4{font-size:11px;font-weight:700;color:var(--gray-700);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px}
+.map-legend .leg-subhead{margin-top:6px;font-size:10px;font-weight:700;color:var(--gray-500);text-transform:uppercase;letter-spacing:.4px}
 .map-legend .leg-row{display:flex;align-items:center;gap:8px}
 .map-legend .leg-dot{width:12px;height:12px;border-radius:50%;flex-shrink:0;border:2px solid rgba(0,0,0,.15)}
 .map-legend .leg-ring{width:12px;height:12px;border-radius:50%;flex-shrink:0;border:3px solid;background:transparent}
@@ -681,11 +682,15 @@ details.target-details .inner{padding-top:4px}
       <div class="sidebar-section">
         <div class="section-header"><span class="icon">🗺</span> Map Layers</div>
         <div id="layerControls">
-          <div class="layer-item"><input type="checkbox" id="lHeat" checked onchange="toggleLayer('heatmap')"><div class="layer-dot" style="background:linear-gradient(135deg,#0563b8,#ff0000)"></div><label for="lHeat">Order Heatmap</label></div>
+          <div class="mini-text" style="margin:0 0 4px 22px;font-weight:700;color:var(--gray-500);text-transform:uppercase;letter-spacing:.4px">Decision layers</div>
           <div class="layer-item"><input type="checkbox" id="lExist" checked onchange="toggleLayer('existing')"><div class="layer-dot" style="background:#2563eb"></div><label for="lExist">Existing Stores</label></div>
-          <div class="layer-item"><input type="checkbox" id="lMini" checked onchange="toggleLayer('mini')"><div class="layer-dot" style="background:#ea580c"></div><label for="lMini">Mini DS (proposed)</label></div>
           <div class="layer-item"><input type="checkbox" id="lStd" checked onchange="toggleLayer('standard')"><div class="layer-dot" style="background:#059669"></div><label for="lStd">Standard DS (proposed)</label></div>
+          <div class="layer-item"><input type="checkbox" id="lMini" checked onchange="toggleLayer('mini')"><div class="layer-dot" style="background:#ea580c"></div><label for="lMini">Mini DS (proposed)</label></div>
           <div class="layer-item"><input type="checkbox" id="lSuper" checked onchange="toggleLayer('super')"><div class="layer-dot" style="background:#7c3aed"></div><label for="lSuper">Super DS (proposed)</label></div>
+          <div class="mini-text" style="margin:8px 0 4px 22px;font-weight:700;color:var(--gray-500);text-transform:uppercase;letter-spacing:.4px">Range overlays</div>
+          <div class="layer-item"><input type="checkbox" id="lRings" onchange="toggleServiceRings()"><div class="layer-dot" style="background:rgba(100,116,139,.12);border:2px solid #64748b"></div><label for="lRings">Service radius rings</label></div>
+          <div class="mini-text" style="margin:8px 0 4px 22px;font-weight:700;color:var(--gray-500);text-transform:uppercase;letter-spacing:.4px">Reference layers</div>
+          <div class="layer-item"><input type="checkbox" id="lHeat" checked onchange="toggleLayer('heatmap')"><div class="layer-dot" style="background:linear-gradient(135deg,#0563b8,#ff0000)"></div><label for="lHeat">Order Heatmap</label></div>
           <div class="layer-item"><input type="checkbox" id="lLowDensity" checked onchange="toggleLayer('lowdensity')"><div class="layer-dot" style="background:rgba(220,38,38,.18);border:2px solid #dc2626"></div><label for="lLowDensity">Service gap polygons</label></div>
           <div class="layer-item"><input type="checkbox" id="lPoly" onchange="toggleLayer('polygon')"><div class="layer-dot" style="background:rgba(37,99,235,.2);border:2px solid #2563eb"></div><label for="lPoly">Store Polygons</label></div>
         </div>
@@ -865,16 +870,19 @@ function init(){
     const d = L.DomUtil.create('div','map-legend');
     d.innerHTML = `
       <h4>Hub Types</h4>
+      <div class="leg-subhead">Physical sites</div>
       <div class="leg-row"><div class="leg-dot" style="background:#2563eb"></div><span class="leg-label">Old Fixed Store</span></div>
-      <div class="leg-row"><div class="leg-dot" style="background:#ea580c"></div><span class="leg-label">Mini DS (New)</span></div>
-      <div class="leg-row"><div class="leg-ring" style="border-color:#ea580c"></div><span class="leg-label">Mini Radius</span></div>
       <div class="leg-row"><div class="leg-dot" style="background:#059669"></div><span class="leg-label">New Standard DS</span></div>
-      <div class="leg-row"><div class="leg-ring" style="border-color:#059669"></div><span class="leg-label">Standard Radius</span></div>
-      <div class="leg-row"><div class="leg-dot" style="background:#0f766e"></div><span class="leg-label">Rescue Standard DS</span></div>
+      <div class="leg-row"><div class="leg-dot" style="background:#0891b2"></div><span class="leg-label">Rescue Standard DS</span></div>
       <div class="leg-row"><div class="leg-dot" style="background:#b45309"></div><span class="leg-label">Exception Standard DS</span></div>
-      <div class="leg-row"><div class="leg-dot" style="background:#c2410c"></div><span class="leg-label">Rescue + Exception Standard DS</span></div>
-      <div class="leg-row"><div class="leg-ring" style="border-color:#b45309"></div><span class="leg-label">Exception Radius</span></div>
+      <div class="leg-row"><div class="leg-dot" style="background:#e11d48"></div><span class="leg-label">Rescue + Exception Standard DS</span></div>
+      <div class="leg-row"><div class="leg-dot" style="background:#ea580c"></div><span class="leg-label">Mini DS (New)</span></div>
       <div class="leg-row"><div class="leg-dot" style="background:#7c3aed"></div><span class="leg-label">Super DS (30k)</span></div>
+      <div class="leg-subhead">View-only overlays</div>
+      <div class="leg-row"><div class="leg-ring" style="border-color:#059669"></div><span class="leg-label">Standard Radius</span></div>
+      <div class="leg-row"><div class="leg-ring" style="border-color:#ea580c"></div><span class="leg-label">Mini Radius</span></div>
+      <div class="leg-row"><div class="leg-ring" style="border-color:#b45309"></div><span class="leg-label">Exception Radius</span></div>
+      <div class="leg-subhead">Diagnostics</div>
       <div class="leg-row"><div class="leg-ring" style="border-color:#dc2626"></div><span class="leg-label">Residual Service Gap</span></div>
     `;
     return d;
@@ -1470,6 +1478,7 @@ function createHeatmapLayer(points){
 }
 
 function renderOptimizationResult(data){
+  const showServiceRings = serviceRingsEnabled();
   // Heatmap
   if(Object.prototype.hasOwnProperty.call(data, 'heatmap')){
     if(heatLayer) map.removeLayer(heatLayer);
@@ -1486,10 +1495,12 @@ function renderOptimizationResult(data){
   // Mini DS — orange markers with service radius circles
   layers.mini.clearLayers();
   (data.mini_ds||[]).forEach(h=>{
-    L.circle([h.lat,h.lon],{
-      radius:h.radius_km*1000,color:'#ea580c',weight:1.5,opacity:.4,fill:true,fillColor:'#ea580c',fillOpacity:.08,
-      pane:'radiusPane',interactive:false
-    }).addTo(layers.mini);
+    if(showServiceRings){
+      L.circle([h.lat,h.lon],{
+        radius:h.radius_km*1000,color:'#ea580c',weight:1.5,opacity:.4,fill:true,fillColor:'#ea580c',fillOpacity:.08,
+        pane:'radiusPane',interactive:false
+      }).addTo(layers.mini);
+    }
     L.circleMarker([h.lat,h.lon],{
       radius:9,fillColor:'#ea580c',color:'#7c2d12',weight:3,fillOpacity:1,pane:'miniPane'
     }).bindPopup(`<b>Mini DS (New)</b><br>Orders/day: ${h.orders_per_day.toFixed(0)}<br>Radius: ${h.radius_km}km<br>Cells: ${h.cells}`).addTo(layers.mini);
@@ -1510,18 +1521,18 @@ function renderOptimizationResult(data){
     if(siteClass.isRescue && siteClass.isException){
       style = {
         label: 'Rescue + Exception Standard DS',
-        ringColor: '#c2410c',
-        ringFill: '#fdba74',
-        markerFill: '#c2410c',
-        markerStroke: '#dbeafe',
+        ringColor: '#e11d48',
+        ringFill: '#fda4af',
+        markerFill: '#e11d48',
+        markerStroke: '#ffe4e6',
         markerRadius: 12,
       };
     }else if(siteClass.isRescue){
       style = {
         label: 'Rescue Standard DS',
-        ringColor: '#0f766e',
-        ringFill: '#14b8a6',
-        markerFill: '#0f766e',
+        ringColor: '#0891b2',
+        ringFill: '#67e8f9',
+        markerFill: '#0891b2',
         markerStroke: '#ecfeff',
         markerRadius: 12,
       };
@@ -1540,10 +1551,12 @@ function renderOptimizationResult(data){
     const avgDistText = Number.isFinite(Number(h.avg_assigned_distance_km)) ? Number(h.avg_assigned_distance_km).toFixed(2)+' km' : '—';
     const spacingText = siteClass.spacingRelaxed ? 'Relaxed spacing' : 'Strict spacing';
     const reasonText = siteClass.reason || (siteClass.isRescue ? 'Local tail rescue' : (siteClass.isException ? 'Radius lift beyond base service radius' : 'Base coverage fill'));
-    L.circle([h.lat,h.lon],{
-      radius:h.radius_km*1000,color:style.ringColor,weight:1.5,opacity:.4,fill:true,fillColor:style.ringFill,fillOpacity:.08,
-      pane:'radiusPane',interactive:false
-    }).addTo(layers.standard);
+    if(showServiceRings){
+      L.circle([h.lat,h.lon],{
+        radius:h.radius_km*1000,color:style.ringColor,weight:1.5,opacity:.4,fill:true,fillColor:style.ringFill,fillOpacity:.08,
+        pane:'radiusPane',interactive:false
+      }).addTo(layers.standard);
+    }
     L.circleMarker([h.lat,h.lon],{
       radius:style.markerRadius,fillColor:style.markerFill,color:style.markerStroke,weight:3,fillOpacity:1,pane:'standardPane'
     }).bindPopup(`<b>${style.label}</b><br>${h.id || '—'}<br>Orders/day: ${ordersText}<br>Radius: ${Number(h.radius_km || 0).toFixed(1)}km${h.base_radius_km?` (base ${Number(h.base_radius_km).toFixed(1)}km)`:''}<br>Cells: ${cellsText}<br>Avg assigned distance: ${avgDistText}<br>Spacing: ${spacingText}<br>Reason: ${reasonText}`).addTo(layers.standard);
@@ -1553,13 +1566,18 @@ function renderOptimizationResult(data){
     const siteClass = classifyStandardSite(h);
     const rescuedText = Number.isFinite(Number(h.rescued_orders_per_day)) ? Number(h.rescued_orders_per_day).toLocaleString() : '—';
     const label = siteClass.isRescue ? 'Rescue + Exception Standard' : 'Exception Standard';
-    const stroke = siteClass.isRescue ? '#dbeafe' : '#fff';
-    L.circle([h.lat,h.lon],{
-      radius:h.radius_km*1000,color:'#b45309',weight:1.6,opacity:.45,fill:true,fillColor:'#fdba74',fillOpacity:.08,
-      pane:'radiusPane',interactive:false
-    }).addTo(layers.standard);
+    const stroke = siteClass.isRescue ? '#ffe4e6' : '#fff';
+    const markerFill = siteClass.isRescue ? '#e11d48' : '#b45309';
+    const ringColor = siteClass.isRescue ? '#e11d48' : '#b45309';
+    const ringFill = siteClass.isRescue ? '#fda4af' : '#fdba74';
+    if(showServiceRings){
+      L.circle([h.lat,h.lon],{
+        radius:h.radius_km*1000,color:ringColor,weight:1.6,opacity:.45,fill:true,fillColor:ringFill,fillOpacity:.08,
+        pane:'radiusPane',interactive:false
+      }).addTo(layers.standard);
+    }
     L.circleMarker([h.lat,h.lon],{
-      radius:siteClass.isRescue ? 12 : 11,fillColor:'#b45309',color:stroke,weight:2.5,fillOpacity:1,pane:'standardPane'
+      radius:siteClass.isRescue ? 12 : 11,fillColor:markerFill,color:stroke,weight:2.5,fillOpacity:1,pane:'standardPane'
     }).bindPopup(`<b>${label}</b><br>${h.id}<br>Radius: ${Number(h.radius_km || 0).toFixed(1)}km (base ${Number(h.base_radius_km || data.params?.standard_ds_radius || 3).toFixed(1)}km)<br>Rescued/day: ${rescuedText}${siteClass.spacingRelaxed ? '<br>Spacing: Relaxed' : ''}`).addTo(layers.standard);
   });
 
@@ -1599,6 +1617,16 @@ function toggleLayer(name){
   const layer = map_layers[name];
   if(!layer) return;
   checked ? map.addLayer(layer) : map.removeLayer(layer);
+}
+
+function serviceRingsEnabled(){
+  return !!document.getElementById('lRings')?.checked;
+}
+
+function toggleServiceRings(){
+  if(window._lastResult){
+    renderOptimizationResult(window._lastResult);
+  }
 }
 
 // =====================================================================
@@ -3115,7 +3143,7 @@ function showOverlayComparison(data){
     const selectedKey = data?.pipeline?.active_view_key || data?.decision_grade_result?.active_view_key || data?.exact_metadata?.selected_view || compareViews.find(v => v.selected)?.key;
     const selected = compareViews.find(v => v.key === selectedKey) || miniBranches[0] || standardBranches[0] || compareViews[0] || null;
     let html = `<div class="view-compare-shell">`;
-    html += `<div class="view-compare-note"><b>Current network:</b> ${numExisting} fixed Standard stores, avg delivery ${m.current_avg_dist.toFixed(2)} km, avg cost ${formatMaybeCurrency(m.current_avg_cost, 1)}. The cards below compare the Standard rescue branches and their Mini overlays side by side.</div>`;
+    html += `<div class="view-compare-note"><b>Current network baseline:</b> ${numExisting} fixed Standard stores, avg delivery ${m.current_avg_dist.toFixed(2)} km, avg cost ${formatMaybeCurrency(m.current_avg_cost, 1)}. The active mapped branch remains the decision view; the cards below are comparison views.</div>`;
     if(strictViews.length){
       html += `<div class="comparison-grid"><div class="comparison-row">${strictViews.map(v => renderComparisonCard(v, data)).join('')}</div></div>`;
     }
@@ -3127,7 +3155,7 @@ function showOverlayComparison(data){
       html += `<div class="comparison-grid" style="margin-top:6px"><div class="comparison-row">${miniBranches.map(v => renderComparisonCard(v, data)).join('')}</div></div>`;
     }
     if(!compareViews.length){
-      html += `<div class="view-compare-note" style="margin-top:4px">Branch details are not available in this payload yet, so the overlay keeps the legacy summary below.</div>`;
+      html += `<div class="view-compare-note" style="margin-top:4px">Branch details are still loading for this payload.</div>`;
     } else if(selected){
       const total = selected.counts.total != null ? Number(selected.counts.total).toLocaleString() : totalStandard.toLocaleString();
       html += `<div class="view-compare-note"><b>Selected mapped view:</b> ${selected.label} · ${total} physical Standard sites · ${selected.coverage != null ? `${formatMaybeNumber(selected.coverage, 2)}% hard coverage` : 'coverage unavailable'}${selected.avgCost != null ? ` · avg cost ${formatMaybeCurrency(selected.avgCost, 1)}` : ''}</div>`;
