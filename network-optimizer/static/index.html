@@ -1437,18 +1437,25 @@ function clearProposedLayers(){
 function markResultStale(reason){
   if(suppressParamDirty) return;
   if(!window._lastResult) return;
-  clearProposedLayers();
-  window._exactBenchmarkRoot = null;
+  const keepDisplayedBenchmark = !!(window._exactBenchmarkRoot && window._lastResult?.exact_benchmark);
+  if(!keepDisplayedBenchmark){
+    clearProposedLayers();
+    window._exactBenchmarkRoot = null;
+  }
   window._lastResultStale = true;
   const banner = document.getElementById('targetSearchBanner');
   if(banner){
     banner.style.display = 'block';
     banner.className = 'target-banner warn';
-    banner.innerHTML = `<strong>Displayed optimization result cleared.</strong> ${reason || 'Inputs changed, so the previous exact map is no longer valid for the current settings.'}`;
+    banner.innerHTML = keepDisplayedBenchmark
+      ? `<strong>Settings changed; showing the last restored 103 benchmark.</strong> ${reason || 'You can move the levers for discussion, but the displayed map and metrics stay on the previously restored benchmark until you rerun.'}`
+      : `<strong>Displayed optimization result cleared.</strong> ${reason || 'Inputs changed, so the previous exact map is no longer valid for the current settings.'}`;
   }
   const note = document.getElementById('pipelineNote');
   if(note){
-    note.innerHTML = `<span style="color:#b91c1c"><strong>Current exact result is stale.</strong> Inputs were changed after the last run, so the previous exact map has been cleared. Rerun the exact benchmark for these settings.</span>`;
+    note.innerHTML = keepDisplayedBenchmark
+      ? `<span style="color:#b91c1c"><strong>Current benchmark is frozen for presentation.</strong> Inputs changed after the last restored 103 benchmark, so the map and metrics on screen are still the previously restored result. Rerun only if you want fresh numbers for these settings.</span>`
+      : `<span style="color:#b91c1c"><strong>Current exact result is stale.</strong> Inputs were changed after the last run, so the previous exact map has been cleared. Rerun the exact benchmark for these settings.</span>`;
   }
 }
 
