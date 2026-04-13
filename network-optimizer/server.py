@@ -1629,8 +1629,9 @@ def normalize_placement_params(params):
             rescue_handover_pct = float(base.get('standard_rescue_handover_coverage_pct', 100.0) or 100.0)
         except (TypeError, ValueError):
             rescue_handover_pct = 100.0
+        exact_target_pct = float(base.get('business_target_coverage_pct', 100.0) or 100.0)
         base['standard_rescue_handover_coverage_pct'] = min(
-            float(base['meeting_fast_target_coverage_pct']),
+            exact_target_pct,
             max(90.0, rescue_handover_pct),
         )
         if base.get('meeting_fast_override_max_selected') in ('', None):
@@ -1664,7 +1665,7 @@ def normalize_placement_params(params):
         except (TypeError, ValueError):
             exception_first_live_coverage = float(base.get('benchmark_near_full_coverage_pct', 100.0) or 100.0)
         base['exception_first_live_min_coverage_pct'] = min(
-            float(base['meeting_fast_target_coverage_pct']),
+            exact_target_pct,
             max(95.0, exception_first_live_coverage),
         )
         try:
@@ -11870,6 +11871,11 @@ def _summarize_exact_standard_scenario_metrics(scope_grid, scenario, current_bas
 
 def optimize_exact_standard_scenario_deck(params, progress_cb=None):
     require_osrm()
+    params = dict(params or {})
+    # Exact benchmark runs should not inherit meeting-mode heuristics.
+    params.setdefault('meeting_fast_mode', False)
+    params.setdefault('meeting_include_reference_fixed_candidates', False)
+    params.setdefault('meeting_use_compact_frontier', False)
     params = normalize_placement_params(params)
     in_scope_grid, out_scope_grid, business_regions, excluded_islands, scope_summary = _resolve_scope_grid_and_regions(params)
     if in_scope_grid is None or len(in_scope_grid) == 0:
@@ -14458,6 +14464,9 @@ class Handler(SimpleHTTPRequestHandler):
                     'variable_rate': float(ui_params.get('variable_rate', 9) or 9),
                     'mini_base_cost': float(ui_params.get('mini_base_cost', 21) or 21),
                     'mini_variable_rate': float(ui_params.get('mini_variable_rate', 9) or 9),
+                    'meeting_fast_mode': False,
+                    'meeting_include_reference_fixed_candidates': False,
+                    'meeting_use_compact_frontier': False,
                     'mini_ds_radius': float(ui_params.get('mini_ds_radius', 1.0) or 1.0),
                     'mini_density_radius_km': float(ui_params.get('mini_density_radius_km', 1.0) or 1.0),
                     'mini_density_min_orders_per_day': float(ui_params.get('mini_density_min_orders_per_day', 400) or 400),
