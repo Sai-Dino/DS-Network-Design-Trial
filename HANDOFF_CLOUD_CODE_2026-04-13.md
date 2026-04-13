@@ -28,7 +28,7 @@ The user wants this usable on an **office MacBook** via git + Git LFS + Cloud Co
 
 - Repo: `https://github.com/Sai-Dino/DS-Network-Design-Trial.git`
 - Branch: `office-demo-bundle`
-- Latest pushed commit at handoff: `51f61db`
+- Latest pushed commit at handoff: `ad48c10`
 
 Use this branch. Do **not** start from `main`.
 
@@ -237,4 +237,4 @@ Do **not** promise full live scenario exploration on the office machine unless `
 
 Ask the next Cloud Code agent:
 
-> “Start from branch `office-demo-bundle` at commit `51f61db`. Do not rebuild the world. Use the existing pushed cache artifacts. Your main task is to determine why `clean_slate / 0 fixed` is still coming out at `99.91% / 290 Standards / ₹41.33`, while validated `103/144` warm runs are cheaper. Tell me whether that is truly correct under the business objective or whether one final asymmetry still exists. Then prove the live app path for `0 / 103 / 144` on the same latest build.”
+> “Start from branch `office-demo-bundle` at commit `ad48c10`. Do not rebuild the world. Use the existing pushed cache artifacts. Your main task is to determine why `clean_slate / 0 fixed` is still coming out at `99.91% / 290 Standards / ₹41.33`, while validated `103/144` warm runs are cheaper. Tell me whether that is truly correct under the business objective or whether one final asymmetry still exists. Then prove the live app path for `0 / 103 / 144` on the same latest build.”
