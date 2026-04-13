@@ -37,10 +37,7 @@ echo "Preparing office demo bundle in:"
 echo "  $ROOT_DIR"
 echo ""
 
-if [[ ! -d "$CACHE_DIR" ]]; then
-  echo "ERROR: cache directory missing: $CACHE_DIR"
-  exit 1
-fi
+mkdir -p "$CACHE_DIR"
 
 if [[ ! -d "$OSRM_SOURCE_DIR" ]]; then
   echo "ERROR: OSRM source directory missing: $OSRM_SOURCE_DIR"

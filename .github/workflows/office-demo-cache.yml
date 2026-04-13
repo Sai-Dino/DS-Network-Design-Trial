@@ -1,0 +1,35 @@
+# Robust cache handling: directory may be empty on fresh checkout (only .gitkeep).
+name: Office demo — cache pkl artifact
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, office-demo-bundle]
+
+jobs:
+  zip-optimizer-cache:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Zip network-optimizer cache pkl files (optional)
+        run: |
+          mkdir -p network-optimizer/cache
+          cd network-optimizer/cache
+          shopt -s nullglob
+          pkls=( *.pkl )
+          if [ ${#pkls[@]} -eq 0 ]; then
+            echo "No .pkl files in network-optimizer/cache yet — skipping zip (OK)."
+            exit 0
+          fi
+          zip -r "$GITHUB_WORKSPACE/cache-pkl.zip" ./*.pkl
+          ls -la "$GITHUB_WORKSPACE/cache-pkl.zip"
+
+      - name: Upload cache zip (if created)
+        uses: actions/upload-artifact@v4
+        with:
+          name: optimizer-cache-pkl
+          path: cache-pkl.zip
+          if-no-files-found: ignore
