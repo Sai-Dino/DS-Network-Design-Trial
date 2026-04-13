@@ -5655,6 +5655,14 @@ def _meeting_reference_candidate_sites(params):
             )
         except Exception:
             pass
+    if reference_sites:
+        needs_order_estimate = any(
+            not np.isfinite(float(site.get('orders_per_day', 0.0) or 0.0)) or
+            float(site.get('orders_per_day', 0.0) or 0.0) <= 0.0
+            for site in reference_sites
+        )
+        if needs_order_estimate:
+            reference_sites = _estimate_site_orders_from_nearest_grid(reference_sites)
     return reference_sites
 
 
@@ -9345,13 +9353,107 @@ def _start_meeting_prewarm_async(force=False):
     return True
 
 
-def _wait_for_meeting_prewarm_core(progress_cb=None, timeout_s=120.0):
+def _meeting_cache_core_already_available():
+    if state.grid_data is None or state.store_regions is None:
+        return False
+    try:
+        params = _meeting_prewarm_default_params()
+        in_scope_grid, _out_scope_grid, _business_regions, _excluded_islands, _scope_summary = _resolve_scope_grid_and_regions(params)
+        if in_scope_grid is None or len(in_scope_grid) == 0:
+            return False
+
+        candidate_pool_path = _exact_candidate_pool_cache_path(in_scope_grid, [], params)
+        if not os.path.exists(candidate_pool_path):
+            return False
+        with open(candidate_pool_path, 'rb') as f:
+            candidate_payload = pickle.load(f)
+        candidate_sites = list((candidate_payload or {}).get('sites', []))
+        if not candidate_sites:
+            return False
+
+        candidate_graph_path = _exact_candidate_graph_cache_path(
+            in_scope_grid,
+            candidate_sites,
+            params,
+            allow_exceptions=False,
+        )
+        if not os.path.exists(candidate_graph_path):
+            return False
+
+        benchmark_params = dict(params)
+        benchmark_params['fixed_store_mode'] = 'benchmark_103'
+        benchmark_fixed_sites = _build_fixed_standard_sites(benchmark_params)
+        benchmark_overlay_path = _exact_fixed_overlay_graph_cache_path(
+            in_scope_grid,
+            benchmark_fixed_sites,
+            benchmark_params,
+            allow_exceptions=True,
+        )
+        if not os.path.exists(benchmark_overlay_path):
+            return False
+
+        state.meeting_prewarm_core_ready = True
+        if not state.meeting_prewarm_progress:
+            state.meeting_prewarm_progress = 'Meeting cache core already available from disk.'
+        return True
+    except Exception:
+        logger.info("Meeting cache core probe failed; falling back to async prewarm.", exc_info=True)
+        return False
+
+
+def _active_run_cache_core_already_available(params):
+    if state.grid_data is None or state.store_regions is None:
+        return False
+    try:
+        in_scope_grid, _out_scope_grid, _business_regions, _excluded_islands, _scope_summary = _resolve_scope_grid_and_regions(params)
+        if in_scope_grid is None or len(in_scope_grid) == 0:
+            return False
+
+        fixed_sites = _build_fixed_standard_sites(params)
+        candidate_pool_path = _exact_candidate_pool_cache_path(in_scope_grid, fixed_sites, params)
+        if not os.path.exists(candidate_pool_path):
+            return False
+        with open(candidate_pool_path, 'rb') as f:
+            candidate_payload = pickle.load(f)
+        candidate_sites = list((candidate_payload or {}).get('sites', []))
+        if not candidate_sites:
+            return False
+
+        candidate_graph_path = _exact_candidate_graph_cache_path(
+            in_scope_grid,
+            candidate_sites,
+            params,
+            allow_exceptions=False,
+        )
+        if not os.path.exists(candidate_graph_path):
+            return False
+
+        if fixed_sites:
+            fixed_overlay_path = _exact_fixed_overlay_graph_cache_path(
+                in_scope_grid,
+                fixed_sites,
+                params,
+                allow_exceptions=True,
+            )
+            if not os.path.exists(fixed_overlay_path):
+                return False
+        return True
+    except Exception:
+        logger.info("Active run cache core probe failed; falling back to async prewarm.", exc_info=True)
+        return False
+
+
+def _wait_for_meeting_prewarm_core(progress_cb=None, timeout_s=120.0, params=None):
     if state.grid_data is None or state.store_regions is None:
         return False
     try:
         timeout_s = max(0.0, float(timeout_s or 0.0))
     except (TypeError, ValueError):
         timeout_s = 0.0
+    if params and _active_run_cache_core_already_available(params):
+        return True
+    if _meeting_cache_core_already_available():
+        return True
     if state.meeting_prewarm_core_ready or state.meeting_prewarm_ready:
         return True
     _start_meeting_prewarm_async(force=False)
@@ -14108,7 +14210,12 @@ class Handler(SimpleHTTPRequestHandler):
                     if _is_latest_run():
                         state.optimization_progress = msg
 
-                if bool(normalized_params.get('meeting_fast_mode', True)):
+                skip_shared_prewarm_wait = (
+                    bool(normalized_params.get('meeting_skip_shared_prewarm_wait', False)) or
+                    str(os.environ.get('AUTO_PREWARM_MEETING_ASSETS', '1')).strip().lower() in {'0', 'false', 'no'}
+                )
+
+                if bool(normalized_params.get('meeting_fast_mode', True)) and not skip_shared_prewarm_wait:
                     try:
                         cold_wait_s = float(normalized_params.get('meeting_cold_start_wait_seconds', 120.0) or 0.0)
                     except (TypeError, ValueError):
@@ -14116,6 +14223,7 @@ class Handler(SimpleHTTPRequestHandler):
                     prewarm_ready = _wait_for_meeting_prewarm_core(
                         progress_cb=progress_setter,
                         timeout_s=cold_wait_s,
+                        params=normalized_params,
                     )
                     if not prewarm_ready and state.meeting_prewarm_running:
                         progress_setter(
@@ -14131,6 +14239,8 @@ class Handler(SimpleHTTPRequestHandler):
                         raise RuntimeError(
                             f"Meeting cache prewarm failed before optimization could start: {state.meeting_prewarm_error}"
                         )
+                elif bool(normalized_params.get('meeting_fast_mode', True)) and skip_shared_prewarm_wait:
+                    progress_setter("Skipping shared meeting prewarm wait; using run-local cached graph path.")
 
                 def release_core_handoff(core_result_obj, progress_message=None):
                     nonlocal core_published
