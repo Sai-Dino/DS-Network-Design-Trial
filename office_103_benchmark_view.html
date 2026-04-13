@@ -1,0 +1,351 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>103 Fixed Benchmark</title>
+  <style>
+    :root{
+      --bg:#f6f7fb;
+      --ink:#111827;
+      --muted:#4b5563;
+      --line:#d1d5db;
+      --accent:#0f766e;
+      --accent-soft:#ccfbf1;
+      --warn:#b91c1c;
+      --panel:#ffffff;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+      background:var(--bg);
+      color:var(--ink);
+      line-height:1.45;
+    }
+    .shell{
+      max-width:1360px;
+      margin:0 auto;
+      padding:24px 20px 40px;
+    }
+    .topbar{
+      display:flex;
+      flex-wrap:wrap;
+      justify-content:space-between;
+      gap:16px;
+      align-items:flex-end;
+      margin-bottom:18px;
+    }
+    .eyebrow{
+      font-size:12px;
+      text-transform:uppercase;
+      color:var(--muted);
+      letter-spacing:.04em;
+      margin-bottom:6px;
+    }
+    h1{
+      margin:0;
+      font-size:34px;
+      line-height:1.1;
+    }
+    .sub{
+      color:var(--muted);
+      margin-top:8px;
+      max-width:880px;
+    }
+    .status{
+      background:var(--accent-soft);
+      color:var(--accent);
+      border:1px solid #99f6e4;
+      border-radius:8px;
+      padding:10px 12px;
+      font-size:14px;
+      font-weight:600;
+    }
+    .metrics{
+      display:grid;
+      grid-template-columns:repeat(4,minmax(0,1fr));
+      gap:12px;
+      margin:20px 0 24px;
+    }
+    .metric{
+      background:var(--panel);
+      border:1px solid var(--line);
+      border-radius:8px;
+      padding:14px 14px 12px;
+      min-height:92px;
+    }
+    .metric .label{
+      font-size:13px;
+      color:var(--muted);
+      margin-bottom:6px;
+    }
+    .metric .value{
+      font-size:30px;
+      font-weight:700;
+      line-height:1.05;
+    }
+    .metric .detail{
+      margin-top:6px;
+      font-size:13px;
+      color:var(--muted);
+    }
+    .controls{
+      display:flex;
+      flex-wrap:wrap;
+      gap:8px;
+      margin:0 0 14px;
+    }
+    .controls button{
+      border:1px solid var(--line);
+      border-radius:8px;
+      background:var(--panel);
+      color:var(--ink);
+      padding:10px 12px;
+      font-size:14px;
+      cursor:pointer;
+    }
+    .controls button.active{
+      background:var(--ink);
+      color:#fff;
+      border-color:var(--ink);
+    }
+    .stage{
+      background:var(--panel);
+      border:1px solid var(--line);
+      border-radius:8px;
+      overflow:hidden;
+      margin-bottom:18px;
+    }
+    .stage-head{
+      display:flex;
+      flex-wrap:wrap;
+      justify-content:space-between;
+      gap:12px;
+      padding:12px 14px;
+      border-bottom:1px solid var(--line);
+      background:#fbfcfe;
+    }
+    .stage-head .title{
+      font-size:18px;
+      font-weight:700;
+    }
+    .stage-head .caption{
+      font-size:13px;
+      color:var(--muted);
+      max-width:720px;
+    }
+    .stage img{
+      display:block;
+      width:100%;
+      height:auto;
+      background:#e5e7eb;
+    }
+    .bottom{
+      display:grid;
+      grid-template-columns:1.25fr .95fr;
+      gap:18px;
+      margin-top:18px;
+    }
+    .panel{
+      background:var(--panel);
+      border:1px solid var(--line);
+      border-radius:8px;
+      padding:16px;
+    }
+    .panel h2{
+      margin:0 0 12px;
+      font-size:19px;
+    }
+    .list{
+      display:grid;
+      gap:10px;
+    }
+    .row{
+      display:flex;
+      justify-content:space-between;
+      gap:14px;
+      border-bottom:1px solid #eceff3;
+      padding-bottom:9px;
+    }
+    .row:last-child{
+      border-bottom:none;
+      padding-bottom:0;
+    }
+    .row .k{
+      color:var(--muted);
+      font-size:14px;
+    }
+    .row .v{
+      font-weight:600;
+      text-align:right;
+    }
+    .note{
+      font-size:13px;
+      color:var(--warn);
+      margin-top:12px;
+    }
+    .links{
+      display:flex;
+      flex-wrap:wrap;
+      gap:10px;
+      margin-top:14px;
+    }
+    .links a{
+      color:var(--accent);
+      text-decoration:none;
+      font-weight:600;
+    }
+    @media (max-width:980px){
+      .metrics{grid-template-columns:repeat(2,minmax(0,1fr))}
+      .bottom{grid-template-columns:1fr}
+    }
+    @media (max-width:640px){
+      .shell{padding:18px 14px 28px}
+      h1{font-size:28px}
+      .metrics{grid-template-columns:1fr}
+      .metric .value{font-size:26px}
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <div class="topbar">
+      <div>
+        <div class="eyebrow">Validated Benchmark</div>
+        <h1>103 Fixed Stores</h1>
+        <div class="sub">
+          Rescue-Standard-First branch with the saved benchmark view already captured from the app.
+        </div>
+      </div>
+      <div class="status">World: benchmark_103</div>
+    </div>
+
+    <div class="metrics">
+      <div class="metric">
+        <div class="label">Hard Coverage</div>
+        <div class="value">99.89%</div>
+        <div class="detail">Near-complete in-scope coverage</div>
+      </div>
+      <div class="metric">
+        <div class="label">Physical Standard Total</div>
+        <div class="value">201</div>
+        <div class="detail">103 fixed + 98 new</div>
+      </div>
+      <div class="metric">
+        <div class="label">Avg Last-Mile Cost</div>
+        <div class="value">₹41.99</div>
+        <div class="detail">Current baseline: ₹45.55</div>
+      </div>
+      <div class="metric">
+        <div class="label">Daily Savings</div>
+        <div class="value">₹5.08L</div>
+        <div class="detail">Monthly savings: ₹1.52Cr</div>
+      </div>
+    </div>
+
+    <div class="controls" id="viewControls">
+      <button class="active" data-target="full">Full UI</button>
+      <button data-target="map">Map Only</button>
+      <button data-target="dashboard">Dashboard</button>
+      <button data-target="tables">Tables</button>
+    </div>
+
+    <div class="stage">
+      <div class="stage-head">
+        <div>
+          <div class="title" id="stageTitle">Full UI</div>
+          <div class="caption" id="stageCaption">Validated saved UI state for the 103 fixed-store benchmark.</div>
+        </div>
+      </div>
+      <img id="stageImage" src="ui-test-harness/artifacts/world-103-baseline/final-full.png" alt="103 fixed benchmark full UI">
+    </div>
+
+    <div class="bottom">
+      <div class="panel">
+        <h2>Operational Snapshot</h2>
+        <div class="list">
+          <div class="row"><div class="k">Active branch</div><div class="v">Rescue-Standard-First / 100%</div></div>
+          <div class="row"><div class="k">Fixed Standard</div><div class="v">103</div></div>
+          <div class="row"><div class="k">New Standard</div><div class="v">98</div></div>
+          <div class="row"><div class="k">Base New Standard</div><div class="v">10</div></div>
+          <div class="row"><div class="k">Rescue Standard</div><div class="v">88</div></div>
+          <div class="row"><div class="k">Exception Override</div><div class="v">45</div></div>
+          <div class="row"><div class="k">Mini Sites</div><div class="v">0</div></div>
+          <div class="row"><div class="k">Avg Distance</div><div class="v">1.44 km</div></div>
+          <div class="row"><div class="k">Current Avg Distance</div><div class="v">1.84 km</div></div>
+          <div class="row"><div class="k">Core runtime</div><div class="v">6m 25s</div></div>
+          <div class="row"><div class="k">Full runtime</div><div class="v">8m 47s</div></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Levers Used In This Saved View</h2>
+        <div class="list">
+          <div class="row"><div class="k">Standard service radius</div><div class="v">3 km</div></div>
+          <div class="row"><div class="k">Exception radius</div><div class="v">5 km</div></div>
+          <div class="row"><div class="k">Mini radius</div><div class="v">1 km</div></div>
+          <div class="row"><div class="k">Coverage mode</div><div class="v">Hybrid</div></div>
+          <div class="row"><div class="k">Super role</div><div class="v">Overlay core only</div></div>
+          <div class="row"><div class="k">Target posture</div><div class="v">100% service branch</div></div>
+        </div>
+        <div class="note">
+          This page is a presentation snapshot. Switching images here does not recompute the network.
+        </div>
+        <div class="links">
+          <a href="ui-test-harness/artifacts/world-103-baseline/final-full.png" target="_blank" rel="noreferrer">Open full UI image</a>
+          <a href="ui-test-harness/artifacts/world-103-baseline/map.png" target="_blank" rel="noreferrer">Open map image</a>
+          <a href="ui-test-harness/artifacts/world-103-baseline/summary.json" target="_blank" rel="noreferrer">Open summary JSON</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const views = {
+      full: {
+        title: 'Full UI',
+        caption: 'Validated saved UI state for the 103 fixed-store benchmark.',
+        src: 'ui-test-harness/artifacts/world-103-baseline/final-full.png',
+        alt: '103 fixed benchmark full UI'
+      },
+      map: {
+        title: 'Map Only',
+        caption: 'Map panel from the 103 fixed-store benchmark run.',
+        src: 'ui-test-harness/artifacts/world-103-baseline/map.png',
+        alt: '103 fixed benchmark map'
+      },
+      dashboard: {
+        title: 'Dashboard',
+        caption: 'Top-line dashboard state captured from the same saved run.',
+        src: 'ui-test-harness/artifacts/world-103-baseline/dashboard.png',
+        alt: '103 fixed benchmark dashboard'
+      },
+      tables: {
+        title: 'Tables',
+        caption: 'Saved row counts and table view from the same benchmark run.',
+        src: 'ui-test-harness/artifacts/world-103-baseline/tables.png',
+        alt: '103 fixed benchmark tables'
+      }
+    };
+
+    const buttons = document.querySelectorAll('#viewControls button');
+    const title = document.getElementById('stageTitle');
+    const caption = document.getElementById('stageCaption');
+    const image = document.getElementById('stageImage');
+
+    buttons.forEach((button) => {
+      button.addEventListener('click', () => {
+        const key = button.dataset.target;
+        const view = views[key];
+        if (!view) return;
+        buttons.forEach((b) => b.classList.toggle('active', b === button));
+        title.textContent = view.title;
+        caption.textContent = view.caption;
+        image.src = view.src;
+        image.alt = view.alt;
+      });
+    });
+  </script>
+</body>
+</html>
