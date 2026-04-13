@@ -5615,6 +5615,49 @@ def _build_fixed_standard_sites(params):
     return fixed_sites
 
 
+def _meeting_reference_candidate_sites(params):
+    if not bool((params or {}).get('meeting_fast_mode', False)):
+        return []
+    if not bool((params or {}).get('meeting_include_reference_fixed_candidates', True)):
+        return []
+
+    reference_sites = []
+    seen = set()
+
+    def _append_source_sites(source_sites):
+        for site in source_sites or []:
+            try:
+                lat = float(site['lat'])
+                lon = float(site['lon'])
+            except Exception:
+                continue
+            key = (round(lat, 6), round(lon, 6))
+            if key in seen:
+                continue
+            seen.add(key)
+            reference_sites.append({
+                'lat': lat,
+                'lon': lon,
+                'cell_lat': float(site.get('cell_lat', lat) or lat),
+                'cell_lon': float(site.get('cell_lon', lon) or lon),
+                'orders_per_day': float(site.get('orders_per_day', 0.0) or 0.0),
+                'selection': 'reference_fixed_candidate',
+            })
+
+    _append_source_sites(state.existing_stores)
+    if os.path.isfile(OLD_FIXED_STORE_OVERRIDE_CSV):
+        try:
+            _append_source_sites(
+                _load_fixed_store_override_sites(
+                    OLD_FIXED_STORE_OVERRIDE_CSV,
+                    source_mode='old_103_exact_locations',
+                )
+            )
+        except Exception:
+            pass
+    return reference_sites
+
+
 def _apply_standard_exception_overrides(scope_grid, covered_mask, standard_sites, params, remaining_slots=None, progress_cb=None):
     base_radius = float(params.get('standard_ds_radius', 3.0) or 3.0)
     exception_radius = float(params.get('standard_exception_radius_km', 5.0) or 5.0)
@@ -7439,7 +7482,28 @@ def _build_exact_standard_candidate_pool(scope_grid, fixed_sites, params, progre
         'cell_lat': float(row['cell_lat']),
         'cell_lon': float(row['cell_lon']),
         'orders_per_day': float(row['orders_per_day']),
+        'selection': 'demand_cell_candidate',
     } for _, row in candidate_df.iterrows()]
+
+    reference_candidate_sites = _meeting_reference_candidate_sites(params)
+    added_reference_candidates = 0
+    if reference_candidate_sites:
+        seen = {(round(site['lat'], 6), round(site['lon'], 6)) for site in raw_sites}
+        for site in reference_candidate_sites:
+            key = (round(float(site['lat']), 6), round(float(site['lon']), 6))
+            if key in seen:
+                continue
+            raw_sites.append(dict(site))
+            seen.add(key)
+            added_reference_candidates += 1
+        if added_reference_candidates > 0:
+            raw_sites.sort(
+                key=lambda site: (
+                    float(site.get('orders_per_day', 0.0) or 0.0),
+                    1 if site.get('selection') == 'reference_fixed_candidate' else 0,
+                ),
+                reverse=True,
+            )
 
     if use_all_candidates or len(raw_sites) <= candidate_cap:
         selected = raw_sites
@@ -7484,7 +7548,7 @@ def _build_exact_standard_candidate_pool(scope_grid, fixed_sites, params, progre
             'orders_per_day': site['orders_per_day'],
             'radius_km': base_radius,
             'type': 'standard',
-            'selection': 'exact_candidate_pool',
+            'selection': site.get('selection', 'exact_candidate_pool'),
             'fixed_open': False,
         })
 
@@ -7498,6 +7562,7 @@ def _build_exact_standard_candidate_pool(scope_grid, fixed_sites, params, progre
             'all_uncovered_candidate_cells': None if use_all_candidates else int(np.sum(uncovered_mask)),
             'all_in_scope_candidate_cells': int(len(scope_grid)),
             'selected_candidate_cells': int(len(candidate_sites)),
+            'selected_reference_candidates': int(added_reference_candidates),
         },
     }
     if cache_enabled:
@@ -7525,6 +7590,17 @@ def _exact_candidate_pool_cache_path(scope_grid, fixed_sites, params, legacy_mod
     if not use_all_candidates:
         fixed_arr = np.array([[float(site['lat']), float(site['lon'])] for site in fixed_sites], dtype=np.float64) if fixed_sites else np.empty((0, 2), dtype=np.float64)
         h.update(np.round(fixed_arr, 5).tobytes())
+        if bool((params or {}).get('meeting_fast_mode', False)) and bool((params or {}).get('meeting_include_reference_fixed_candidates', True)):
+            reference_sites = _meeting_reference_candidate_sites(params)
+            if reference_sites:
+                reference_arr = np.array(
+                    [
+                        [float(site['lat']), float(site['lon']), float(site.get('orders_per_day', 0.0) or 0.0)]
+                        for site in reference_sites
+                    ],
+                    dtype=np.float64,
+                )
+                h.update(np.round(reference_arr, 5).tobytes())
     name = f"exact_std_candidates_{h.hexdigest()}.pkl"
     return os.path.join(GRAPH_CACHE_DIR, name)
 
