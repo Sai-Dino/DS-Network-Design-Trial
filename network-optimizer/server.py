@@ -1431,7 +1431,7 @@ def normalize_placement_params(params):
     base['meeting_fast_mode'] = bool(base.get('meeting_fast_mode', True))
     if base['meeting_fast_mode']:
         base['meeting_fast_defer_super'] = bool(base.get('meeting_fast_defer_super', True))
-        base['meeting_use_compact_frontier'] = bool(base.get('meeting_use_compact_frontier', False))
+        base['meeting_use_compact_frontier'] = bool(base.get('meeting_use_compact_frontier', True))
         try:
             business_target_hint = float(base.get('business_target_coverage_pct', 100.0) or 100.0)
         except (TypeError, ValueError):
