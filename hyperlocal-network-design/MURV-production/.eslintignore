@@ -1,7 +1,0 @@
-/.git
-/.yarn
-/coverage
-/playwight-report
-/test-results
-node_modules
-dist

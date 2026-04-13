@@ -1,0 +1,25 @@
+name: Download LFS Cache Files
+on:
+  workflow_dispatch:
+
+jobs:
+  extract-cache:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout with LFS
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+          fetch-depth: 1
+
+      - name: Zip cache files
+        run: |
+          cd network-optimizer/cache
+          zip -r /tmp/cache-pkl.zip *.pkl
+
+      - name: Upload as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cache-pkl-files
+          path: /tmp/cache-pkl.zip
+          retention-days: 3

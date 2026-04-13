@@ -1,4 +1,0 @@
-{
-  "main": "dist/murv-core-utils-generate-random-id.cjs.js",
-  "module": "dist/murv-core-utils-generate-random-id.esm.js"
-}

@@ -1,4 +1,0 @@
-{
-  "main": "dist/murv-core-utils-validate-children.cjs.js",
-  "module": "dist/murv-core-utils-validate-children.esm.js"
-}
