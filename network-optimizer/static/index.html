@@ -870,7 +870,9 @@ function init(){
       <div class="leg-row"><div class="leg-ring" style="border-color:#ea580c"></div><span class="leg-label">Mini Radius</span></div>
       <div class="leg-row"><div class="leg-dot" style="background:#059669"></div><span class="leg-label">New Standard DS</span></div>
       <div class="leg-row"><div class="leg-ring" style="border-color:#059669"></div><span class="leg-label">Standard Radius</span></div>
+      <div class="leg-row"><div class="leg-dot" style="background:#0f766e"></div><span class="leg-label">Rescue Standard DS</span></div>
       <div class="leg-row"><div class="leg-dot" style="background:#b45309"></div><span class="leg-label">Exception Standard DS</span></div>
+      <div class="leg-row"><div class="leg-dot" style="background:#c2410c"></div><span class="leg-label">Rescue + Exception Standard DS</span></div>
       <div class="leg-row"><div class="leg-ring" style="border-color:#b45309"></div><span class="leg-label">Exception Radius</span></div>
       <div class="leg-row"><div class="leg-dot" style="background:#7c3aed"></div><span class="leg-label">Super DS (30k)</span></div>
       <div class="leg-row"><div class="leg-ring" style="border-color:#dc2626"></div><span class="leg-label">Residual Service Gap</span></div>
@@ -2083,11 +2085,21 @@ function getComparisonViews(data){
 function resolveActiveScenarioPayload(data){
   if(!data || data.exact_benchmark) return data;
   const scenarioViews = data.scenario_views || {};
-  const activeKey = String(
+  let activeKey = String(
     data?.decision_grade_result?.active_view_key ||
     data?.pipeline?.active_view_key ||
     ''
   );
+  const deferredMiniReady =
+    !!(data?.deferred_result?.ready) ||
+    !!(data?.budget?.deferred_ready) ||
+    String(data?.layer_status?.mini || '') === 'computed';
+  if(activeKey && deferredMiniReady){
+    const miniKey = `${activeKey}_plus_mini`;
+    if(scenarioViews[miniKey]){
+      activeKey = miniKey;
+    }
+  }
   if(!activeKey || !scenarioViews[activeKey]) return data;
   const activeView = scenarioViews[activeKey] || {};
   return {
