@@ -1,0 +1,2781 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flipkart Hyperlocal Distance Analyzer</title>
+
+    <!-- CDN Libraries -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+    <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: #f5f5f5;
+            color: #333;
+            line-height: 1.6;
+        }
+
+        /* Header */
+        .header {
+            background: linear-gradient(135deg, #2874f0 0%, #2157b8 100%);
+            color: white;
+            padding: 20px 0;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+
+        .header-title {
+            font-size: 28px;
+            font-weight: 700;
+            margin-bottom: 5px;
+        }
+
+        .header-subtitle {
+            font-size: 14px;
+            opacity: 0.9;
+            margin-bottom: 15px;
+        }
+
+        .header-controls {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: rgba(255,255,255,0.15);
+            padding: 8px 15px;
+            border-radius: 6px;
+            backdrop-filter: blur(10px);
+        }
+
+        .control-group label {
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            opacity: 0.9;
+        }
+
+        .control-group input,
+        .control-group select {
+            padding: 6px 10px;
+            border: none;
+            border-radius: 4px;
+            font-size: 13px;
+            background: white;
+            color: #333;
+        }
+
+        .control-group button {
+            padding: 6px 15px;
+            background: white;
+            color: #2874f0;
+            border: none;
+            border-radius: 4px;
+            font-weight: 600;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.2s;
+        }
+
+        .control-group button:hover {
+            background: #f5f5f5;
+            transform: translateY(-1px);
+        }
+
+        .job-info {
+            font-size: 12px;
+            opacity: 0.85;
+        }
+
+        /* Main Container */
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            gap: 0;
+            background: white;
+            border-radius: 8px 8px 0 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            border-bottom: 2px solid #e8e8e8;
+            margin-bottom: 0;
+            overflow-x: auto;
+        }
+
+        .tab-button {
+            padding: 14px 20px;
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            color: #666;
+            transition: all 0.3s;
+            position: relative;
+            white-space: nowrap;
+        }
+
+        .tab-button.active {
+            color: #2874f0;
+        }
+
+        .tab-button.active::after {
+            content: '';
+            position: absolute;
+            bottom: -2px;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: #2874f0;
+        }
+
+        .tab-button:hover {
+            color: #2874f0;
+            background: #f9f9f9;
+        }
+
+        .tab-content {
+            background: white;
+            border-radius: 0 0 8px 8px;
+            padding: 30px;
+            display: none;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* Upload Tab */
+        .upload-area {
+            border: 2px dashed #2874f0;
+            border-radius: 8px;
+            padding: 40px;
+            text-align: center;
+            background: #f8faff;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-bottom: 20px;
+        }
+
+        .upload-area:hover,
+        .upload-area.dragover {
+            background: #f0f6ff;
+            border-color: #2157b8;
+        }
+
+        .upload-area-icon {
+            font-size: 48px;
+            margin-bottom: 15px;
+        }
+
+        .upload-area-text {
+            font-size: 16px;
+            font-weight: 600;
+            color: #2874f0;
+            margin-bottom: 5px;
+        }
+
+        .upload-area-subtext {
+            font-size: 13px;
+            color: #666;
+        }
+
+        .upload-input {
+            display: none;
+        }
+
+        .file-info {
+            background: #f5f5f5;
+            border-radius: 6px;
+            padding: 15px;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .file-info.show {
+            display: block;
+        }
+
+        .file-info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        .file-info-item {
+            background: white;
+            padding: 12px;
+            border-radius: 4px;
+            border-left: 3px solid #2874f0;
+        }
+
+        .file-info-label {
+            font-size: 11px;
+            text-transform: uppercase;
+            color: #999;
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+
+        .file-info-value {
+            font-size: 16px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .mapping-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .mapping-item {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .mapping-item label {
+            font-size: 12px;
+            font-weight: 600;
+            color: #666;
+            margin-bottom: 5px;
+        }
+
+        .mapping-item select {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 13px;
+            background: white;
+        }
+
+        .progress-container {
+            display: none;
+            margin-top: 20px;
+        }
+
+        .progress-container.show {
+            display: block;
+        }
+
+        .progress-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            font-size: 13px;
+        }
+
+        .progress-bar-bg {
+            background: #e8e8e8;
+            border-radius: 8px;
+            height: 24px;
+            overflow: hidden;
+            margin-bottom: 12px;
+        }
+
+        .progress-bar-fill {
+            background: linear-gradient(90deg, #2874f0, #2157b8);
+            height: 100%;
+            width: 0%;
+            transition: width 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            font-weight: 600;
+            color: white;
+        }
+
+        .progress-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 12px;
+            margin-top: 15px;
+        }
+
+        .progress-stat {
+            background: #f5f5f5;
+            padding: 10px;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+
+        .progress-stat-label {
+            color: #999;
+            margin-bottom: 4px;
+        }
+
+        .progress-stat-value {
+            font-size: 16px;
+            font-weight: 600;
+            color: #2874f0;
+        }
+
+        /* Dashboard Tab */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            border-left: 4px solid #2874f0;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+
+        .stat-card-label {
+            font-size: 12px;
+            text-transform: uppercase;
+            color: #999;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .stat-card-value {
+            font-size: 28px;
+            font-weight: 700;
+            color: #2874f0;
+        }
+
+        .stat-card-subtext {
+            font-size: 12px;
+            color: #999;
+            margin-top: 5px;
+        }
+
+        .percentiles-row {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 30px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+
+        .percentiles-row h3 {
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: #333;
+        }
+
+        .percentiles-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+            gap: 12px;
+        }
+
+        .percentile-item {
+            background: #f9f9f9;
+            padding: 12px;
+            border-radius: 6px;
+            text-align: center;
+        }
+
+        .percentile-label {
+            font-size: 11px;
+            color: #999;
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+
+        .percentile-value {
+            font-size: 18px;
+            font-weight: 700;
+            color: #2874f0;
+        }
+
+        .charts-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .chart-container {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+
+        .chart-title {
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: #333;
+        }
+
+        .chart-inner {
+            position: relative;
+            height: 300px;
+        }
+
+        .daily-trends {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+
+        .daily-trends h3 {
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 20px;
+            color: #333;
+        }
+
+        .trends-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 20px;
+        }
+
+        .trend-chart {
+            position: relative;
+            height: 300px;
+        }
+
+        /* Network Design Dashboard */
+        .dashboard-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 25px;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .threshold-control {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .threshold-control label {
+            font-weight: 600;
+            color: #333;
+            font-size: 13px;
+        }
+
+        .threshold-control input {
+            width: 80px;
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .threshold-control input:focus {
+            outline: none;
+            border-color: #2874f0;
+            box-shadow: 0 0 0 2px rgba(40, 116, 240, 0.1);
+        }
+
+        .network-health-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-bottom: 30px;
+            background: white;
+            padding: 25px;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+
+        .health-gauge {
+            position: relative;
+            width: 140px;
+            height: 140px;
+            border-radius: 50%;
+            background: conic-gradient(#4CAF50 0deg 180deg, #ddd 180deg 360deg);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .health-gauge-inner {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            background: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .health-gauge-value {
+            font-size: 38px;
+            font-weight: 700;
+            color: #2874f0;
+        }
+
+        .health-gauge-label {
+            font-size: 11px;
+            text-transform: uppercase;
+            color: #999;
+            font-weight: 600;
+        }
+
+        .kpi-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+
+        .kpi-card {
+            background: white;
+            border-radius: 8px;
+            padding: 18px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            text-align: center;
+            border-top: 3px solid #2874f0;
+        }
+
+        .kpi-card.success {
+            border-top-color: #4CAF50;
+        }
+
+        .kpi-card.warning {
+            border-top-color: #FF9800;
+        }
+
+        .kpi-card.danger {
+            border-top-color: #f44336;
+        }
+
+        .kpi-label {
+            font-size: 11px;
+            text-transform: uppercase;
+            color: #999;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .kpi-value {
+            font-size: 26px;
+            font-weight: 700;
+            color: #333;
+            margin-bottom: 4px;
+        }
+
+        .kpi-unit {
+            font-size: 11px;
+            color: #999;
+        }
+
+        .insights-row {
+            display: grid;
+            grid-template-columns: 320px 1fr;
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .coverage-donut-compact {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .donut-chart {
+            position: relative;
+            width: 300px;
+            height: 300px;
+        }
+
+        .insights-panel {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            padding: 20px;
+        }
+
+        .insights-panel h3 {
+            font-size: 14px;
+            font-weight: 600;
+            color: #333;
+            margin: 0 0 18px 0;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .insight-item {
+            padding: 12px 14px;
+            margin-bottom: 12px;
+            border-left: 4px solid #ddd;
+            border-radius: 3px;
+            font-size: 13px;
+            line-height: 1.5;
+            color: #555;
+            background: #fafafa;
+            transition: background 0.2s;
+        }
+
+        .insight-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .insight-item.good {
+            border-left-color: #4CAF50;
+            background: #f1f8f6;
+            color: #2d5f4d;
+        }
+
+        .insight-item.warning {
+            border-left-color: #FF9800;
+            background: #fff9e6;
+            color: #6d5a2d;
+        }
+
+        .insight-item.critical {
+            border-left-color: #f44336;
+            background: #ffebee;
+            color: #6d2d2d;
+        }
+
+        .insight-label {
+            font-weight: 600;
+            display: block;
+            margin-bottom: 4px;
+        }
+
+        .coverage-donut {
+            display: none;
+        }
+
+        .store-breach-table {
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            margin-bottom: 30px;
+        }
+
+        .store-breach-table h3 {
+            padding: 20px;
+            background: #f5f5f5;
+            font-size: 14px;
+            font-weight: 600;
+            border-bottom: 1px solid #e8e8e8;
+            margin: 0;
+        }
+
+        .table-responsive {
+            overflow-x: auto;
+        }
+
+        .store-breach-table table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .store-breach-table th {
+            padding: 12px 15px;
+            text-align: left;
+            font-size: 12px;
+            font-weight: 600;
+            color: #666;
+            text-transform: uppercase;
+            background: #f5f5f5;
+            border-bottom: 2px solid #e8e8e8;
+        }
+
+        .store-breach-table td {
+            padding: 12px 15px;
+            font-size: 13px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .store-breach-table tbody tr {
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .store-breach-table tbody tr:hover {
+            background: #f9f9f9;
+        }
+
+        .store-breach-table tr.breach-0 { background: #f1f8f6; }
+        .store-breach-table tr.breach-0:hover { background: #e8f5f1; }
+        .store-breach-table tr.breach-1 { background: #fff9e6; }
+        .store-breach-table tr.breach-1:hover { background: #fff3cc; }
+        .store-breach-table tr.breach-2 { background: #ffe8d6; }
+        .store-breach-table tr.breach-2:hover { background: #ffd9b3; }
+        .store-breach-table tr.breach-3 { background: #ffebee; }
+        .store-breach-table tr.breach-3:hover { background: #ffcdd2; }
+
+        /* Map Tab */
+        #map {
+            height: 600px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            margin-bottom: 15px;
+        }
+
+        .map-controls {
+            background: white;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .map-info {
+            background: #f0f6ff;
+            border-left: 3px solid #2874f0;
+            padding: 12px 15px;
+            border-radius: 4px;
+            font-size: 13px;
+            color: #2157b8;
+        }
+
+        .map-legend {
+            background: white;
+            border-radius: 8px;
+            padding: 15px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+
+        .map-legend h4 {
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            margin-bottom: 10px;
+            color: #666;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 12px;
+            margin-bottom: 8px;
+        }
+
+        .legend-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+
+        .legend-dot.green { background: #4CAF50; }
+        .legend-dot.orange { background: #FF9800; }
+        .legend-dot.red { background: #f44336; }
+        .legend-dot.blue { background: #2874f0; }
+
+        /* Data Table Tab */
+        .table-controls {
+            background: white;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .table-filter {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .table-filter label {
+            font-size: 11px;
+            font-weight: 600;
+            color: #666;
+            text-transform: uppercase;
+        }
+
+        .table-filter input,
+        .table-filter select {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+
+        .table-filter input {
+            width: 200px;
+        }
+
+        .table-wrapper {
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            margin-bottom: 20px;
+        }
+
+        .table-responsive {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        thead {
+            background: #f5f5f5;
+            border-bottom: 2px solid #ddd;
+        }
+
+        th {
+            padding: 12px 15px;
+            text-align: left;
+            font-size: 12px;
+            font-weight: 600;
+            color: #666;
+            text-transform: uppercase;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        th:hover {
+            background: #ebe9e9;
+        }
+
+        td {
+            padding: 12px 15px;
+            font-size: 13px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        tbody tr:hover {
+            background: #f9f9f9;
+        }
+
+        .pagination {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 20px;
+            background: white;
+            border-radius: 0 0 8px 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+
+        .pagination-buttons {
+            display: flex;
+            gap: 8px;
+        }
+
+        .pagination-buttons button {
+            padding: 6px 12px;
+            border: 1px solid #ddd;
+            background: white;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.2s;
+        }
+
+        .pagination-buttons button:hover:not(:disabled) {
+            background: #2874f0;
+            color: white;
+            border-color: #2874f0;
+        }
+
+        .pagination-buttons button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .pagination-info {
+            font-size: 12px;
+            color: #666;
+        }
+
+        .download-buttons {
+            background: white;
+            border-radius: 8px;
+            padding: 15px;
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+
+        /* OSRM Setup Guide Tab */
+        .guide-container {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+
+        .guide-tabs {
+            display: flex;
+            gap: 0;
+            border-bottom: 2px solid #e8e8e8;
+        }
+
+        .guide-tab-button {
+            padding: 12px 20px;
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 500;
+            color: #666;
+            transition: all 0.3s;
+            position: relative;
+        }
+
+        .guide-tab-button.active {
+            color: #2874f0;
+        }
+
+        .guide-tab-button.active::after {
+            content: '';
+            position: absolute;
+            bottom: -2px;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: #2874f0;
+        }
+
+        .guide-content {
+            padding: 20px;
+            display: none;
+        }
+
+        .guide-content.active {
+            display: block;
+        }
+
+        .guide-section {
+            margin-bottom: 25px;
+        }
+
+        .guide-section h3 {
+            font-size: 14px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .guide-section ol,
+        .guide-section ul {
+            margin-left: 20px;
+        }
+
+        .guide-section li {
+            margin-bottom: 8px;
+            font-size: 13px;
+            color: #555;
+            line-height: 1.6;
+        }
+
+        .code-block {
+            background: #f5f5f5;
+            border-left: 3px solid #2874f0;
+            padding: 12px 15px;
+            border-radius: 4px;
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 12px;
+            color: #333;
+            margin-bottom: 10px;
+            position: relative;
+            word-break: break-all;
+        }
+
+        .copy-button {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            padding: 4px 8px;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 11px;
+            transition: all 0.2s;
+        }
+
+        .copy-button:hover {
+            background: #2874f0;
+            color: white;
+            border-color: #2874f0;
+        }
+
+        .recommendation-banner {
+            background: #e3f2fd;
+            border-left: 4px solid #2874f0;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            font-size: 13px;
+            color: #2157b8;
+        }
+
+        .time-estimate {
+            background: #f5f5f5;
+            border-radius: 4px;
+            padding: 10px 15px;
+            font-size: 12px;
+            color: #666;
+            margin-top: 8px;
+        }
+
+        /* Button Styles */
+        button {
+            font-family: inherit;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: #2874f0;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #2157b8;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(40, 116, 240, 0.3);
+        }
+
+        .btn-secondary {
+            background: #f5f5f5;
+            color: #333;
+            border: 1px solid #ddd;
+        }
+
+        .btn-secondary:hover {
+            background: #e8e8e8;
+        }
+
+        .btn-success {
+            background: #4CAF50;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #45a049;
+        }
+
+        /* Alert Messages */
+        .alert {
+            padding: 12px 15px;
+            border-radius: 4px;
+            margin-bottom: 15px;
+            font-size: 13px;
+            display: none;
+        }
+
+        .alert.show {
+            display: block;
+        }
+
+        .alert-success {
+            background: #d4edda;
+            color: #155724;
+            border-left: 3px solid #28a745;
+        }
+
+        .alert-error {
+            background: #f8d7da;
+            color: #721c24;
+            border-left: 3px solid #f44336;
+        }
+
+        .alert-warning {
+            background: #fff3cd;
+            color: #856404;
+            border-left: 3px solid #ffc107;
+        }
+
+        .alert-info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border-left: 3px solid #17a2b8;
+        }
+
+        /* Skeleton Loading */
+        .skeleton {
+            background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+            background-size: 200% 100%;
+            animation: loading 1.5s infinite;
+        }
+
+        @keyframes loading {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .header-title {
+                font-size: 20px;
+            }
+
+            .header-controls {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .control-group {
+                width: 100%;
+                flex-direction: column;
+            }
+
+            .stats-grid,
+            .percentiles-grid,
+            .charts-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .container {
+                padding: 15px;
+            }
+
+            .tab-content {
+                padding: 15px;
+            }
+
+            table {
+                font-size: 12px;
+            }
+
+            th, td {
+                padding: 8px 10px;
+            }
+
+            .trends-grid {
+                grid-template-columns: 1fr;
+            }
+
+            #map {
+                height: 400px;
+            }
+        }
+
+        /* Loading Spinner */
+        .spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid #2874f0;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <div class="header">
+        <div class="header-container">
+            <div class="header-title">Flipkart Hyperlocal Distance Analyzer</div>
+            <div class="header-subtitle">Analyze store-to-delivery distances with advanced OSRM integration</div>
+            <div class="header-controls">
+                <div class="control-group">
+                    <label>OSRM Server:</label>
+                    <input type="text" id="osrmUrl" placeholder="http://localhost:5000" value="http://localhost:5000">
+                    <button id="testConnectionBtn">Test Connection</button>
+                </div>
+                <div class="control-group">
+                    <label>Dataset:</label>
+                    <select id="jobSelector">
+                        <option value="">Select a dataset...</option>
+                    </select>
+                    <span class="job-info" id="jobInfo"></span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Container -->
+    <div class="container">
+        <!-- Alert Container -->
+        <div id="alertContainer"></div>
+
+        <!-- Tabs -->
+        <div class="tabs">
+            <button class="tab-button active" data-tab="upload">Upload & Calculate</button>
+            <button class="tab-button" data-tab="dashboard">Dashboard</button>
+            <button class="tab-button" data-tab="map">Map View</button>
+            <button class="tab-button" data-tab="table">Data Table</button>
+            <button class="tab-button" data-tab="setup">OSRM Setup Guide</button>
+        </div>
+
+        <!-- TAB 1: Upload & Calculate -->
+        <div class="tab-content active" id="upload-tab">
+            <div class="upload-area" id="uploadArea">
+                <div class="upload-area-icon">📁</div>
+                <div class="upload-area-text">Drag & drop your CSV or Excel file here</div>
+                <div class="upload-area-subtext">or click to browse (CSV, XLSX, XLS)</div>
+            </div>
+            <input type="file" id="fileInput" class="upload-input" accept=".csv,.xlsx,.xls">
+
+            <div class="file-info" id="fileInfo">
+                <div class="file-info-grid">
+                    <div class="file-info-item">
+                        <div class="file-info-label">Filename</div>
+                        <div class="file-info-value" id="fileName">-</div>
+                    </div>
+                    <div class="file-info-item">
+                        <div class="file-info-label">Rows</div>
+                        <div class="file-info-value" id="rowCount">-</div>
+                    </div>
+                    <div class="file-info-item">
+                        <div class="file-info-label">Stores</div>
+                        <div class="file-info-value" id="storeCount">-</div>
+                    </div>
+                </div>
+
+                <div id="mappingSection"></div>
+            </div>
+
+            <div id="preCalculatedMessage"></div>
+
+            <div class="progress-container" id="progressContainer">
+                <div class="progress-header">
+                    <span id="progressTitle">Processing...</span>
+                    <span id="progressPercent">0%</span>
+                </div>
+                <div class="progress-bar-bg">
+                    <div class="progress-bar-fill" id="progressBar"></div>
+                </div>
+                <div class="progress-stats">
+                    <div class="progress-stat">
+                        <div class="progress-stat-label">Processed</div>
+                        <div class="progress-stat-value" id="progressProcessed">0/0</div>
+                    </div>
+                    <div class="progress-stat">
+                        <div class="progress-stat-label">✓ Success</div>
+                        <div class="progress-stat-value" id="progressOK">0</div>
+                    </div>
+                    <div class="progress-stat">
+                        <div class="progress-stat-label">✗ Failed</div>
+                        <div class="progress-stat-value" id="progressFailed">0</div>
+                    </div>
+                    <div class="progress-stat">
+                        <div class="progress-stat-label">Rate</div>
+                        <div class="progress-stat-value" id="progressRate">0/s</div>
+                    </div>
+                    <div class="progress-stat">
+                        <div class="progress-stat-label">ETA</div>
+                        <div class="progress-stat-value" id="progressETA">--</div>
+                    </div>
+                </div>
+            </div>
+
+            <div style="margin-top: 20px;">
+                <button class="btn btn-primary" id="calculateBtn" style="display: none;">Calculate Distances</button>
+                <div id="infoBox" style="display: none; background: #e3f2fd; border-left: 3px solid #2874f0; padding: 15px; border-radius: 4px; margin-top: 15px; color: #2157b8; font-size: 13px;"></div>
+            </div>
+        </div>
+
+        <!-- TAB 2: Dashboard -->
+        <div class="tab-content" id="dashboard-tab">
+            <!-- Threshold Control -->
+            <div class="dashboard-header">
+                <div class="threshold-control">
+                    <label for="thresholdInput">Delivery Radius Threshold:</label>
+                    <input type="number" id="thresholdInput" min="1" max="20" step="0.5" value="3.0">
+                    <span style="font-size: 13px; color: #666;">km</span>
+                </div>
+            </div>
+
+            <!-- Network Health Score -->
+            <div class="network-health-container">
+                <div style="text-align: center;">
+                    <div class="health-gauge" id="healthGauge">
+                        <div class="health-gauge-inner">
+                            <div class="health-gauge-value" id="healthScore">95</div>
+                            <div class="health-gauge-label">Health Score</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- KPI Cards Row -->
+            <div class="kpi-cards" id="kpiCards">
+                <div class="kpi-card success">
+                    <div class="kpi-label">Coverage Rate</div>
+                    <div class="kpi-value" id="kpiCoverage">95.3%</div>
+                </div>
+                <div class="kpi-card danger">
+                    <div class="kpi-label">Beyond Threshold</div>
+                    <div class="kpi-value" id="kpiBeyond">5.7K</div>
+                </div>
+                <div class="kpi-card warning">
+                    <div class="kpi-label">Problem Stores</div>
+                    <div class="kpi-value" id="kpiProblem">15</div>
+                </div>
+                <div class="kpi-card danger">
+                    <div class="kpi-label">Critical Stores</div>
+                    <div class="kpi-value" id="kpiCritical">3</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-label">Avg Distance</div>
+                    <div class="kpi-value" id="kpiAvgDist">2.8</div>
+                    <div class="kpi-unit">km</div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-label">Total Orders</div>
+                    <div class="kpi-value" id="kpiTotalOrders">120K</div>
+                </div>
+            </div>
+
+            <!-- Coverage Donut & Insights Row -->
+            <div class="insights-row">
+                <div class="coverage-donut-compact">
+                    <div class="donut-chart">
+                        <canvas id="coverageChart"></canvas>
+                    </div>
+                </div>
+                <div class="insights-panel" id="insightsPanel">
+                    <h3>Insights & Recommendations</h3>
+                    <div id="insightsContent" style="min-height: 200px;">Loading insights...</div>
+                </div>
+            </div>
+
+            <!-- Store Breach Table -->
+            <div class="store-breach-table">
+                <h3>Store Performance & Breach Analysis</h3>
+                <div class="table-responsive">
+                    <table id="storeBreachTable">
+                        <thead>
+                            <tr>
+                                <th>Store ID</th>
+                                <th>Orders</th>
+                                <th>Within Threshold</th>
+                                <th>Beyond Threshold</th>
+                                <th>Breach %</th>
+                                <th>Avg Distance</th>
+                                <th>P90 Distance</th>
+                                <th>Max Distance</th>
+                            </tr>
+                        </thead>
+                        <tbody id="storeBreachBody">
+                            <tr><td colspan="8" style="text-align: center; padding: 40px;">Loading store data...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Distance Distribution with Threshold Line -->
+            <div class="charts-grid">
+                <div class="chart-container" style="grid-column: span 2;">
+                    <div class="chart-title">Distance Distribution (with Threshold)</div>
+                    <div class="chart-inner"><canvas id="distChart"></canvas></div>
+                </div>
+            </div>
+
+            <!-- Store Avg Distance (color coded) -->
+            <div class="charts-grid">
+                <div class="chart-container" style="grid-column: span 2;">
+                    <div class="chart-title">Avg Distance by Store (Top 30)</div>
+                    <div class="chart-inner"><canvas id="storeAvgChart"></canvas></div>
+                </div>
+            </div>
+
+            <!-- Orders per Store -->
+            <div class="charts-grid">
+                <div class="chart-container" style="grid-column: span 2;">
+                    <div class="chart-title">Orders per Store (Top 30)</div>
+                    <div class="chart-inner"><canvas id="storeOrdersChart"></canvas></div>
+                </div>
+            </div>
+
+            <!-- Distance Ranges & Daily Trends (conditional) -->
+            <div class="charts-grid" id="additionalChartsGrid"></div>
+
+            <div class="daily-trends" id="dailyTrendsSection" style="display: none;">
+                <h3>Daily Trends</h3>
+                <div class="trends-grid" id="trendsGrid"></div>
+            </div>
+        </div>
+
+        <!-- TAB 3: Map View -->
+        <div class="tab-content" id="map-tab">
+            <div class="map-controls">
+                <div style="flex: 1; display: flex; gap: 15px; align-items: center; flex-wrap: wrap;">
+                    <label for="storeFilter" style="font-weight: 600; color: #333;">Store:</label>
+                    <select id="storeFilter" style="padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px; min-width: 150px;">
+                        <option value="">All Stores</option>
+                    </select>
+                    <label style="font-weight: 600; color: #333; margin-left: 10px;">Show:</label>
+                    <select id="mapViewMode" style="padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px;">
+                        <option value="all">All Orders</option>
+                        <option value="breach">Only Breach Orders (beyond threshold)</option>
+                        <option value="within">Only Within Threshold</option>
+                    </select>
+                    <label style="font-weight: 600; color: #333; margin-left: 10px;">
+                        <input type="checkbox" id="showCoverageCircles" checked style="margin-right: 4px;">
+                        Coverage Circles
+                    </label>
+                </div>
+                <button class="btn btn-secondary" id="fitMapBtn">Fit to Bounds</button>
+            </div>
+            <div id="map"></div>
+            <div class="map-info" id="mapInfo">Loading map data...</div>
+            <div class="map-legend" style="display: flex; gap: 25px; align-items: center; flex-wrap: wrap;">
+                <h4 style="margin: 0;">Legend:</h4>
+                <div class="legend-item" style="margin: 0;">
+                    <div class="legend-dot blue" style="width: 14px; height: 14px; border: 2px solid #1552b0;"></div>
+                    <span>Dark Store</span>
+                </div>
+                <div class="legend-item" style="margin: 0;">
+                    <div class="legend-dot green"></div>
+                    <span>Within Threshold</span>
+                </div>
+                <div class="legend-item" style="margin: 0;">
+                    <div class="legend-dot red"></div>
+                    <span>Beyond Threshold (Breach)</span>
+                </div>
+                <div class="legend-item" style="margin: 0;">
+                    <div style="width: 14px; height: 14px; border-radius: 50%; border: 2px dashed #2874f0; opacity: 0.5;"></div>
+                    <span>Coverage Circle (threshold radius)</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 4: Data Table -->
+        <div class="tab-content" id="table-tab">
+            <div class="download-buttons">
+                <button class="btn btn-primary" id="downloadFilteredBtn">
+                    📥 Download Filtered CSV
+                </button>
+                <button class="btn btn-secondary" id="downloadAllBtn">
+                    📥 Download All CSV
+                </button>
+            </div>
+
+            <div class="table-controls">
+                <div class="table-filter">
+                    <label>Store</label>
+                    <select id="tableStoreFilter">
+                        <option value="">All Stores</option>
+                    </select>
+                </div>
+                <div class="table-filter">
+                    <label>Distance Range</label>
+                    <select id="tableDistanceFilter">
+                        <option value="">All Ranges</option>
+                        <option value="0-3">&lt; 3 km</option>
+                        <option value="3-7">3 - 7 km</option>
+                        <option value="7+">&gt; 7 km</option>
+                    </select>
+                </div>
+                <div class="table-filter">
+                    <label>Search</label>
+                    <input type="text" id="tableSearch" placeholder="Order ID, Store ID...">
+                </div>
+                <button class="btn btn-secondary" id="tableResetBtn" style="margin-top: 22px;">Reset Filters</button>
+            </div>
+
+            <div class="table-wrapper">
+                <div class="table-responsive">
+                    <table id="dataTable">
+                        <thead>
+                            <tr>
+                                <th onclick="sortTable('store_id')">Store ID</th>
+                                <th onclick="sortTable('order_id')">Order ID</th>
+                                <th onclick="sortTable('store_lat')">Store Lat</th>
+                                <th onclick="sortTable('store_lon')">Store Lon</th>
+                                <th onclick="sortTable('order_lat')">Order Lat</th>
+                                <th onclick="sortTable('order_lon')">Order Lon</th>
+                                <th onclick="sortTable('road_distance')">Road Distance (km)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tableBody">
+                            <tr><td colspan="7" style="text-align: center; padding: 40px;">No data loaded</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="pagination">
+                <div class="pagination-buttons">
+                    <button id="prevPageBtn" class="btn btn-secondary">← Previous</button>
+                    <button id="nextPageBtn" class="btn btn-secondary">Next →</button>
+                </div>
+                <div class="pagination-info">
+                    Showing <span id="pageStart">0</span>-<span id="pageEnd">0</span> of <span id="pageTotal">0</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- TAB 5: OSRM Setup Guide -->
+        <div class="tab-content" id="setup-tab">
+            <div class="recommendation-banner">
+                💡 <strong>Recommendation:</strong> For production use, we recommend deploying a self-hosted OSRM service. This ensures data privacy, reliability, and optimal performance for large-scale distance calculations.
+            </div>
+
+            <div class="guide-container">
+                <div class="guide-tabs">
+                    <button class="guide-tab-button active" data-guide="macos">macOS</button>
+                    <button class="guide-tab-button" data-guide="windows">Windows</button>
+                    <button class="guide-tab-button" data-guide="linux">Linux</button>
+                </div>
+
+                <!-- macOS Guide -->
+                <div class="guide-content active" id="guide-macos">
+                    <div class="guide-section">
+                        <h3>Step 1: Install Docker</h3>
+                        <ol>
+                            <li>Download <a href="https://www.docker.com/products/docker-desktop" target="_blank">Docker Desktop for Mac</a></li>
+                            <li>Run the installer and follow the on-screen instructions</li>
+                            <li>Open Terminal and verify: <code style="background: #f5f5f5; padding: 2px 4px; border-radius: 2px;">docker --version</code></li>
+                        </ol>
+                        <div class="time-estimate">⏱️ Time: 10-15 minutes</div>
+                    </div>
+
+                    <div class="guide-section">
+                        <h3>Step 2: Download OSRM Data</h3>
+                        <p>Get India data from Geofabrik:</p>
+                        <div class="code-block">
+                            curl -o india.osm.pbf https://download.geofabrik.de/asia/india-latest.osm.pbf
+                            <button class="copy-button" onclick="copyToClipboard(this)">Copy</button>
+                        </div>
+                        <div class="time-estimate">⏱️ Time: 30-60 minutes (data is ~900MB)</div>
+                    </div>
+
+                    <div class="guide-section">
+                        <h3>Step 3: Build OSRM Docker Image</h3>
+                        <div class="code-block">
+                            docker run -t osrm/osrm-backend osrm-extract -p /opt/car.lua /data/india.osm.pbf
+                            <button class="copy-button" onclick="copyToClipboard(this)">Copy</button>
+                        </div>
+                        <div class="time-estimate">⏱️ Time: 15-30 minutes</div>
+                    </div>
+
+                    <div class="guide-section">
+                        <h3>Step 4: Start OSRM Server</h3>
+                        <div class="code-block">
+                            docker run -d -p 5000:5000 -v $(pwd):/data osrm/osrm-backend osrm-routed --algorithm mld /data/india.osm.pbf
+                            <button class="copy-button" onclick="copyToClipboard(this)">Copy</button>
+                        </div>
+                        <div class="time-estimate">⏱️ Time: 5 minutes</div>
+                    </div>
+
+                    <div class="guide-section">
+                        <h3>Step 5: Verify Installation</h3>
+                        <p>Test the API:</p>
+                        <div class="code-block">
+                            curl "http://localhost:5000/route/v1/driving/77.5946,12.9716;77.5900,12.9700?overview=false"
+                            <button class="copy-button" onclick="copyToClipboard(this)">Copy</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Windows Guide -->
+                <div class="guide-content" id="guide-windows">
+                    <div class="guide-section">
+                        <h3>Step 1: Install Docker Desktop</h3>
+                        <ol>
+                            <li>Download <a href="https://www.docker.com/products/docker-desktop" target="_blank">Docker Desktop for Windows</a></li>
+                            <li>Run the installer and follow the on-screen instructions</li>
+                            <li>Enable WSL 2 (Windows Subsystem for Linux 2) when prompted</li>
+                            <li>Open PowerShell and verify: <code style="background: #f5f5f5; padding: 2px 4px; border-radius: 2px;">docker --version</code></li>
+                        </ol>
+                        <div class="time-estimate">⏱️ Time: 15-20 minutes</div>
+                    </div>
+
+                    <div class="guide-section">
+                        <h3>Step 2: Download OSRM Data</h3>
+                        <p>Open PowerShell and download India data:</p>
+                        <div class="code-block">
+                            Invoke-WebRequest -Uri "https://download.geofabrik.de/asia/india-latest.osm.pbf" -OutFile "india.osm.pbf"
+                            <button class="copy-button" onclick="copyToClipboard(this)">Copy</button>
+                        </div>
+                        <div class="time-estimate">⏱️ Time: 30-60 minutes</div>
+                    </div>
+
+                    <div class="guide-section">
+                        <h3>Step 3: Create Docker Container</h3>
+                        <div class="code-block">
+                            docker run -t osrm/osrm-backend osrm-extract -p /opt/car.lua /data/india.osm.pbf
+                            <button class="copy-button" onclick="copyToClipboard(this)">Copy</button>
+                        </div>
+                        <div class="time-estimate">⏱️ Time: 20-40 minutes</div>
+                    </div>
+
+                    <div class="guide-section">
+                        <h3>Step 4: Start OSRM Service</h3>
+                        <div class="code-block">
+                            docker run -d -p 5000:5000 -v ${pwd}:/data osrm/osrm-backend osrm-routed --algorithm mld /data/india.osm.pbf
+                            <button class="copy-button" onclick="copyToClipboard(this)">Copy</button>
+                        </div>
+                        <div class="time-estimate">⏱️ Time: 5 minutes</div>
+                    </div>
+
+                    <div class="guide-section">
+                        <h3>Step 5: Test Your Setup</h3>
+                        <div class="code-block">
+                            Invoke-WebRequest "http://localhost:5000/route/v1/driving/77.5946,12.9716;77.5900,12.9700?overview=false"
+                            <button class="copy-button" onclick="copyToClipboard(this)">Copy</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Linux Guide -->
+                <div class="guide-content" id="guide-linux">
+                    <div class="guide-section">
+                        <h3>Step 1: Install Docker</h3>
+                        <div class="code-block">
+                            sudo apt-get update && sudo apt-get install docker.io docker-compose
+                            <button class="copy-button" onclick="copyToClipboard(this)">Copy</button>
+                        </div>
+                        <ol>
+                            <li>Verify installation: <code style="background: #f5f5f5; padding: 2px 4px; border-radius: 2px;">docker --version</code></li>
+                            <li>Add user to docker group: <code style="background: #f5f5f5; padding: 2px 4px; border-radius: 2px;">sudo usermod -aG docker $USER</code></li>
+                        </ol>
+                        <div class="time-estimate">⏱️ Time: 10 minutes</div>
+                    </div>
+
+                    <div class="guide-section">
+                        <h3>Step 2: Download OSRM Data</h3>
+                        <div class="code-block">
+                            wget https://download.geofabrik.de/asia/india-latest.osm.pbf
+                            <button class="copy-button" onclick="copyToClipboard(this)">Copy</button>
+                        </div>
+                        <div class="time-estimate">⏱️ Time: 30-60 minutes</div>
+                    </div>
+
+                    <div class="guide-section">
+                        <h3>Step 3: Create OSRM Data Files</h3>
+                        <div class="code-block">
+                            docker run -t -v $(pwd):/data osrm/osrm-backend osrm-extract -p /opt/car.lua /data/india.osm.pbf
+                            <button class="copy-button" onclick="copyToClipboard(this)">Copy</button>
+                        </div>
+                        <div class="code-block" style="margin-top: 10px;">
+                            docker run -t -v $(pwd):/data osrm/osrm-backend osrm-partition /data/india.osm
+                            <button class="copy-button" onclick="copyToClipboard(this)">Copy</button>
+                        </div>
+                        <div class="code-block" style="margin-top: 10px;">
+                            docker run -t -v $(pwd):/data osrm/osrm-backend osrm-customize /data/india.osm
+                            <button class="copy-button" onclick="copyToClipboard(this)">Copy</button>
+                        </div>
+                        <div class="time-estimate">⏱️ Time: 30-60 minutes</div>
+                    </div>
+
+                    <div class="guide-section">
+                        <h3>Step 4: Start OSRM Server</h3>
+                        <div class="code-block">
+                            docker run -d -p 5000:5000 -v $(pwd):/data osrm/osrm-backend osrm-routed --algorithm mld /data/india.osm
+                            <button class="copy-button" onclick="copyToClipboard(this)">Copy</button>
+                        </div>
+                        <div class="time-estimate">⏱️ Time: 5 minutes</div>
+                    </div>
+
+                    <div class="guide-section">
+                        <h3>Step 5: Verify Installation</h3>
+                        <div class="code-block">
+                            curl "http://localhost:5000/route/v1/driving/77.5946,12.9716;77.5900,12.9700?overview=false"
+                            <button class="copy-button" onclick="copyToClipboard(this)">Copy</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div style="margin-top: 30px; background: #f9f9f9; border-radius: 8px; padding: 20px;">
+                <h3 style="font-size: 14px; font-weight: 600; margin-bottom: 15px;">Team Sharing & Collaboration</h3>
+                <p style="font-size: 13px; color: #666; margin-bottom: 10px;">Once you have OSRM running, share the server URL with your team:</p>
+                <div class="code-block">
+                    http://[your-server-ip]:5000
+                    <button class="copy-button" onclick="copyToClipboard(this)">Copy</button>
+                </div>
+                <ul style="margin-left: 20px; font-size: 13px; color: #666;">
+                    <li>For local network: use your machine's IP address (find with <code style="background: #f5f5f5; padding: 2px 4px; border-radius: 2px;">ipconfig getifaddr en0</code> on Mac or <code style="background: #f5f5f5; padding: 2px 4px; border-radius: 2px;">hostname -I</code> on Linux)</li>
+                    <li>For remote access: configure firewall rules and consider using a reverse proxy (nginx, Apache)</li>
+                    <li>For production: use SSL/TLS certificates and authentication</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ========== GLOBAL STATE ==========
+        let currentJobId = null;
+        let currentPage = 1;
+        let pageSize = 100;
+        let currentSort = null;
+        let currentSortOrder = 'asc';
+        let mapInstance = null;
+        // markerClusterGroup removed — using direct layer management for clarity
+        let storeMarkers = {};
+        let allCharts = {};
+        let currentThreshold = 3.0;
+
+        // ========== UTILITY FUNCTIONS ==========
+        function showAlert(message, type = 'info') {
+            const alertContainer = document.getElementById('alertContainer');
+            const alertDiv = document.createElement('div');
+            alertDiv.className = `alert alert-${type} show`;
+            alertDiv.textContent = message;
+            alertContainer.appendChild(alertDiv);
+            setTimeout(() => alertDiv.remove(), 5000);
+        }
+
+        function copyToClipboard(button) {
+            const codeBlock = button.parentElement;
+            const text = codeBlock.textContent.replace('Copy', '').trim();
+            navigator.clipboard.writeText(text);
+            const originalText = button.textContent;
+            button.textContent = '✓ Copied';
+            setTimeout(() => button.textContent = originalText, 2000);
+        }
+
+        function formatNumber(num) {
+            if (num === null || num === undefined) return '-';
+            return num.toFixed(2);
+        }
+
+        function formatPercentile(value) {
+            if (value === null || value === undefined) return '-';
+            return typeof value === 'number' ? value.toFixed(2) : value;
+        }
+
+        function getColorForDistance(distance) {
+            // Simple: within threshold = green, beyond = red
+            return distance <= currentThreshold ? '#4CAF50' : '#e53935';
+        }
+
+        // ========== TAB NAVIGATION ==========
+        document.querySelectorAll('.tab-button').forEach(button => {
+            button.addEventListener('click', () => {
+                const tabName = button.getAttribute('data-tab');
+                showTab(tabName);
+            });
+        });
+
+        function showTab(tabName) {
+            document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+            document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
+            document.getElementById(`${tabName}-tab`).classList.add('active');
+            document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
+
+            if (currentJobId) {
+                if (tabName === 'dashboard') loadDashboard();
+                else if (tabName === 'map') loadMap();
+                else if (tabName === 'table') loadTable();
+            } else {
+                if (tabName !== 'upload' && tabName !== 'setup') {
+                    showAlert('Please upload and calculate a dataset first', 'warning');
+                }
+            }
+        }
+
+        // Guide tabs
+        document.querySelectorAll('.guide-tab-button').forEach(button => {
+            button.addEventListener('click', () => {
+                const guideId = button.getAttribute('data-guide');
+                document.querySelectorAll('.guide-content').forEach(content => content.classList.remove('active'));
+                document.querySelectorAll('.guide-tab-button').forEach(btn => btn.classList.remove('active'));
+                document.getElementById(`guide-${guideId}`).classList.add('active');
+                button.classList.add('active');
+            });
+        });
+
+        // ========== OSRM CONNECTION TEST ==========
+        document.getElementById('testConnectionBtn').addEventListener('click', async () => {
+            const osrmUrl = document.getElementById('osrmUrl').value.trim();
+            if (!osrmUrl) {
+                showAlert('Please enter OSRM Server URL', 'warning');
+                return;
+            }
+
+            const btn = document.getElementById('testConnectionBtn');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner"></span>';
+
+            try {
+                const response = await fetch(`/api/test-osrm?url=${encodeURIComponent(osrmUrl)}`);
+                const data = await response.json();
+                if (data.ok) {
+                    showAlert('✓ OSRM Server connection successful!', 'success');
+                } else {
+                    showAlert('✗ OSRM Server error: ' + (data.error || 'Not reachable'), 'error');
+                }
+            } catch (error) {
+                showAlert('✗ Failed to test OSRM connection: ' + error.message, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Test Connection';
+            }
+        });
+
+        // ========== UPLOAD & CALCULATE TAB ==========
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+
+        uploadArea.addEventListener('click', () => fileInput.click());
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+        uploadArea.addEventListener('dragleave', () => uploadArea.classList.remove('dragover'));
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            if (e.dataTransfer.files.length > 0) {
+                fileInput.files = e.dataTransfer.files;
+                handleFileSelect();
+            }
+        });
+
+        fileInput.addEventListener('change', handleFileSelect);
+
+        async function handleFileSelect() {
+            const file = fileInput.files[0];
+            if (!file) return;
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            document.getElementById('fileInfo').classList.add('show');
+            document.getElementById('fileName').textContent = file.name;
+
+            try {
+                const response = await fetch('/api/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) throw new Error('Upload failed');
+                const data = await response.json();
+
+                currentJobId = data.job_id;
+                document.getElementById('rowCount').textContent = data.row_count;
+                document.getElementById('storeCount').textContent = data.store_count;
+
+                // Show mapping section
+                let mappingHtml = '<h4 style="margin-bottom: 15px; font-weight: 600; color: #333;">Detected Columns (Override if needed):</h4><div class="mapping-grid">';
+                for (const [key, value] of Object.entries(data.detected_mapping)) {
+                    const options = data.available_columns.map(col =>
+                        `<option value="${col}" ${col === value ? 'selected' : ''}>${col}</option>`
+                    ).join('');
+                    mappingHtml += `
+                        <div class="mapping-item">
+                            <label>${key}</label>
+                            <select id="map_${key}">${options}</select>
+                        </div>
+                    `;
+                }
+                mappingHtml += '</div>';
+                document.getElementById('mappingSection').innerHTML = mappingHtml;
+
+                // Check if pre-calculated
+                if (data.has_distance_column) {
+                    document.getElementById('preCalculatedMessage').innerHTML = `
+                        <div style="background: #c8e6c9; border-left: 3px solid #4CAF50; padding: 15px; border-radius: 4px; color: #2e7d32;">
+                            <strong>✓ Pre-calculated Distances Detected</strong><br>
+                            Processing ${data.row_count.toLocaleString()} rows with pre-calculated distances...
+                        </div>
+                    `;
+                    document.getElementById('calculateBtn').style.display = 'none';
+                    document.getElementById('progressContainer').classList.add('show');
+                    // Poll progress for pre-calculated file processing
+                    pollProgress();
+                } else {
+                    document.getElementById('preCalculatedMessage').innerHTML = '';
+                    document.getElementById('calculateBtn').style.display = 'inline-block';
+                    document.getElementById('infoBox').innerHTML = `
+                        For large datasets (3M+ rows), distance calculation runs server-side in Python — your browser won't freeze. You'll see live progress below.
+                    `;
+                    document.getElementById('infoBox').style.display = 'block';
+                }
+
+                showAlert('File uploaded successfully', 'success');
+            } catch (error) {
+                showAlert('Error uploading file: ' + error.message, 'error');
+            }
+        }
+
+        document.getElementById('calculateBtn').addEventListener('click', async () => {
+            const osrmUrl = document.getElementById('osrmUrl').value.trim();
+            const mapping = {};
+            ['store_id', 'store_lat', 'store_lon', 'order_id', 'order_lat', 'order_lon'].forEach(key => {
+                mapping[key] = document.getElementById(`map_${key}`).value;
+            });
+
+            try {
+                const response = await fetch(`/api/calculate/${currentJobId}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ osrm_url: osrmUrl, mapping })
+                });
+
+                if (!response.ok) throw new Error('Calculation failed');
+                const data = await response.json();
+
+                document.getElementById('calculateBtn').style.display = 'none';
+                document.getElementById('progressContainer').classList.add('show');
+
+                pollProgress();
+            } catch (error) {
+                showAlert('Error starting calculation: ' + error.message, 'error');
+            }
+        });
+
+        async function pollProgress() {
+            try {
+                const response = await fetch(`/api/progress/${currentJobId}`);
+                if (!response.ok) throw new Error('Failed to fetch progress');
+                const data = await response.json();
+
+                const percent = Math.round((data.processed / data.total) * 100);
+                document.getElementById('progressBar').style.width = percent + '%';
+                document.getElementById('progressBar').textContent = percent + '%';
+                document.getElementById('progressPercent').textContent = percent + '%';
+                document.getElementById('progressProcessed').textContent = `${data.processed}/${data.total}`;
+                document.getElementById('progressOK').textContent = data.ok_count;
+                document.getElementById('progressFailed').textContent = data.failed_count;
+                document.getElementById('progressRate').textContent = (data.rate || 0).toFixed(1) + '/s';
+                document.getElementById('progressETA').textContent = data.eta || '--';
+
+                if (data.status === 'complete' || data.status === 'completed') {
+                    showAlert('✓ Distance calculation completed', 'success');
+                    loadJobList();
+                    setTimeout(() => showTab('dashboard'), 1000);
+                } else if (data.status === 'error' || data.status === 'failed') {
+                    showAlert('✗ Calculation failed: ' + (data.error || 'Unknown error'), 'error');
+                    document.getElementById('calculateBtn').style.display = 'inline-block';
+                } else {
+                    setTimeout(pollProgress, 2000);
+                }
+            } catch (error) {
+                showAlert('Error polling progress: ' + error.message, 'error');
+            }
+        }
+
+        // ========== JOB MANAGEMENT ==========
+        async function loadJobList() {
+            try {
+                const response = await fetch('/api/jobs');
+                if (!response.ok) throw new Error('Failed to fetch jobs');
+                const jobs = await response.json();
+
+                const selector = document.getElementById('jobSelector');
+                const currentValue = selector.value;
+                selector.innerHTML = '<option value="">Select a dataset...</option>';
+
+                jobs.forEach(job => {
+                    const option = document.createElement('option');
+                    option.value = job.job_id;
+                    option.textContent = job.filename;
+                    selector.appendChild(option);
+                });
+
+                if (currentJobId && jobs.some(j => j.job_id === currentJobId)) {
+                    selector.value = currentJobId;
+                } else if (jobs.length > 0) {
+                    selector.value = jobs[0].job_id;
+                    currentJobId = jobs[0].job_id;
+                }
+
+                selector.dispatchEvent(new Event('change'));
+            } catch (error) {
+                showAlert('Error loading jobs: ' + error.message, 'error');
+            }
+        }
+
+        document.getElementById('jobSelector').addEventListener('change', (e) => {
+            currentJobId = e.target.value;
+            if (currentJobId) {
+                const selectedOption = e.target.options[e.target.selectedIndex];
+                document.getElementById('jobInfo').textContent = selectedOption.textContent;
+
+                // Clear charts when job changes
+                Object.values(allCharts).forEach(chart => {
+                    if (chart && chart.destroy) chart.destroy();
+                });
+                allCharts = {};
+            }
+        });
+
+        loadJobList();
+
+        // ========== DASHBOARD TAB ==========
+        async function loadDashboard() {
+            if (!currentJobId) return;
+
+            try {
+                // Load network analysis data with current threshold
+                const netResponse = await fetch(`/api/network-analysis/${currentJobId}?threshold=${currentThreshold}`);
+                const networkData = netResponse.ok ? await netResponse.json() : null;
+
+                // Load basic stats
+                const statsResponse = await fetch(`/api/stats/${currentJobId}`);
+                const stats = statsResponse.ok ? await statsResponse.json() : {};
+
+                // Load chart data
+                const [chartsResponse, chartResponse] = await Promise.all([
+                    fetch(`/api/chart/store_avg/${currentJobId}`),
+                    fetch(`/api/chart/store_orders/${currentJobId}`)
+                ]);
+
+                const [chartsData, chartData] = await Promise.all([
+                    chartsResponse.json(),
+                    chartResponse.json()
+                ]);
+
+                // Update threshold control
+                document.getElementById('thresholdInput').value = currentThreshold;
+
+                // Render network dashboard
+                if (networkData) {
+                    renderNetworkDashboard(networkData, stats);
+                    renderInsights(networkData, stats);
+                } else {
+                    showAlert('Network analysis endpoint not available - showing basic stats', 'warning');
+                }
+
+                // Render charts
+                setTimeout(() => {
+                    renderCoverageDonutChart(networkData);
+                    renderDistributionChart(stats, currentThreshold);
+                    renderStoreAvgChart(chartsData, currentThreshold);
+                    renderStoreOrdersChart(chartData);
+                    renderAdditionalCharts(stats);
+                    renderDailyTrends(stats);
+                }, 100);
+
+            } catch (error) {
+                showAlert('Error loading dashboard: ' + error.message, 'error');
+            }
+        }
+
+        function renderNetworkDashboard(networkData, stats) {
+            // Update health score with dynamic color gradient
+            const healthScore = networkData.health_score || 0;
+            document.getElementById('healthScore').textContent = healthScore;
+            const healthGauge = document.getElementById('healthGauge');
+
+            let healthColor = '#4CAF50'; // green
+            if (healthScore < 70) healthColor = '#f44336'; // red
+            else if (healthScore < 90) healthColor = '#FF9800'; // orange
+
+            const angle = (healthScore / 100) * 360;
+            healthGauge.style.background = `conic-gradient(${healthColor} 0deg ${angle}deg, #ddd ${angle}deg 360deg)`;
+
+            // Update KPI cards
+            const coverage = networkData.coverage_pct || 0;
+            document.getElementById('kpiCoverage').textContent = coverage.toFixed(1) + '%';
+
+            const beyond = networkData.beyond_threshold || 0;
+            const beyondFormatted = beyond > 1000 ? (beyond / 1000).toFixed(1) + 'K' : beyond.toString();
+            document.getElementById('kpiBeyond').textContent = beyondFormatted;
+
+            document.getElementById('kpiProblem').textContent = networkData.problem_stores_count || 0;
+            document.getElementById('kpiCritical').textContent = networkData.critical_stores_count || 0;
+            document.getElementById('kpiAvgDist').textContent = (stats.avg_distance || 0).toFixed(2);
+
+            const totalOrders = networkData.total_orders || 0;
+            const totalOrdersFormatted = totalOrders > 1000 ? (totalOrders / 1000).toFixed(0) + 'K' : totalOrders.toString();
+            document.getElementById('kpiTotalOrders').textContent = totalOrdersFormatted;
+
+            // Render store breach table
+            renderStoreBreachTable(networkData.store_analysis || []);
+        }
+
+        function renderStoreBreachTable(stores) {
+            const tbody = document.getElementById('storeBreachBody');
+
+            if (!stores || stores.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; padding: 20px;">No store data available</td></tr>';
+                return;
+            }
+
+            // Sort by breach percentage descending
+            const sortedStores = [...stores].sort((a, b) => (b.breach_pct || 0) - (a.breach_pct || 0));
+
+            tbody.innerHTML = sortedStores.map(store => {
+                const breachPct = store.breach_pct || 0;
+                let breachClass = 'breach-0';
+                if (breachPct > 20) breachClass = 'breach-3';
+                else if (breachPct > 10) breachClass = 'breach-2';
+                else if (breachPct > 0) breachClass = 'breach-1';
+
+                return `
+                    <tr class="${breachClass}">
+                        <td><strong>${store.store_id}</strong></td>
+                        <td>${store.total_orders.toLocaleString()}</td>
+                        <td>${store.within_threshold.toLocaleString()}</td>
+                        <td>${store.beyond_threshold.toLocaleString()}</td>
+                        <td><strong>${breachPct.toFixed(1)}%</strong></td>
+                        <td>${store.avg_distance.toFixed(2)} km</td>
+                        <td>${store.p90_distance.toFixed(2)} km</td>
+                        <td>${store.max_distance.toFixed(2)} km</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function renderInsights(networkData, stats) {
+            const container = document.getElementById('insightsContent');
+            if (!container) return;
+
+            const insights = [];
+            const stores = networkData.store_analysis || [];
+            const coverage = networkData.coverage_pct || 0;
+            const avgDistance = stats.avg_distance || 0;
+            const p90Distance = stats.p90_distance || 0;
+            const threshold = currentThreshold;
+
+            // Insight 1: Coverage status
+            if (coverage >= 85) {
+                insights.push({
+                    text: `<span class="insight-label">Coverage Status</span>${coverage.toFixed(1)}% of orders are within ${threshold.toFixed(1)}km - Excellent coverage!`,
+                    type: 'good'
+                });
+            } else if (coverage >= 70) {
+                insights.push({
+                    text: `<span class="insight-label">Coverage Status</span>${coverage.toFixed(1)}% of orders are within ${threshold.toFixed(1)}km - Good, but room for improvement`,
+                    type: 'warning'
+                });
+            } else {
+                insights.push({
+                    text: `<span class="insight-label">Coverage Status</span>${coverage.toFixed(1)}% of orders are within ${threshold.toFixed(1)}km - Needs improvement`,
+                    type: 'critical'
+                });
+            }
+
+            // Insight 2: Problem stores
+            const problemStores = stores.filter(s => (s.breach_pct || 0) > 20);
+            if (problemStores.length > 0) {
+                const top3 = problemStores.sort((a, b) => (b.breach_pct || 0) - (a.breach_pct || 0)).slice(0, 3);
+                const storeList = top3.map(s => `${s.store_id} (${(s.breach_pct || 0).toFixed(1)}%)`).join(', ');
+                insights.push({
+                    text: `<span class="insight-label">Critical Stores</span>${problemStores.length} stores have >20% breach rate: ${storeList}`,
+                    type: 'critical'
+                });
+            }
+
+            // Insight 3: Top problem store
+            if (stores.length > 0) {
+                const worstStore = stores.reduce((max, s) => (s.breach_pct || 0) > (max.breach_pct || 0) ? s : max);
+                insights.push({
+                    text: `<span class="insight-label">Top Problem Store</span>${worstStore.store_id} has ${(worstStore.breach_pct || 0).toFixed(1)}% breach rate with avg distance ${worstStore.avg_distance.toFixed(2)}km`,
+                    type: worstStore.breach_pct > 20 ? 'critical' : 'warning'
+                });
+            }
+
+            // Insight 4: Distance stats
+            if (avgDistance > 0) {
+                insights.push({
+                    text: `<span class="insight-label">Distance Metrics</span>Avg distance across network: ${avgDistance.toFixed(2)}km (P90: ${p90Distance.toFixed(2)}km)`,
+                    type: avgDistance <= threshold ? 'good' : 'warning'
+                });
+            }
+
+            // Insight 5: Most efficient store
+            if (stores.length > 0) {
+                const bestStore = stores.reduce((min, s) => s.avg_distance < min.avg_distance ? s : min);
+                insights.push({
+                    text: `<span class="insight-label">Most Efficient Store</span>${bestStore.store_id} has lowest avg distance: ${bestStore.avg_distance.toFixed(2)}km`,
+                    type: 'good'
+                });
+            }
+
+            // Insight 6: Threshold projection (if threshold increased by 1km)
+            const nextThreshold = threshold + 1;
+            const estimatedCoverageGain = Math.min(5, (100 - coverage) / 2); // rough estimate
+            const projectedCoverage = Math.min(100, coverage + estimatedCoverageGain);
+            insights.push({
+                text: `<span class="insight-label">Threshold Impact</span>If threshold were set to ${nextThreshold.toFixed(1)}km, estimated coverage would be ~${projectedCoverage.toFixed(1)}%`,
+                type: 'warning'
+            });
+
+            // Render insights
+            const html = insights.map(insight => `
+                <div class="insight-item ${insight.type}">
+                    ${insight.text}
+                </div>
+            `).join('');
+
+            container.innerHTML = html;
+        }
+
+        function renderCoverageDonutChart(networkData) {
+            if (!networkData) return;
+
+            const ctx = document.getElementById('coverageChart')?.getContext('2d');
+            if (!ctx) return;
+
+            if (allCharts.coverage) allCharts.coverage.destroy();
+
+            const within = networkData.within_threshold || 0;
+            const beyond = networkData.beyond_threshold || 0;
+            const total = within + beyond || 1;
+
+            allCharts.coverage = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: [`Within ${currentThreshold.toFixed(1)}km (${((within/total)*100).toFixed(1)}%)`, `Beyond ${currentThreshold.toFixed(1)}km (${((beyond/total)*100).toFixed(1)}%)`],
+                    datasets: [{
+                        data: [within, beyond],
+                        backgroundColor: ['#4CAF50', '#f44336'],
+                        borderWidth: 2,
+                        borderColor: 'white'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                padding: 20,
+                                font: { size: 12 },
+                                boxWidth: 12
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderAdditionalCharts(data) {
+            const grid = document.getElementById('additionalChartsGrid');
+            let html = '';
+
+            // Distance Ranges Donut
+            if (data.range_bins) {
+                html += `
+                    <div class="chart-container">
+                        <div class="chart-title">Distance Ranges Breakdown</div>
+                        <div class="chart-inner"><canvas id="rangeChart"></canvas></div>
+                    </div>
+                `;
+            }
+
+            grid.innerHTML = html;
+
+            setTimeout(() => {
+                if (data.range_bins) {
+                    renderRangeChart(data);
+                }
+            }, 100);
+        }
+
+        function renderDailyTrends(data) {
+            const trendsSection = document.getElementById('dailyTrendsSection');
+
+            // Only show if data has dates
+            if (!data.labels || data.labels.length === 0) {
+                trendsSection.style.display = 'none';
+                return;
+            }
+
+            trendsSection.style.display = 'block';
+            const trendsHtml = `
+                <div class="chart-container" style="grid-column: span 1;">
+                    <div class="chart-title">Daily Order Volume</div>
+                    <div class="trend-chart"><canvas id="volumeChart"></canvas></div>
+                </div>
+                <div class="chart-container" style="grid-column: span 1;">
+                    <div class="chart-title">Daily Avg Distance</div>
+                    <div class="trend-chart"><canvas id="distTrendChart"></canvas></div>
+                </div>
+            `;
+            document.getElementById('trendsGrid').innerHTML = trendsHtml;
+
+            setTimeout(() => {
+                renderDailyVolumeChart(data);
+                renderDailyDistanceChart(data);
+            }, 100);
+        }
+
+        function updateThreshold() {
+            const input = document.getElementById('thresholdInput');
+            const newThreshold = parseFloat(input.value);
+
+            if (isNaN(newThreshold) || newThreshold < 1 || newThreshold > 20) {
+                showAlert('Please enter a valid threshold between 1 and 20 km', 'warning');
+                input.value = currentThreshold;
+                return;
+            }
+
+            currentThreshold = newThreshold;
+            loadDashboard();
+        }
+
+        // Add event listener for threshold input
+        document.getElementById('thresholdInput')?.addEventListener('change', updateThreshold);
+        document.getElementById('thresholdInput')?.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') updateThreshold();
+        });
+
+        function renderDistributionChart(data, threshold) {
+            const ctx = document.getElementById('distChart')?.getContext('2d');
+            if (!ctx) return;
+            if (allCharts.dist) allCharts.dist.destroy();
+            const bins = data.histogram_bins || {};
+            allCharts.dist = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: Object.keys(bins),
+                    datasets: [{
+                        label: 'Count',
+                        data: Object.values(bins),
+                        backgroundColor: '#2874f0',
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        annotation: {
+                            annotations: {}
+                        }
+                    }
+                }
+            });
+        }
+
+        function renderRangeChart(data) {
+            const ctx = document.getElementById('rangeChart')?.getContext('2d');
+            if (!ctx) return;
+            if (allCharts.range) allCharts.range.destroy();
+            const ranges = data.range_bins || {};
+            allCharts.range = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: Object.keys(ranges),
+                    datasets: [{
+                        data: Object.values(ranges),
+                        backgroundColor: ['#4CAF50', '#FF9800', '#f44336', '#9C27B0', '#607D8B']
+                    }]
+                },
+                options: { responsive: true, maintainAspectRatio: false }
+            });
+        }
+
+        function renderStoreAvgChart(data, threshold) {
+            const ctx = document.getElementById('storeAvgChart')?.getContext('2d');
+            if (!ctx) return;
+            if (allCharts.storeAvg) allCharts.storeAvg.destroy();
+
+            const labels = data.labels || [];
+            const values = data.values || [];
+
+            // Color code bars based on threshold
+            const colors = values.map(v => v <= (threshold || 3) ? '#4CAF50' : '#f44336');
+
+            allCharts.storeAvg = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Avg Distance (km)',
+                        data: values,
+                        backgroundColor: colors
+                    }]
+                },
+                options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false }
+            });
+        }
+
+        function renderStoreOrdersChart(data) {
+            const ctx = document.getElementById('storeOrdersChart')?.getContext('2d');
+            if (!ctx) return;
+            if (allCharts.storeOrders) allCharts.storeOrders.destroy();
+            allCharts.storeOrders = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: data.labels || [],
+                    datasets: [{
+                        label: 'Order Count',
+                        data: data.values || [],
+                        backgroundColor: '#2874f0'
+                    }]
+                },
+                options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false }
+            });
+        }
+
+        function renderDailyVolumeChart(data) {
+            const ctx = document.getElementById('volumeChart')?.getContext('2d');
+            if (!ctx) return;
+            if (allCharts.volume) allCharts.volume.destroy();
+            allCharts.volume = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: data.labels || [],
+                    datasets: [{
+                        label: 'Orders',
+                        data: data.orders || [],
+                        borderColor: '#2874f0',
+                        backgroundColor: 'rgba(40, 116, 240, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    }]
+                },
+                options: { responsive: true, maintainAspectRatio: false }
+            });
+        }
+
+        function renderDailyDistanceChart(data) {
+            const ctx = document.getElementById('distTrendChart')?.getContext('2d');
+            if (!ctx) return;
+            if (allCharts.distTrend) allCharts.distTrend.destroy();
+            allCharts.distTrend = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: data.labels || [],
+                    datasets: [{
+                        label: 'Avg Distance',
+                        data: data.avg_distances || [],
+                        borderColor: '#2874f0',
+                        backgroundColor: 'rgba(40, 116, 240, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    }]
+                },
+                options: { responsive: true, maintainAspectRatio: false }
+            });
+        }
+
+        // ========== MAP TAB ==========
+        let mapData = null;  // Cache map data to avoid refetching on filter changes
+        let coverageCircles = [];  // Store coverage circle layers
+
+        async function loadMap() {
+            if (!currentJobId) return;
+
+            try {
+                // Initialize map if not exists
+                if (!mapInstance) {
+                    mapInstance = L.map('map').setView([12.9716, 77.5946], 12);
+                    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                        attribution: '© OpenStreetMap',
+                        maxZoom: 19
+                    }).addTo(mapInstance);
+                }
+
+                // Fetch map data
+                const response = await fetch(`/api/map/${currentJobId}?sample=10000`);
+                if (!response.ok) throw new Error('Failed to fetch map data');
+                mapData = await response.json();
+
+                // Update store filter dropdown
+                const storeFilter = document.getElementById('storeFilter');
+                const currentValue = storeFilter.value;
+                storeFilter.innerHTML = '<option value="">All Stores</option>';
+                mapData.stores.forEach(store => {
+                    const option = document.createElement('option');
+                    option.value = store.store_id;
+                    const breachPct = store.order_count > 0 ? ((store.breach_count || 0) / store.order_count * 100).toFixed(0) : '0';
+                    option.textContent = `${store.store_id} (${store.order_count} orders)`;
+                    storeFilter.appendChild(option);
+                });
+                storeFilter.value = currentValue;
+
+                renderMapMarkers();
+
+                // Event listeners (only add once)
+                if (!storeFilter.dataset.listenerAdded) {
+                    storeFilter.addEventListener('change', renderMapMarkers);
+                    storeFilter.dataset.listenerAdded = 'true';
+                }
+                if (!document.getElementById('mapViewMode').dataset.listenerAdded) {
+                    document.getElementById('mapViewMode').addEventListener('change', renderMapMarkers);
+                    document.getElementById('mapViewMode').dataset.listenerAdded = 'true';
+                }
+                if (!document.getElementById('showCoverageCircles').dataset.listenerAdded) {
+                    document.getElementById('showCoverageCircles').addEventListener('change', renderMapMarkers);
+                    document.getElementById('showCoverageCircles').dataset.listenerAdded = 'true';
+                }
+                if (!document.getElementById('fitMapBtn').dataset.listenerAdded) {
+                    document.getElementById('fitMapBtn').addEventListener('click', () => {
+                        if (mapInstance) {
+                            const allLayers = [];
+                            mapInstance.eachLayer(l => { if (l.getLatLng) allLayers.push(l); });
+                            if (allLayers.length > 0) {
+                                const group = L.featureGroup(allLayers);
+                                mapInstance.fitBounds(group.getBounds().pad(0.1));
+                            }
+                        }
+                    });
+                    document.getElementById('fitMapBtn').dataset.listenerAdded = 'true';
+                }
+            } catch (error) {
+                showAlert('Error loading map: ' + error.message, 'error');
+            }
+        }
+
+        function renderMapMarkers() {
+            if (!mapData || !mapInstance) return;
+
+            // Clear existing layers (except tile layer)
+            mapInstance.eachLayer(layer => {
+                if (!(layer instanceof L.TileLayer)) {
+                    mapInstance.removeLayer(layer);
+                }
+            });
+            coverageCircles = [];
+
+            const selectedStore = document.getElementById('storeFilter').value;
+            const viewMode = document.getElementById('mapViewMode').value;
+            const showCircles = document.getElementById('showCoverageCircles').checked;
+            const threshold = currentThreshold;
+
+            // Filter stores
+            const stores = selectedStore
+                ? mapData.stores.filter(s => s.store_id === selectedStore)
+                : mapData.stores;
+
+            // Filter orders by store and view mode
+            let orders = selectedStore
+                ? mapData.orders.filter(o => o.store_id === selectedStore)
+                : mapData.orders;
+
+            if (viewMode === 'breach') {
+                orders = orders.filter(o => o.road_distance > threshold);
+            } else if (viewMode === 'within') {
+                orders = orders.filter(o => o.road_distance <= threshold);
+            }
+
+            const breachCount = orders.filter(o => o.road_distance > threshold).length;
+            const withinCount = orders.filter(o => o.road_distance <= threshold).length;
+
+            // Add coverage circles first (below markers)
+            if (showCircles) {
+                stores.forEach(store => {
+                    const circle = L.circle([store.lat, store.lon], {
+                        radius: threshold * 1000, // km to meters
+                        color: '#2874f0',
+                        fillColor: '#2874f0',
+                        fillOpacity: 0.04,
+                        weight: 1.5,
+                        dashArray: '6, 4',
+                        opacity: 0.4
+                    }).addTo(mapInstance);
+                    coverageCircles.push(circle);
+                });
+            }
+
+            // Add order markers
+            orders.forEach(order => {
+                const isBreach = order.road_distance > threshold;
+                const color = isBreach ? '#e53935' : '#4CAF50';
+                L.circleMarker([order.order_lat, order.order_lon], {
+                    radius: isBreach ? 5 : 3,
+                    fillColor: color,
+                    color: color,
+                    weight: isBreach ? 1.5 : 0.5,
+                    opacity: isBreach ? 0.9 : 0.5,
+                    fillOpacity: isBreach ? 0.8 : 0.4
+                }).bindPopup(`<b>Order:</b> ${order.order_id}<br><b>Store:</b> ${order.store_id}<br><b>Distance:</b> ${order.road_distance.toFixed(2)} km${isBreach ? '<br><span style="color:#e53935;font-weight:bold;">BEYOND THRESHOLD</span>' : ''}`).addTo(mapInstance);
+            });
+
+            // Add store markers on top
+            stores.forEach(store => {
+                const storeIcon = L.divIcon({
+                    className: 'store-marker-icon',
+                    html: `<div style="background:#2874f0;color:white;border:2px solid #1552b0;border-radius:50%;width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:bold;box-shadow:0 2px 6px rgba(0,0,0,0.3);">S</div>`,
+                    iconSize: [28, 28],
+                    iconAnchor: [14, 14]
+                });
+                L.marker([store.lat, store.lon], { icon: storeIcon, zIndexOffset: 1000 })
+                    .bindPopup(`<b>${store.store_id}</b><br>Orders: ${store.order_count}<br>Avg Distance: ${store.avg_distance.toFixed(2)} km`)
+                    .addTo(mapInstance);
+            });
+
+            // Fit bounds
+            const allPoints = [
+                ...stores.map(s => [s.lat, s.lon]),
+                ...orders.slice(0, 2000).map(o => [o.order_lat, o.order_lon])
+            ].filter(p => p[0] && p[1]);
+            if (allPoints.length > 0) {
+                mapInstance.fitBounds(allPoints, { padding: [30, 30] });
+            }
+
+            // Update info
+            document.getElementById('mapInfo').textContent =
+                `Showing ${orders.length.toLocaleString()} orders (${withinCount.toLocaleString()} within ${threshold}km, ${breachCount.toLocaleString()} beyond) across ${stores.length} store${stores.length !== 1 ? 's' : ''}` +
+                (mapData.total_orders > mapData.orders.length ? ` — sampled from ${mapData.total_orders.toLocaleString()} total` : '');
+        }
+
+        // ========== DATA TABLE TAB ==========
+        async function loadTable() {
+            if (!currentJobId) return;
+
+            try {
+                let tableUrl = `/api/table/${currentJobId}?page=${currentPage}&per_page=${pageSize}`;
+                const storeVal = document.getElementById('tableStoreFilter').value;
+                const distVal = document.getElementById('tableDistanceFilter').value;
+                const searchVal = document.getElementById('tableSearch').value.trim();
+                if (storeVal) tableUrl += `&store=${encodeURIComponent(storeVal)}`;
+                if (distVal === '0-3') tableUrl += `&max_dist=3`;
+                else if (distVal === '3-7') tableUrl += `&min_dist=3&max_dist=7`;
+                else if (distVal === '7+') tableUrl += `&min_dist=7`;
+                if (searchVal) tableUrl += `&search=${encodeURIComponent(searchVal)}`;
+                if (currentSort) tableUrl += `&sort=${currentSort}&order=${currentSortOrder}`;
+                const response = await fetch(tableUrl);
+                if (!response.ok) throw new Error('Failed to fetch table data');
+                const data = await response.json();
+
+                // Render table rows
+                let tableHtml = '';
+                (data.rows || data.data || []).forEach(row => {
+                    const slat = parseFloat(row.store_lat);
+                    const slon = parseFloat(row.store_lon);
+                    const olat = parseFloat(row.order_lat);
+                    const olon = parseFloat(row.order_lon);
+                    tableHtml += `
+                        <tr>
+                            <td>${row.store_id || '-'}</td>
+                            <td>${row.order_id || '-'}</td>
+                            <td>${!isNaN(slat) ? slat.toFixed(4) : '-'}</td>
+                            <td>${!isNaN(slon) ? slon.toFixed(4) : '-'}</td>
+                            <td>${!isNaN(olat) ? olat.toFixed(4) : '-'}</td>
+                            <td>${!isNaN(olon) ? olon.toFixed(4) : '-'}</td>
+                            <td>${row.road_distance ? row.road_distance.toFixed(2) : (row.distance_km ? row.distance_km.toFixed(2) : '-')}</td>
+                        </tr>
+                    `;
+                });
+                document.getElementById('tableBody').innerHTML = tableHtml || '<tr><td colspan="7" style="text-align: center; padding: 20px;">No data</td></tr>';
+
+                // Update pagination
+                document.getElementById('pageStart').textContent = (currentPage - 1) * pageSize + 1;
+                document.getElementById('pageEnd').textContent = Math.min(currentPage * pageSize, data.total);
+                document.getElementById('pageTotal').textContent = data.total;
+
+                document.getElementById('prevPageBtn').disabled = currentPage === 1;
+                document.getElementById('nextPageBtn').disabled = currentPage * pageSize >= data.total;
+
+                // Update store filter for table
+                const tableStoreFilter = document.getElementById('tableStoreFilter');
+                const currentValue = tableStoreFilter.value;
+                tableStoreFilter.innerHTML = '<option value="">All Stores</option>';
+                if (data.stores) {
+                    data.stores.forEach(store => {
+                        const option = document.createElement('option');
+                        option.value = store;
+                        option.textContent = store;
+                        tableStoreFilter.appendChild(option);
+                    });
+                }
+                tableStoreFilter.value = currentValue;
+            } catch (error) {
+                showAlert('Error loading table: ' + error.message, 'error');
+            }
+        }
+
+        document.getElementById('prevPageBtn').addEventListener('click', () => {
+            if (currentPage > 1) {
+                currentPage--;
+                loadTable();
+            }
+        });
+
+        document.getElementById('nextPageBtn').addEventListener('click', () => {
+            currentPage++;
+            loadTable();
+        });
+
+        document.getElementById('tableStoreFilter').addEventListener('change', () => { currentPage = 1; loadTable(); });
+        document.getElementById('tableDistanceFilter').addEventListener('change', () => { currentPage = 1; loadTable(); });
+        document.getElementById('tableSearch').addEventListener('input', (() => {
+            let timeout;
+            return () => { clearTimeout(timeout); timeout = setTimeout(() => { currentPage = 1; loadTable(); }, 500); };
+        })());
+
+        document.getElementById('tableResetBtn').addEventListener('click', () => {
+            document.getElementById('tableStoreFilter').value = '';
+            document.getElementById('tableDistanceFilter').value = '';
+            document.getElementById('tableSearch').value = '';
+            currentPage = 1;
+            loadTable();
+        });
+
+        document.getElementById('downloadFilteredBtn').addEventListener('click', () => {
+            const storeVal = document.getElementById('tableStoreFilter').value;
+            let url = `/api/download/${currentJobId}?format=csv`;
+            if (storeVal) url += `&store=${encodeURIComponent(storeVal)}`;
+            window.location.href = url;
+        });
+
+        document.getElementById('downloadAllBtn').addEventListener('click', () => {
+            window.location.href = `/api/download/${currentJobId}?format=csv`;
+        });
+
+        function sortTable(column) {
+            if (currentSort === column) {
+                currentSortOrder = currentSortOrder === 'asc' ? 'desc' : 'asc';
+            } else {
+                currentSort = column;
+                currentSortOrder = 'asc';
+            }
+            currentPage = 1;
+            loadTable();
+        }
+    </script>
+</body>
+</html>

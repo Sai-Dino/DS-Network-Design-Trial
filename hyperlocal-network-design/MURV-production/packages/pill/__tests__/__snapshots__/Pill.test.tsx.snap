@@ -1,0 +1,74 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`PillLarge Component snapshot test for PillLarge component 1`] = `
+<div>
+  <div
+    class="styles__SmallPillContainer-sc-1oijt5z-0 styles__LargePillContainer-sc-1oijt5z-2 juQSrC kjIjUt"
+    label="Test Label"
+    role="tab"
+    tabindex="0"
+    value="test_value"
+  >
+    <label
+      class="styles__Label-sc-1oijt5z-3 dNKQmm"
+    >
+      Test Label
+    </label>
+  </div>
+</div>
+`;
+
+exports[`PillLarge Component snapshot test for PillMedium component 1`] = `
+<div>
+  <div
+    class="styles__SmallPillContainer-sc-1oijt5z-0 styles__MediumPillContainer-sc-1oijt5z-1 juQSrC ipSsXK"
+    label="Test Label"
+    role="tab"
+    tabindex="0"
+    value="test_value"
+  >
+    <label
+      class="styles__Label-sc-1oijt5z-3 dNKQmm"
+    >
+      Test Label
+    </label>
+  </div>
+</div>
+`;
+
+exports[`PillLarge Component snapshot test for PillSmall component with selected true 1`] = `
+<div>
+  <div
+    aria-selected="true"
+    class="styles__SmallPillContainer-sc-1oijt5z-0 cAWuaR"
+    label="Test Label"
+    role="tab"
+    tabindex="0"
+    value="test_value"
+  >
+    <label
+      class="styles__Label-sc-1oijt5z-3 dNKQmm"
+    >
+      Test Label
+    </label>
+  </div>
+</div>
+`;
+
+exports[`PillSmall Component snapshot test for PillSmall component 1`] = `
+<div>
+  <div
+    class="styles__SmallPillContainer-sc-1oijt5z-0 juQSrC"
+    label="Test Label"
+    role="tab"
+    tabindex="0"
+    value="test_value"
+  >
+    <label
+      class="styles__Label-sc-1oijt5z-3 dNKQmm"
+    >
+      Test Label
+    </label>
+  </div>
+</div>
+`;

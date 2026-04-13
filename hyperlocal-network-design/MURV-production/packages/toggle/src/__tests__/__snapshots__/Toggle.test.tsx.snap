@@ -1,0 +1,108 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`Toggle Uncontrolled Toggle snapshot 1`] = `
+<DocumentFragment>
+  <div
+    class="styles__ToggleOptionWrapper-sc-a6gg93-1 kzZDxw"
+    data-testid="toggleUncontrolled"
+    data-toggle-position="left"
+  >
+    <input
+      class="styles__ToggleInput-sc-a6gg93-0 cdwEVh"
+      id="toggleUncontrolled"
+      type="checkbox"
+      value="uncontrolledToggle"
+    />
+    <label
+      aria-disabled="false"
+      class="style__LabelWrapper-sc-n7qfg8-0 gWTAqB"
+      data-testid=""
+      for="toggleUncontrolled"
+      id=""
+    >
+      <div
+        class="style__LabelArea-sc-n7qfg8-3 llXBFs"
+      >
+        <span
+          aria-disabled="false"
+          class="style__LabelText-sc-n7qfg8-1 fmBzkl"
+        >
+          Toggle uncontrolled
+        </span>
+      </div>
+    </label>
+  </div>
+</DocumentFragment>
+`;
+
+exports[`Toggle controlled Toggle snapshot 1`] = `
+<DocumentFragment>
+  <div
+    class="styles__ToggleOptionWrapper-sc-a6gg93-1 kzZDxw"
+    data-testid="toggleControlled"
+    data-toggle-position="left"
+  >
+    <input
+      class="styles__ToggleInput-sc-a6gg93-0 cdwEVh"
+      id="toggleControlled"
+      type="checkbox"
+      value="controlledToggle"
+    />
+    <label
+      aria-disabled="false"
+      class="style__LabelWrapper-sc-n7qfg8-0 gWTAqB"
+      data-testid=""
+      for="toggleControlled"
+      id=""
+    >
+      <div
+        class="style__LabelArea-sc-n7qfg8-3 llXBFs"
+      >
+        <span
+          aria-disabled="false"
+          class="style__LabelText-sc-n7qfg8-1 fmBzkl"
+        >
+          Toggle controlled
+        </span>
+      </div>
+    </label>
+  </div>
+</DocumentFragment>
+`;
+
+exports[`Toggle disabled Toggle snapshot 1`] = `
+<DocumentFragment>
+  <div
+    class="styles__ToggleOptionWrapper-sc-a6gg93-1 kzZDxw"
+    data-disabled="true"
+    data-testid="toggledisabled"
+    data-toggle-position="left"
+  >
+    <input
+      class="styles__ToggleInput-sc-a6gg93-0 cdwEVh"
+      disabled=""
+      id="toggledisabled"
+      type="checkbox"
+      value="disabledToggle"
+    />
+    <label
+      aria-disabled="false"
+      class="style__LabelWrapper-sc-n7qfg8-0 gWTAqB"
+      data-testid=""
+      for="toggledisabled"
+      id=""
+    >
+      <div
+        class="style__LabelArea-sc-n7qfg8-3 llXBFs"
+      >
+        <span
+          aria-disabled="false"
+          class="style__LabelText-sc-n7qfg8-1 fmBzkl"
+        >
+          Toggle disabled
+        </span>
+      </div>
+    </label>
+  </div>
+</DocumentFragment>
+`;

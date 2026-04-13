@@ -1,0 +1,46 @@
+{
+  "name": "@murv/grid-table",
+  "version": "1.6.0",
+  "main": "dist/murv-grid-table.cjs.js",
+  "module": "dist/murv-grid-table.esm.js",
+  "exports": {
+    ".": {
+      "import": "./dist/murv-grid-table.esm.js",
+      "require": "./dist/murv-grid-table.cjs.js",
+      "default": "./dist/murv-grid-table.cjs.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "author": "Bharti Saini",
+  "license": "MIT",
+  "peerDependencies": {
+    "react": "^17.0.0",
+    "styled-components": "^5.0.0"
+  },
+  "dependencies": {
+    "@murv/checkbox": "^1.4.0",
+    "@murv/empty-state-container": "^1.0.0",
+    "@murv/icons": "^0.0.68",
+    "@murv/loader": "^1.0.0",
+    "@murv/provider": "^1.4.0",
+    "@tanstack/react-table": "^8.13.0",
+    "@tanstack/react-virtual": "^3.13.18"
+  },
+  "publishConfig": {
+    "registry": "https://jfrog.fkinternal.com/artifactory/api/npm/npm_virtual/"
+  },
+  "volta": {
+    "extends": "../../package.json"
+  },
+  "preconstruct": {
+    "exports": {
+      "extra": {
+        ".": {
+          "import": "./dist/murv-grid-table.esm.js",
+          "require": "./dist/murv-grid-table.cjs.js",
+          "default": "./dist/murv-grid-table.cjs.js"
+        }
+      }
+    }
+  }
+}

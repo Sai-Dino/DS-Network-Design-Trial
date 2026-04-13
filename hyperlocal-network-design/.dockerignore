@@ -1,0 +1,27 @@
+# Don't send these to Docker — keeps image small and build fast
+.git
+.github
+__pycache__
+*.pyc
+*.pyo
+*.egg-info
+dist
+build
+.eggs
+venv
+env
+.venv
+.env
+*.csv
+*.xlsx
+*.xls
+osrm-data
+*.osrm
+*.osrm.*
+*.log
+.DS_Store
+Thumbs.db
+tests
+.pytest_cache
+.mypy_cache
+node_modules

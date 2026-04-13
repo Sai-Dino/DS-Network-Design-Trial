@@ -1,0 +1,46 @@
+{
+  "name": "@murv/segmented-control",
+  "version": "1.3.1",
+  "main": "dist/murv-segmented-control.cjs.js",
+  "module": "dist/murv-segmented-control.esm.js",
+  "exports": {
+    ".": {
+      "import": "./dist/murv-segmented-control.esm.js",
+      "require": "./dist/murv-segmented-control.cjs.js",
+      "default": "./dist/murv-segmented-control.cjs.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "author": "Vivek Pandey",
+  "license": "MIT",
+  "peerDependencies": {
+    "react": "^17.0.0",
+    "styled-components": "^5.0.0"
+  },
+  "publishConfig": {
+    "registry": "https://jfrog.fkinternal.com/artifactory/api/npm/npm_virtual/"
+  },
+  "volta": {
+    "extends": "../../package.json"
+  },
+  "dependencies": {
+    "@murv/badge": "^1.0.0",
+    "@murv/datepicker": "^1.10.0",
+    "@murv/dropdown-trigger": "^1.4.0",
+    "@murv/icons": "^0.0.68",
+    "@murv/provider": "^1.4.0",
+    "@murv/single-select": "^1.2.0",
+    "@murv/visibility-toggle": "^1.0.1"
+  },
+  "preconstruct": {
+    "exports": {
+      "extra": {
+        ".": {
+          "import": "./dist/murv-segmented-control.esm.js",
+          "require": "./dist/murv-segmented-control.cjs.js",
+          "default": "./dist/murv-segmented-control.cjs.js"
+        }
+      }
+    }
+  }
+}

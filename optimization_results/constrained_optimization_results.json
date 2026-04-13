@@ -1,0 +1,1673 @@
+{
+  "metrics": {
+    "current_avg_dist": 1.89,
+    "proposed_avg_dist": 1.186,
+    "current_avg_cost": 46.01,
+    "proposed_avg_cost": 34.63,
+    "daily_savings": 1373911.0,
+    "monthly_savings": 41217331.0,
+    "total_orders_per_day": 120719,
+    "pct_cost_reduction": 24.7,
+    "coverage_pct": 89.32,
+    "covered_orders_per_day": 107829.0,
+    "uncovered_orders_per_day": 12891.0,
+    "distance_source": "OSRM road distance (Table API)",
+    "distance_histogram": {
+      "0-1km": 48658.57142857143,
+      "1-2km": 42753.821428571435,
+      "2-3km": 16416.178571428572,
+      "3-4km": 0.0,
+      "4-5km": 0.0,
+      "5+km": 0.0,
+      "Uncovered (current network)": 12891.178571428569
+    },
+    "total_grid_cells": 17726,
+    "constraints_used": {
+      "target_max_hubs": 200,
+      "target_last_mile_cost": null
+    }
+  },
+  "params": {
+    "base_cost": 29,
+    "variable_rate": 9,
+    "use_tiered_costs": true,
+    "mini_base_cost": 20,
+    "mini_variable_rate": 6,
+    "mini_ds_radius": 1.5,
+    "mini_ds_min_orders_per_day": 300,
+    "mini_ds_max_orders_per_day": 10000,
+    "mini_ds_max": 300,
+    "standard_base_cost": 29,
+    "standard_variable_rate": 9,
+    "standard_ds_radius": 3.0,
+    "standard_ds_min_orders_per_day": 300,
+    "standard_ds_max_orders_per_day": 15000,
+    "standard_ds_max": 500,
+    "super_ds_min_orders_per_day": 999999,
+    "super_ds_max_orders_per_day": 999999,
+    "super_ds_max": 0,
+    "target_max_hubs": 200,
+    "target_last_mile_cost": null
+  },
+  "placement": {
+    "mini_count": 130,
+    "standard_count": 70,
+    "total": 200
+  },
+  "current_network": {
+    "hub_count": 103
+  },
+  "uncovered_pockets": [
+    {
+      "lat": 12.931853473871733,
+      "lon": 77.68526974465556,
+      "orders_per_day": 481.0,
+      "num_cells": 78
+    },
+    {
+      "lat": 12.85607143688191,
+      "lon": 77.65805980221059,
+      "orders_per_day": 307.0,
+      "num_cells": 80
+    },
+    {
+      "lat": 12.987369130807897,
+      "lon": 77.66592938580361,
+      "orders_per_day": 291.0,
+      "num_cells": 40
+    },
+    {
+      "lat": 13.126023037435838,
+      "lon": 77.5726936271441,
+      "orders_per_day": 285.0,
+      "num_cells": 103
+    },
+    {
+      "lat": 13.00302254791432,
+      "lon": 77.61052987598644,
+      "orders_per_day": 253.0,
+      "num_cells": 63
+    },
+    {
+      "lat": 12.848090257023314,
+      "lon": 77.68709234907354,
+      "orders_per_day": 239.0,
+      "num_cells": 80
+    },
+    {
+      "lat": 13.039807783204663,
+      "lon": 77.62830124468252,
+      "orders_per_day": 227.0,
+      "num_cells": 30
+    },
+    {
+      "lat": 13.039665437048917,
+      "lon": 77.73246383319967,
+      "orders_per_day": 223.0,
+      "num_cells": 51
+    },
+    {
+      "lat": 12.869780562248998,
+      "lon": 77.63917044176706,
+      "orders_per_day": 222.0,
+      "num_cells": 48
+    },
+    {
+      "lat": 12.808490799544048,
+      "lon": 77.72371470444554,
+      "orders_per_day": 219.0,
+      "num_cells": 56
+    },
+    {
+      "lat": 13.01489310232102,
+      "lon": 77.69997286694996,
+      "orders_per_day": 219.0,
+      "num_cells": 30
+    },
+    {
+      "lat": 13.081541326363935,
+      "lon": 77.60810748121531,
+      "orders_per_day": 219.0,
+      "num_cells": 72
+    },
+    {
+      "lat": 13.03644776620759,
+      "lon": 77.6427819952973,
+      "orders_per_day": 213.0,
+      "num_cells": 28
+    },
+    {
+      "lat": 12.867688685636857,
+      "lon": 77.61760230352303,
+      "orders_per_day": 211.0,
+      "num_cells": 41
+    },
+    {
+      "lat": 13.077844848073333,
+      "lon": 77.54540553386524,
+      "orders_per_day": 210.0,
+      "num_cells": 56
+    },
+    {
+      "lat": 12.924871672354952,
+      "lon": 77.6009348122867,
+      "orders_per_day": 209.0,
+      "num_cells": 27
+    },
+    {
+      "lat": 12.955278094251687,
+      "lon": 77.71590678404972,
+      "orders_per_day": 207.0,
+      "num_cells": 13
+    },
+    {
+      "lat": 12.915116416869992,
+      "lon": 77.62462983617986,
+      "orders_per_day": 205.0,
+      "num_cells": 26
+    },
+    {
+      "lat": 13.083291446673709,
+      "lon": 77.48796585709255,
+      "orders_per_day": 203.0,
+      "num_cells": 63
+    },
+    {
+      "lat": 12.89235544430538,
+      "lon": 77.69381190774182,
+      "orders_per_day": 200.0,
+      "num_cells": 56
+    },
+    {
+      "lat": 12.990202340505853,
+      "lon": 77.59437750094375,
+      "orders_per_day": 189.0,
+      "num_cells": 80
+    },
+    {
+      "lat": 12.844468622498544,
+      "lon": 77.59111948707985,
+      "orders_per_day": 184.0,
+      "num_cells": 53
+    },
+    {
+      "lat": 13.072260364842455,
+      "lon": 77.6730252902156,
+      "orders_per_day": 172.0,
+      "num_cells": 84
+    },
+    {
+      "lat": 12.768825037385177,
+      "lon": 77.64757316812647,
+      "orders_per_day": 167.0,
+      "num_cells": 46
+    },
+    {
+      "lat": 12.858746591646831,
+      "lon": 77.54324258818438,
+      "orders_per_day": 165.0,
+      "num_cells": 30
+    },
+    {
+      "lat": 12.899962231005711,
+      "lon": 77.48572332015812,
+      "orders_per_day": 163.0,
+      "num_cells": 35
+    },
+    {
+      "lat": 12.830003092555776,
+      "lon": 77.65082085266181,
+      "orders_per_day": 162.0,
+      "num_cells": 49
+    },
+    {
+      "lat": 13.003095994629671,
+      "lon": 77.7341015887223,
+      "orders_per_day": 160.0,
+      "num_cells": 28
+    },
+    {
+      "lat": 12.967400316098445,
+      "lon": 77.7626958681418,
+      "orders_per_day": 158.0,
+      "num_cells": 39
+    },
+    {
+      "lat": 13.128473993668026,
+      "lon": 77.63672953414745,
+      "orders_per_day": 158.0,
+      "num_cells": 82
+    },
+    {
+      "lat": 12.855517982251284,
+      "lon": 77.61146660439047,
+      "orders_per_day": 153.0,
+      "num_cells": 64
+    },
+    {
+      "lat": 12.859093967796206,
+      "lon": 77.64741167988466,
+      "orders_per_day": 149.0,
+      "num_cells": 35
+    },
+    {
+      "lat": 13.030165983112184,
+      "lon": 77.7040501809409,
+      "orders_per_day": 148.0,
+      "num_cells": 27
+    },
+    {
+      "lat": 12.913873605947956,
+      "lon": 77.48422750929369,
+      "orders_per_day": 144.0,
+      "num_cells": 20
+    },
+    {
+      "lat": 12.994407517309593,
+      "lon": 77.44122601384765,
+      "orders_per_day": 144.0,
+      "num_cells": 149
+    },
+    {
+      "lat": 12.780310326659642,
+      "lon": 77.72043940990515,
+      "orders_per_day": 136.0,
+      "num_cells": 72
+    },
+    {
+      "lat": 13.061488533333334,
+      "lon": 77.48562346666668,
+      "orders_per_day": 134.0,
+      "num_cells": 46
+    },
+    {
+      "lat": 12.799793945831121,
+      "lon": 77.67784758364313,
+      "orders_per_day": 134.0,
+      "num_cells": 48
+    },
+    {
+      "lat": 12.773359448275864,
+      "lon": 77.75297544827585,
+      "orders_per_day": 129.0,
+      "num_cells": 37
+    },
+    {
+      "lat": 13.015364631336407,
+      "lon": 77.48029320276498,
+      "orders_per_day": 124.0,
+      "num_cells": 48
+    },
+    {
+      "lat": 12.926958248175184,
+      "lon": 77.71806306569347,
+      "orders_per_day": 122.0,
+      "num_cells": 20
+    },
+    {
+      "lat": 12.967451374519657,
+      "lon": 77.68077268696422,
+      "orders_per_day": 121.0,
+      "num_cells": 18
+    },
+    {
+      "lat": 13.054145386766073,
+      "lon": 77.6976272134203,
+      "orders_per_day": 115.0,
+      "num_cells": 56
+    },
+    {
+      "lat": 13.049372330547818,
+      "lon": 77.74131909625504,
+      "orders_per_day": 115.0,
+      "num_cells": 20
+    },
+    {
+      "lat": 12.999458563535912,
+      "lon": 77.63462593435165,
+      "orders_per_day": 110.0,
+      "num_cells": 26
+    },
+    {
+      "lat": 13.045972477064222,
+      "lon": 77.54257077326344,
+      "orders_per_day": 109.0,
+      "num_cells": 29
+    },
+    {
+      "lat": 12.900737433862435,
+      "lon": 77.61034854497355,
+      "orders_per_day": 108.0,
+      "num_cells": 10
+    },
+    {
+      "lat": 12.959693593314764,
+      "lon": 77.47072353760446,
+      "orders_per_day": 103.0,
+      "num_cells": 66
+    },
+    {
+      "lat": 12.917606569343066,
+      "lon": 77.52663430656933,
+      "orders_per_day": 98.0,
+      "num_cells": 20
+    },
+    {
+      "lat": 12.930233308877474,
+      "lon": 77.59834482758622,
+      "orders_per_day": 97.0,
+      "num_cells": 36
+    },
+    {
+      "lat": 13.097397777777775,
+      "lon": 77.64489555555554,
+      "orders_per_day": 96.0,
+      "num_cells": 39
+    },
+    {
+      "lat": 12.783623068224653,
+      "lon": 77.77915416509612,
+      "orders_per_day": 95.0,
+      "num_cells": 48
+    },
+    {
+      "lat": 13.04794789272031,
+      "lon": 77.6064827586207,
+      "orders_per_day": 93.0,
+      "num_cells": 21
+    },
+    {
+      "lat": 13.226868462757528,
+      "lon": 77.69054437400949,
+      "orders_per_day": 90.0,
+      "num_cells": 27
+    },
+    {
+      "lat": 13.059610584518163,
+      "lon": 77.66801816745654,
+      "orders_per_day": 90.0,
+      "num_cells": 39
+    },
+    {
+      "lat": 13.009272176546949,
+      "lon": 77.63934314149718,
+      "orders_per_day": 83.0,
+      "num_cells": 17
+    },
+    {
+      "lat": 12.918609523809524,
+      "lon": 77.65193593073593,
+      "orders_per_day": 82.0,
+      "num_cells": 9
+    },
+    {
+      "lat": 12.996157224418097,
+      "lon": 77.65449890206412,
+      "orders_per_day": 81.0,
+      "num_cells": 19
+    },
+    {
+      "lat": 13.090610215053761,
+      "lon": 77.53654211469534,
+      "orders_per_day": 80.0,
+      "num_cells": 62
+    },
+    {
+      "lat": 13.033093139482052,
+      "lon": 77.76983280327124,
+      "orders_per_day": 79.0,
+      "num_cells": 22
+    },
+    {
+      "lat": 12.864503629764064,
+      "lon": 77.69554900181488,
+      "orders_per_day": 79.0,
+      "num_cells": 53
+    },
+    {
+      "lat": 12.863189359783588,
+      "lon": 77.76926420198376,
+      "orders_per_day": 79.0,
+      "num_cells": 69
+    },
+    {
+      "lat": 12.91717984281091,
+      "lon": 77.47445677300045,
+      "orders_per_day": 77.0,
+      "num_cells": 26
+    },
+    {
+      "lat": 12.89072471910112,
+      "lon": 77.63860018726592,
+      "orders_per_day": 76.0,
+      "num_cells": 7
+    },
+    {
+      "lat": 12.989048249763483,
+      "lon": 77.50791579943235,
+      "orders_per_day": 76.0,
+      "num_cells": 15
+    },
+    {
+      "lat": 12.835923800098962,
+      "lon": 77.66962493814945,
+      "orders_per_day": 72.0,
+      "num_cells": 23
+    },
+    {
+      "lat": 13.051470588235295,
+      "lon": 77.49176071784645,
+      "orders_per_day": 72.0,
+      "num_cells": 14
+    },
+    {
+      "lat": 12.877814741035856,
+      "lon": 77.53552290836652,
+      "orders_per_day": 72.0,
+      "num_cells": 18
+    },
+    {
+      "lat": 13.039420781893003,
+      "lon": 77.51835802469135,
+      "orders_per_day": 69.0,
+      "num_cells": 21
+    },
+    {
+      "lat": 13.124483715963697,
+      "lon": 77.64460971703151,
+      "orders_per_day": 67.0,
+      "num_cells": 52
+    },
+    {
+      "lat": 13.059622888283382,
+      "lon": 77.7622343324251,
+      "orders_per_day": 66.0,
+      "num_cells": 19
+    },
+    {
+      "lat": 13.04940054200542,
+      "lon": 77.61944715447156,
+      "orders_per_day": 66.0,
+      "num_cells": 19
+    },
+    {
+      "lat": 13.09147639956092,
+      "lon": 77.59039956092205,
+      "orders_per_day": 65.0,
+      "num_cells": 32
+    },
+    {
+      "lat": 12.80761593801881,
+      "lon": 77.78318317653567,
+      "orders_per_day": 65.0,
+      "num_cells": 42
+    },
+    {
+      "lat": 12.831216610549946,
+      "lon": 77.70224915824915,
+      "orders_per_day": 64.0,
+      "num_cells": 43
+    },
+    {
+      "lat": 13.080235294117651,
+      "lon": 77.73556401384083,
+      "orders_per_day": 62.0,
+      "num_cells": 29
+    },
+    {
+      "lat": 12.990273455377574,
+      "lon": 77.47767391304347,
+      "orders_per_day": 62.0,
+      "num_cells": 61
+    },
+    {
+      "lat": 12.958029069767441,
+      "lon": 77.64241279069768,
+      "orders_per_day": 61.0,
+      "num_cells": 7
+    },
+    {
+      "lat": 12.894321661721069,
+      "lon": 77.71289258160236,
+      "orders_per_day": 60.0,
+      "num_cells": 35
+    },
+    {
+      "lat": 12.906585510688833,
+      "lon": 77.5321104513064,
+      "orders_per_day": 60.0,
+      "num_cells": 14
+    },
+    {
+      "lat": 12.904839296543358,
+      "lon": 77.47597574287448,
+      "orders_per_day": 59.0,
+      "num_cells": 18
+    },
+    {
+      "lat": 12.738605651105653,
+      "lon": 77.70442997542997,
+      "orders_per_day": 58.0,
+      "num_cells": 27
+    },
+    {
+      "lat": 13.131172063492064,
+      "lon": 77.61741714285716,
+      "orders_per_day": 56.0,
+      "num_cells": 29
+    },
+    {
+      "lat": 12.906895366218238,
+      "lon": 77.65760837070253,
+      "orders_per_day": 48.0,
+      "num_cells": 12
+    },
+    {
+      "lat": 12.901913946587536,
+      "lon": 77.51494362017803,
+      "orders_per_day": 48.0,
+      "num_cells": 21
+    },
+    {
+      "lat": 12.786305143853532,
+      "lon": 77.63134960767218,
+      "orders_per_day": 41.0,
+      "num_cells": 19
+    },
+    {
+      "lat": 12.969514771709935,
+      "lon": 77.72529632945388,
+      "orders_per_day": 40.0,
+      "num_cells": 5
+    },
+    {
+      "lat": 13.022433668801465,
+      "lon": 77.71578042086001,
+      "orders_per_day": 39.0,
+      "num_cells": 4
+    },
+    {
+      "lat": 12.747326086956523,
+      "lon": 77.68478623188406,
+      "orders_per_day": 39.0,
+      "num_cells": 33
+    },
+    {
+      "lat": 12.993378600823048,
+      "lon": 77.72991152263376,
+      "orders_per_day": 35.0,
+      "num_cells": 13
+    },
+    {
+      "lat": 12.95620646506778,
+      "lon": 77.64975808133472,
+      "orders_per_day": 34.0,
+      "num_cells": 6
+    },
+    {
+      "lat": 13.138909478168266,
+      "lon": 77.57068157614484,
+      "orders_per_day": 34.0,
+      "num_cells": 4
+    },
+    {
+      "lat": 13.2277539503386,
+      "lon": 77.72334762979683,
+      "orders_per_day": 32.0,
+      "num_cells": 16
+    },
+    {
+      "lat": 12.98347613762486,
+      "lon": 77.61766703662596,
+      "orders_per_day": 32.0,
+      "num_cells": 18
+    },
+    {
+      "lat": 12.972021428571427,
+      "lon": 77.69963571428572,
+      "orders_per_day": 30.0,
+      "num_cells": 3
+    },
+    {
+      "lat": 13.069987146529565,
+      "lon": 77.59006169665811,
+      "orders_per_day": 28.0,
+      "num_cells": 6
+    },
+    {
+      "lat": 12.907145139813583,
+      "lon": 77.67106790945407,
+      "orders_per_day": 27.0,
+      "num_cells": 6
+    },
+    {
+      "lat": 12.894905263157897,
+      "lon": 77.56845263157895,
+      "orders_per_day": 27.0,
+      "num_cells": 6
+    },
+    {
+      "lat": 12.872877241379308,
+      "lon": 77.58447448275862,
+      "orders_per_day": 26.0,
+      "num_cells": 11
+    },
+    {
+      "lat": 13.065345205479453,
+      "lon": 77.69227671232878,
+      "orders_per_day": 26.0,
+      "num_cells": 18
+    },
+    {
+      "lat": 12.858240331491713,
+      "lon": 77.78492817679559,
+      "orders_per_day": 26.0,
+      "num_cells": 55
+    },
+    {
+      "lat": 13.030948604992657,
+      "lon": 77.47740969162996,
+      "orders_per_day": 24.0,
+      "num_cells": 15
+    },
+    {
+      "lat": 13.163881064162753,
+      "lon": 77.63311737089201,
+      "orders_per_day": 23.0,
+      "num_cells": 67
+    },
+    {
+      "lat": 12.777661237785017,
+      "lon": 77.69460586319218,
+      "orders_per_day": 22.0,
+      "num_cells": 31
+    },
+    {
+      "lat": 12.99970408163265,
+      "lon": 77.67255782312925,
+      "orders_per_day": 21.0,
+      "num_cells": 6
+    },
+    {
+      "lat": 12.91859560067682,
+      "lon": 77.69292724196278,
+      "orders_per_day": 21.0,
+      "num_cells": 4
+    },
+    {
+      "lat": 13.04479437609842,
+      "lon": 77.5800878734622,
+      "orders_per_day": 20.0,
+      "num_cells": 4
+    },
+    {
+      "lat": 13.059992982456139,
+      "lon": 77.7448596491228,
+      "orders_per_day": 20.0,
+      "num_cells": 3
+    },
+    {
+      "lat": 12.763607079646016,
+      "lon": 77.71710796460177,
+      "orders_per_day": 20.0,
+      "num_cells": 20
+    },
+    {
+      "lat": 13.05320143884892,
+      "lon": 77.66211510791368,
+      "orders_per_day": 20.0,
+      "num_cells": 11
+    },
+    {
+      "lat": 13.116758122743684,
+      "lon": 77.56350541516244,
+      "orders_per_day": 20.0,
+      "num_cells": 10
+    },
+    {
+      "lat": 12.841423971377461,
+      "lon": 77.63970661896244,
+      "orders_per_day": 20.0,
+      "num_cells": 25
+    },
+    {
+      "lat": 13.087880769230768,
+      "lon": 77.65433846153847,
+      "orders_per_day": 19.0,
+      "num_cells": 12
+    },
+    {
+      "lat": 13.01055102040816,
+      "lon": 77.55284489795918,
+      "orders_per_day": 18.0,
+      "num_cells": 6
+    },
+    {
+      "lat": 12.80696370967742,
+      "lon": 77.64077016129032,
+      "orders_per_day": 18.0,
+      "num_cells": 20
+    },
+    {
+      "lat": 12.840772532188842,
+      "lon": 77.61294420600858,
+      "orders_per_day": 17.0,
+      "num_cells": 14
+    },
+    {
+      "lat": 13.01429247311828,
+      "lon": 77.68481720430108,
+      "orders_per_day": 17.0,
+      "num_cells": 16
+    },
+    {
+      "lat": 12.979633867276887,
+      "lon": 77.6602471395881,
+      "orders_per_day": 16.0,
+      "num_cells": 6
+    },
+    {
+      "lat": 12.935646788990825,
+      "lon": 77.75948165137615,
+      "orders_per_day": 16.0,
+      "num_cells": 16
+    },
+    {
+      "lat": 12.793746170678338,
+      "lon": 77.6821969365427,
+      "orders_per_day": 16.0,
+      "num_cells": 13
+    },
+    {
+      "lat": 12.96174818401937,
+      "lon": 77.67573849878934,
+      "orders_per_day": 15.0,
+      "num_cells": 3
+    },
+    {
+      "lat": 13.041999999999998,
+      "lon": 77.61031770833333,
+      "orders_per_day": 14.0,
+      "num_cells": 2
+    },
+    {
+      "lat": 13.023452631578948,
+      "lon": 77.5563157894737,
+      "orders_per_day": 14.0,
+      "num_cells": 3
+    },
+    {
+      "lat": 12.949717223650387,
+      "lon": 77.55532133676093,
+      "orders_per_day": 14.0,
+      "num_cells": 6
+    },
+    {
+      "lat": 12.945345646437993,
+      "lon": 77.4656147757256,
+      "orders_per_day": 14.0,
+      "num_cells": 12
+    },
+    {
+      "lat": 12.909369509043929,
+      "lon": 77.73462015503878,
+      "orders_per_day": 14.0,
+      "num_cells": 21
+    },
+    {
+      "lat": 12.866489361702127,
+      "lon": 77.52155319148937,
+      "orders_per_day": 13.0,
+      "num_cells": 13
+    },
+    {
+      "lat": 12.902,
+      "lon": 77.632,
+      "orders_per_day": 12.0,
+      "num_cells": 1
+    },
+    {
+      "lat": 12.987035087719297,
+      "lon": 77.74302923976607,
+      "orders_per_day": 12.0,
+      "num_cells": 3
+    },
+    {
+      "lat": 13.020333333333335,
+      "lon": 77.65255555555557,
+      "orders_per_day": 12.0,
+      "num_cells": 2
+    },
+    {
+      "lat": 12.877775147928993,
+      "lon": 77.77134319526624,
+      "orders_per_day": 12.0,
+      "num_cells": 37
+    },
+    {
+      "lat": 13.142707246376807,
+      "lon": 77.62088115942028,
+      "orders_per_day": 12.0,
+      "num_cells": 14
+    },
+    {
+      "lat": 12.833999999999998,
+      "lon": 77.67889250814332,
+      "orders_per_day": 11.0,
+      "num_cells": 2
+    },
+    {
+      "lat": 13.094231249999998,
+      "lon": 77.56745624999999,
+      "orders_per_day": 11.0,
+      "num_cells": 12
+    },
+    {
+      "lat": 12.854179104477614,
+      "lon": 77.59882835820898,
+      "orders_per_day": 10.0,
+      "num_cells": 3
+    },
+    {
+      "lat": 13.047644628099174,
+      "lon": 77.59635537190083,
+      "orders_per_day": 9.0,
+      "num_cells": 2
+    },
+    {
+      "lat": 13.066804597701147,
+      "lon": 77.78005363984674,
+      "orders_per_day": 9.0,
+      "num_cells": 5
+    },
+    {
+      "lat": 12.800953125,
+      "lon": 77.71392187499998,
+      "orders_per_day": 9.0,
+      "num_cells": 7
+    },
+    {
+      "lat": 12.912081967213112,
+      "lon": 77.68781147540983,
+      "orders_per_day": 9.0,
+      "num_cells": 7
+    },
+    {
+      "lat": 12.941902222222224,
+      "lon": 77.50916444444445,
+      "orders_per_day": 8.0,
+      "num_cells": 6
+    },
+    {
+      "lat": 13.070157407407407,
+      "lon": 77.73044444444444,
+      "orders_per_day": 8.0,
+      "num_cells": 6
+    },
+    {
+      "lat": 13.082436018957345,
+      "lon": 77.59808530805685,
+      "orders_per_day": 8.0,
+      "num_cells": 4
+    },
+    {
+      "lat": 12.806480349344977,
+      "lon": 77.65005240174672,
+      "orders_per_day": 8.0,
+      "num_cells": 8
+    },
+    {
+      "lat": 12.852,
+      "lon": 77.666,
+      "orders_per_day": 7.0,
+      "num_cells": 1
+    },
+    {
+      "lat": 13.0,
+      "lon": 77.676,
+      "orders_per_day": 7.0,
+      "num_cells": 1
+    },
+    {
+      "lat": 12.972,
+      "lon": 77.74201081081083,
+      "orders_per_day": 7.0,
+      "num_cells": 2
+    },
+    {
+      "lat": 12.989217391304349,
+      "lon": 77.7632657004831,
+      "orders_per_day": 7.0,
+      "num_cells": 8
+    },
+    {
+      "lat": 13.021909999999997,
+      "lon": 77.50103999999999,
+      "orders_per_day": 7.0,
+      "num_cells": 7
+    },
+    {
+      "lat": 12.927977528089889,
+      "lon": 77.532,
+      "orders_per_day": 6.0,
+      "num_cells": 4
+    },
+    {
+      "lat": 13.064678571428573,
+      "lon": 77.7520119047619,
+      "orders_per_day": 6.0,
+      "num_cells": 3
+    },
+    {
+      "lat": 13.092976190476191,
+      "lon": 77.59788095238095,
+      "orders_per_day": 6.0,
+      "num_cells": 5
+    },
+    {
+      "lat": 12.980645569620252,
+      "lon": 77.58368354430378,
+      "orders_per_day": 6.0,
+      "num_cells": 7
+    },
+    {
+      "lat": 13.10981920903955,
+      "lon": 77.64006779661017,
+      "orders_per_day": 6.0,
+      "num_cells": 7
+    },
+    {
+      "lat": 12.97268508287293,
+      "lon": 77.60076243093924,
+      "orders_per_day": 6.0,
+      "num_cells": 6
+    },
+    {
+      "lat": 13.254435294117648,
+      "lon": 77.70343529411767,
+      "orders_per_day": 6.0,
+      "num_cells": 17
+    },
+    {
+      "lat": 12.85138888888889,
+      "lon": 77.55980000000001,
+      "orders_per_day": 6.0,
+      "num_cells": 15
+    },
+    {
+      "lat": 13.032000000000002,
+      "lon": 77.63,
+      "orders_per_day": 5.0,
+      "num_cells": 1
+    },
+    {
+      "lat": 12.86,
+      "lon": 77.654,
+      "orders_per_day": 5.0,
+      "num_cells": 1
+    },
+    {
+      "lat": 12.896145985401462,
+      "lon": 77.72443795620438,
+      "orders_per_day": 5.0,
+      "num_cells": 5
+    },
+    {
+      "lat": 13.091229629629632,
+      "lon": 77.50804444444445,
+      "orders_per_day": 5.0,
+      "num_cells": 18
+    },
+    {
+      "lat": 12.854,
+      "lon": 77.666,
+      "orders_per_day": 4.0,
+      "num_cells": 1
+    },
+    {
+      "lat": 12.866000000000001,
+      "lon": 77.642,
+      "orders_per_day": 4.0,
+      "num_cells": 1
+    },
+    {
+      "lat": 12.784,
+      "lon": 77.75805769230769,
+      "orders_per_day": 4.0,
+      "num_cells": 2
+    },
+    {
+      "lat": 12.885856,
+      "lon": 77.518832,
+      "orders_per_day": 4.0,
+      "num_cells": 5
+    },
+    {
+      "lat": 12.918086206896554,
+      "lon": 77.75355172413795,
+      "orders_per_day": 4.0,
+      "num_cells": 7
+    },
+    {
+      "lat": 13.256755102040815,
+      "lon": 77.7221836734694,
+      "orders_per_day": 4.0,
+      "num_cells": 12
+    },
+    {
+      "lat": 12.981490566037738,
+      "lon": 77.43824528301889,
+      "orders_per_day": 4.0,
+      "num_cells": 19
+    },
+    {
+      "lat": 13.042000000000002,
+      "lon": 77.70600000000002,
+      "orders_per_day": 3.0,
+      "num_cells": 1
+    },
+    {
+      "lat": 12.984,
+      "lon": 77.692,
+      "orders_per_day": 3.0,
+      "num_cells": 1
+    },
+    {
+      "lat": 12.941999999999998,
+      "lon": 77.658,
+      "orders_per_day": 3.0,
+      "num_cells": 1
+    },
+    {
+      "lat": 12.92,
+      "lon": 77.628,
+      "orders_per_day": 3.0,
+      "num_cells": 1
+    },
+    {
+      "lat": 13.021855421686748,
+      "lon": 77.55257831325302,
+      "orders_per_day": 3.0,
+      "num_cells": 2
+    },
+    {
+      "lat": 12.963999999999999,
+      "lon": 77.736,
+      "orders_per_day": 3.0,
+      "num_cells": 1
+    },
+    {
+      "lat": 12.874,
+      "lon": 77.65,
+      "orders_per_day": 3.0,
+      "num_cells": 1
+    },
+    {
+      "lat": 12.984136986301372,
+      "lon": 77.722,
+      "orders_per_day": 3.0,
+      "num_cells": 2
+    },
+    {
+      "lat": 13.044000000000002,
+      "lon": 77.61647619047618,
+      "orders_per_day": 3.0,
+      "num_cells": 2
+    },
+    {
+      "lat": 13.075837837837838,
+      "lon": 77.77759459459459,
+      "orders_per_day": 3.0,
+      "num_cells": 6
+    },
+    {
+      "lat": 12.741910112359552,
+      "lon": 77.71804494382023,
+      "orders_per_day": 3.0,
+      "num_cells": 8
+    },
+    {
+      "lat": 12.937999999999999,
+      "lon": 77.694,
+      "orders_per_day": 2.0,
+      "num_cells": 1
+    },
+    {
+      "lat": 13.023999999999997,
+      "lon": 77.55,
+      "orders_per_day": 2.0,
+      "num_cells": 1
+    },
+    {
+      "lat": 13.068,
+      "lon": 77.782,
+      "orders_per_day": 2.0,
+      "num_cells": 1
+    },
+    {
+      "lat": 13.068,
+      "lon": 77.624,
+      "orders_per_day": 2.0,
+      "num_cells": 1
+    },
+    {
+      "lat": 12.937967213114755,
+      "lon": 77.6000655737705,
+      "orders_per_day": 2.0,
+      "num_cells": 2
+    },
+    {
+      "lat": 12.982,
+      "lon": 77.704,
+      "orders_per_day": 2.0,
+      "num_cells": 1
+    },
+    {
+      "lat": 12.792276923076924,
+      "lon": 77.77947692307694,
+      "orders_per_day": 2.0,
+      "num_cells": 4
+    },
+    {
+      "lat": 12.92513043478261,
+      "lon": 77.53252173913043,
+      "orders_per_day": 2.0,
+      "num_cells": 3
+    },
+    {
+      "lat": 13.098076923076924,
+      "lon": 77.602,
+      "orders_per_day": 2.0,
+      "num_cells": 2
+    },
+    {
+      "lat": 12.729965517241379,
+      "lon": 77.68796551724137,
+      "orders_per_day": 2.0,
+      "num_cells": 6
+    },
+    {
+      "lat": 13.1,
+      "lon": 77.6,
+      "orders_per_day": 2.0,
+      "num_cells": 1
+    },
+    {
+      "lat": 12.998090909090909,
+      "lon": 77.66,
+      "orders_per_day": 2.0,
+      "num_cells": 2
+    },
+    {
+      "lat": 13.052,
+      "lon": 77.488,
+      "orders_per_day": 2.0,
+      "num_cells": 1
+    },
+    {
+      "lat": 13.017068965517245,
+      "lon": 77.58420689655172,
+      "orders_per_day": 2.0,
+      "num_cells": 9
+    },
+    {
+      "lat": 12.838212765957447,
+      "lon": 77.77514893617021,
+      "orders_per_day": 2.0,
+      "num_cells": 13
+    },
+    {
+      "lat": 13.02151724137931,
+      "lon": 77.476,
+      "orders_per_day": 2.0,
+      "num_cells": 3
+    },
+    {
+      "lat": 13.15221212121212,
+      "lon": 77.6370303030303,
+      "orders_per_day": 2.0,
+      "num_cells": 18
+    },
+    {
+      "lat": 13.254327868852458,
+      "lon": 77.7311475409836,
+      "orders_per_day": 2.0,
+      "num_cells": 10
+    },
+    {
+      "lat": 12.782,
+      "lon": 77.736,
+      "orders_per_day": 1.0,
+      "num_cells": 1
+    },
+    {
+      "lat": 12.904,
+      "lon": 77.47,
+      "orders_per_day": 1.0,
+      "num_cells": 1
+    },
+    {
+      "lat": 12.864,
+      "lon": 77.658,
+      "orders_per_day": 1.0,
+      "num_cells": 1
+    },
+    {
+      "lat": 13.066,
+      "lon": 77.476,
+      "orders_per_day": 1.0,
+      "num_cells": 1
+    },
+    {
+      "lat": 13.058074074074074,
+      "lon": 77.70807407407408,
+      "orders_per_day": 1.0,
+      "num_cells": 2
+    },
+    {
+      "lat": 12.93579487179487,
+      "lon": 77.47,
+      "orders_per_day": 1.0,
+      "num_cells": 2
+    },
+    {
+      "lat": 12.914,
+      "lon": 77.58315000000002,
+      "orders_per_day": 1.0,
+      "num_cells": 2
+    },
+    {
+      "lat": 13.226,
+      "lon": 77.702,
+      "orders_per_day": 1.0,
+      "num_cells": 1
+    },
+    {
+      "lat": 13.009999999999998,
+      "lon": 77.72510526315789,
+      "orders_per_day": 1.0,
+      "num_cells": 2
+    },
+    {
+      "lat": 12.954521739130435,
+      "lon": 77.63765217391305,
+      "orders_per_day": 1.0,
+      "num_cells": 2
+    },
+    {
+      "lat": 12.798,
+      "lon": 77.768,
+      "orders_per_day": 1.0,
+      "num_cells": 1
+    },
+    {
+      "lat": 13.044,
+      "lon": 77.53046153846155,
+      "orders_per_day": 1.0,
+      "num_cells": 2
+    },
+    {
+      "lat": 12.84718181818182,
+      "lon": 77.78272727272729,
+      "orders_per_day": 1.0,
+      "num_cells": 4
+    },
+    {
+      "lat": 13.096,
+      "lon": 77.598,
+      "orders_per_day": 1.0,
+      "num_cells": 1
+    },
+    {
+      "lat": 13.124585365853658,
+      "lon": 77.60082926829267,
+      "orders_per_day": 1.0,
+      "num_cells": 7
+    },
+    {
+      "lat": 12.948,
+      "lon": 77.47,
+      "orders_per_day": 1.0,
+      "num_cells": 1
+    },
+    {
+      "lat": 12.851375,
+      "lon": 77.5505,
+      "orders_per_day": 1.0,
+      "num_cells": 5
+    },
+    {
+      "lat": 13.024352941176472,
+      "lon": 77.47600000000001,
+      "orders_per_day": 1.0,
+      "num_cells": 2
+    },
+    {
+      "lat": 12.890166666666667,
+      "lon": 77.76858333333334,
+      "orders_per_day": 1.0,
+      "num_cells": 7
+    },
+    {
+      "lat": 13.097238095238096,
+      "lon": 77.55295238095239,
+      "orders_per_day": 1.0,
+      "num_cells": 7
+    },
+    {
+      "lat": 12.862705882352941,
+      "lon": 77.80047058823531,
+      "orders_per_day": 1.0,
+      "num_cells": 10
+    },
+    {
+      "lat": 12.884,
+      "lon": 77.688,
+      "orders_per_day": 0.0,
+      "num_cells": 1
+    },
+    {
+      "lat": 13.232,
+      "lon": 77.732,
+      "orders_per_day": 0.0,
+      "num_cells": 1
+    },
+    {
+      "lat": 12.908333333333333,
+      "lon": 77.52816666666668,
+      "orders_per_day": 0.0,
+      "num_cells": 2
+    },
+    {
+      "lat": 13.22285714285714,
+      "lon": 77.68285714285715,
+      "orders_per_day": 0.0,
+      "num_cells": 2
+    },
+    {
+      "lat": 12.851999999999999,
+      "lon": 77.7,
+      "orders_per_day": 0.0,
+      "num_cells": 1
+    },
+    {
+      "lat": 13.006,
+      "lon": 77.676,
+      "orders_per_day": 0.0,
+      "num_cells": 1
+    },
+    {
+      "lat": 12.972,
+      "lon": 77.6042,
+      "orders_per_day": 0.0,
+      "num_cells": 2
+    },
+    {
+      "lat": 13.083857142857143,
+      "lon": 77.57942857142858,
+      "orders_per_day": 0.0,
+      "num_cells": 3
+    },
+    {
+      "lat": 12.856,
+      "lon": 77.614,
+      "orders_per_day": 0.0,
+      "num_cells": 1
+    },
+    {
+      "lat": 12.905555555555555,
+      "lon": 77.47155555555555,
+      "orders_per_day": 0.0,
+      "num_cells": 2
+    },
+    {
+      "lat": 13.069777777777778,
+      "lon": 77.76400000000001,
+      "orders_per_day": 0.0,
+      "num_cells": 2
+    },
+    {
+      "lat": 12.95,
+      "lon": 77.726,
+      "orders_per_day": 0.0,
+      "num_cells": 1
+    },
+    {
+      "lat": 13.163333333333336,
+      "lon": 77.63566666666668,
+      "orders_per_day": 0.0,
+      "num_cells": 4
+    },
+    {
+      "lat": 13.102,
+      "lon": 77.592,
+      "orders_per_day": 0.0,
+      "num_cells": 1
+    },
+    {
+      "lat": 12.970799999999999,
+      "lon": 77.472,
+      "orders_per_day": 0.0,
+      "num_cells": 2
+    },
+    {
+      "lat": 13.0,
+      "lon": 77.476,
+      "orders_per_day": 0.0,
+      "num_cells": 1
+    },
+    {
+      "lat": 13.04,
+      "lon": 77.742,
+      "orders_per_day": 0.0,
+      "num_cells": 1
+    },
+    {
+      "lat": 12.866,
+      "lon": 77.64,
+      "orders_per_day": 0.0,
+      "num_cells": 1
+    },
+    {
+      "lat": 12.994,
+      "lon": 77.638,
+      "orders_per_day": 0.0,
+      "num_cells": 1
+    },
+    {
+      "lat": 13.227333333333332,
+      "lon": 77.68733333333333,
+      "orders_per_day": 0.0,
+      "num_cells": 2
+    },
+    {
+      "lat": 12.7255,
+      "lon": 77.71225000000001,
+      "orders_per_day": 0.0,
+      "num_cells": 4
+    },
+    {
+      "lat": 12.968,
+      "lon": 77.62,
+      "orders_per_day": 0.0,
+      "num_cells": 1
+    },
+    {
+      "lat": 12.88857142857143,
+      "lon": 77.70542857142857,
+      "orders_per_day": 0.0,
+      "num_cells": 2
+    },
+    {
+      "lat": 12.866,
+      "lon": 77.628,
+      "orders_per_day": 0.0,
+      "num_cells": 1
+    },
+    {
+      "lat": 12.86,
+      "lon": 77.52,
+      "orders_per_day": 0.0,
+      "num_cells": 1
+    },
+    {
+      "lat": 12.898,
+      "lon": 77.518,
+      "orders_per_day": 0.0,
+      "num_cells": 1
+    },
+    {
+      "lat": 13.091333333333333,
+      "lon": 77.73466666666667,
+      "orders_per_day": 0.0,
+      "num_cells": 2
+    },
+    {
+      "lat": 12.728,
+      "lon": 77.704,
+      "orders_per_day": 0.0,
+      "num_cells": 1
+    },
+    {
+      "lat": 12.884,
+      "lon": 77.784,
+      "orders_per_day": 0.0,
+      "num_cells": 1
+    },
+    {
+      "lat": 12.852,
+      "lon": 77.592,
+      "orders_per_day": 0.0,
+      "num_cells": 1
+    },
+    {
+      "lat": 12.848000000000003,
+      "lon": 77.5648,
+      "orders_per_day": 0.0,
+      "num_cells": 3
+    },
+    {
+      "lat": 12.826,
+      "lon": 77.644,
+      "orders_per_day": 0.0,
+      "num_cells": 1
+    },
+    {
+      "lat": 12.762000000000002,
+      "lon": 77.642,
+      "orders_per_day": 0.0,
+      "num_cells": 1
+    },
+    {
+      "lat": 13.152,
+      "lon": 77.62,
+      "orders_per_day": 0.0,
+      "num_cells": 1
+    },
+    {
+      "lat": 12.964,
+      "lon": 77.576,
+      "orders_per_day": 0.0,
+      "num_cells": 1
+    },
+    {
+      "lat": 13.016,
+      "lon": 77.476,
+      "orders_per_day": 0.0,
+      "num_cells": 1
+    },
+    {
+      "lat": 12.853,
+      "lon": 77.549,
+      "orders_per_day": 0.0,
+      "num_cells": 2
+    },
+    {
+      "lat": 13.126,
+      "lon": 77.602,
+      "orders_per_day": 0.0,
+      "num_cells": 1
+    },
+    {
+      "lat": 13.057999999999998,
+      "lon": 77.73333333333332,
+      "orders_per_day": 0.0,
+      "num_cells": 2
+    },
+    {
+      "lat": 13.228,
+      "lon": 77.734,
+      "orders_per_day": 0.0,
+      "num_cells": 1
+    },
+    {
+      "lat": 12.874666666666668,
+      "lon": 77.774,
+      "orders_per_day": 0.0,
+      "num_cells": 2
+    },
+    {
+      "lat": 13.036,
+      "lon": 77.722,
+      "orders_per_day": 0.0,
+      "num_cells": 1
+    },
+    {
+      "lat": 13.042,
+      "lon": 77.588,
+      "orders_per_day": 0.0,
+      "num_cells": 1
+    },
+    {
+      "lat": 13.06,
+      "lon": 77.53,
+      "orders_per_day": 0.0,
+      "num_cells": 1
+    },
+    {
+      "lat": 13.238,
+      "lon": 77.694,
+      "orders_per_day": 0.0,
+      "num_cells": 1
+    },
+    {
+      "lat": 12.87,
+      "lon": 77.806,
+      "orders_per_day": 0.0,
+      "num_cells": 1
+    },
+    {
+      "lat": 13.124,
+      "lon": 77.582,
+      "orders_per_day": 0.0,
+      "num_cells": 1
+    },
+    {
+      "lat": 13.104,
+      "lon": 77.534,
+      "orders_per_day": 0.0,
+      "num_cells": 1
+    },
+    {
+      "lat": 13.102,
+      "lon": 77.6,
+      "orders_per_day": 0.0,
+      "num_cells": 1
+    },
+    {
+      "lat": 12.832,
+      "lon": 77.774,
+      "orders_per_day": 0.0,
+      "num_cells": 1
+    },
+    {
+      "lat": 13.018,
+      "lon": 77.734,
+      "orders_per_day": 0.0,
+      "num_cells": 1
+    }
+  ],
+  "timing": {
+    "total_seconds": 734.5
+  }
+}

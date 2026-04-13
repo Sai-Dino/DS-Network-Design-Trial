@@ -1,0 +1,41 @@
+{
+  "name": "@murv/stepper",
+  "version": "1.1.1",
+  "main": "dist/murv-stepper.cjs.js",
+  "module": "dist/murv-stepper.esm.js",
+  "exports": {
+    ".": {
+      "import": "./dist/murv-stepper.esm.js",
+      "require": "./dist/murv-stepper.cjs.js",
+      "default": "./dist/murv-stepper.cjs.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "author": "Bhavesh Kumar",
+  "license": "MIT",
+  "peerDependencies": {
+    "react": "^17.0.0",
+    "styled-components": "^5.0.0"
+  },
+  "publishConfig": {
+    "registry": "https://jfrog.fkinternal.com/artifactory/api/npm/npm_virtual/"
+  },
+  "volta": {
+    "extends": "../../package.json"
+  },
+  "dependencies": {
+    "@murv/tag": "^1.0.0",
+    "@murv/core": "^1.0.0"
+  },
+  "preconstruct": {
+    "exports": {
+      "extra": {
+        ".": {
+          "import": "./dist/murv-stepper.esm.js",
+          "require": "./dist/murv-stepper.cjs.js",
+          "default": "./dist/murv-stepper.cjs.js"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,150 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`Accordion component snapshots matches snapshot on click of header 1`] = `
+<DocumentFragment>
+  <div
+    class="styles__AccordionView-sc-ibwanh-0 ivgUDF"
+    data-testid="accordion-component-undefined"
+  >
+    <div
+      aria-disabled="false"
+      aria-expanded="true"
+      class="styles__AccordionHeaderView-sc-ibwanh-1 gLCrxQ"
+      data-testid="accordion-header"
+      tabindex="0"
+    >
+      <div
+        class="styles__LeftContent-sc-ibwanh-9 hIfVpi"
+      >
+        <div
+          class="styles__MainInfoView-sc-ibwanh-5 kFMRLh"
+        >
+          <div
+            aria-label="accordion-primary-header"
+            class="styles__PrimaryInfoView-sc-ibwanh-6 cqJGwC"
+            data-testid="accordion-primary-header-undefined"
+            id="acc-primary-header-id-undefined"
+          >
+            test title
+          </div>
+          <div
+            aria-label="accordion-secondary-header"
+            class="styles__SecondaryInfoView-sc-ibwanh-7 gKCUay"
+            data-testid="accordion-secondary-header-undefined"
+            id="acc-secondary-header-id-undefined"
+          />
+        </div>
+      </div>
+      <div
+        class="styles__RightContent-sc-ibwanh-10 kEaIpN"
+      >
+        <div
+          aria-label="accordion-tertiary-header"
+          class="styles__TertiaryInfoView-sc-ibwanh-8 djyOXg"
+          data-testid="accordion-tertiary-header-undefined"
+          id="acc-tertiary-header-id-undefined"
+        />
+        <div
+          class="styles__ToggleIconWrapper-sc-ibwanh-4 hnykuS"
+          id="accordion-toggle-icon"
+        >
+          <svg
+            class="fk-icon"
+            color=""
+            height="20px"
+            style="fill: currentColor; stroke: currentColor;"
+            viewBox="0 -960 960 960"
+            width="20px"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <title>
+              ExpandMore
+            </title>
+            <path
+              d="M480-357q-6 0-11-2t-10-7L261-564q-9-9-9-21t9-21q9-9 21.5-9t21.5 9l176 176 176-176q9-9 21-9t21 9q9 9 9 21.5t-9 21.5L501-366q-5 5-10 7t-11 2Z"
+            />
+          </svg>
+        </div>
+      </div>
+    </div>
+    <div
+      aria-label="accordion-content-container"
+      class="styles__AccordionContentView-sc-ibwanh-12 edqSCT"
+      data-testid="accordion-body-undefined"
+    >
+      Test Body
+    </div>
+  </div>
+</DocumentFragment>
+`;
+
+exports[`Accordion component snapshots matches snapshot with default state 1`] = `
+<DocumentFragment>
+  <div
+    class="styles__AccordionView-sc-ibwanh-0 ivgUDF"
+    data-testid="accordion-component-undefined"
+  >
+    <div
+      aria-disabled="false"
+      aria-expanded="false"
+      class="styles__AccordionHeaderView-sc-ibwanh-1 gLCrxQ"
+      data-testid="accordion-header"
+      tabindex="0"
+    >
+      <div
+        class="styles__LeftContent-sc-ibwanh-9 hIfVpi"
+      >
+        <div
+          class="styles__MainInfoView-sc-ibwanh-5 kFMRLh"
+        >
+          <div
+            aria-label="accordion-primary-header"
+            class="styles__PrimaryInfoView-sc-ibwanh-6 cqJGwC"
+            data-testid="accordion-primary-header-undefined"
+            id="acc-primary-header-id-undefined"
+          >
+            test title
+          </div>
+          <div
+            aria-label="accordion-secondary-header"
+            class="styles__SecondaryInfoView-sc-ibwanh-7 gKCUay"
+            data-testid="accordion-secondary-header-undefined"
+            id="acc-secondary-header-id-undefined"
+          />
+        </div>
+      </div>
+      <div
+        class="styles__RightContent-sc-ibwanh-10 kEaIpN"
+      >
+        <div
+          aria-label="accordion-tertiary-header"
+          class="styles__TertiaryInfoView-sc-ibwanh-8 djyOXg"
+          data-testid="accordion-tertiary-header-undefined"
+          id="acc-tertiary-header-id-undefined"
+        />
+        <div
+          class="styles__ToggleIconWrapper-sc-ibwanh-4 hnykuS"
+          id="accordion-toggle-icon"
+        >
+          <svg
+            class="fk-icon"
+            color=""
+            height="20px"
+            style="fill: currentColor; stroke: currentColor;"
+            viewBox="0 -960 960 960"
+            width="20px"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <title>
+              ExpandMore
+            </title>
+            <path
+              d="M480-357q-6 0-11-2t-10-7L261-564q-9-9-9-21t9-21q9-9 21.5-9t21.5 9l176 176 176-176q9-9 21-9t21 9q9 9 9 21.5t-9 21.5L501-366q-5 5-10 7t-11 2Z"
+            />
+          </svg>
+        </div>
+      </div>
+    </div>
+  </div>
+</DocumentFragment>
+`;

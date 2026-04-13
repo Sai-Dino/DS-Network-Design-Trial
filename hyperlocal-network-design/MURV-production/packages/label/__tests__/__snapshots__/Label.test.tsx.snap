@@ -1,0 +1,213 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`Label capture Disabled Label Snapshot 1`] = `
+<DocumentFragment>
+  <label
+    aria-disabled="true"
+    class="style__LabelWrapper-sc-n7qfg8-0 hFkWdI"
+    data-testid="test-label"
+    disabled=""
+    for=""
+    id="test-label"
+  >
+    <div
+      class="style__LabelArea-sc-n7qfg8-3 llXBFs"
+    >
+      <span
+        aria-disabled="true"
+        class="style__LabelText-sc-n7qfg8-1 dUbdCC"
+        disabled=""
+      >
+        Test Label
+      </span>
+      <div
+        aria-disabled="true"
+        class="style__DescriptionText-sc-n7qfg8-2 ietDeC"
+        disabled=""
+      >
+        Sample Test Label
+      </div>
+    </div>
+  </label>
+</DocumentFragment>
+`;
+
+exports[`Label capture Label Snapshot 1`] = `
+<DocumentFragment>
+  <label
+    aria-disabled="false"
+    class="style__LabelWrapper-sc-n7qfg8-0 gWTAqB"
+    data-testid="test-label"
+    for=""
+    id="test-label"
+  >
+    <div
+      class="style__LabelArea-sc-n7qfg8-3 llXBFs"
+    >
+      <span
+        aria-disabled="false"
+        class="style__LabelText-sc-n7qfg8-1 fmBzkl"
+      >
+        Test Label
+      </span>
+      <div
+        aria-disabled="false"
+        class="style__DescriptionText-sc-n7qfg8-2 bPRaJK"
+      >
+        Sample Test Label
+      </div>
+    </div>
+  </label>
+</DocumentFragment>
+`;
+
+exports[`Label capture Label with Description Snapshot 1`] = `
+<DocumentFragment>
+  <label
+    aria-disabled="false"
+    class="style__LabelWrapper-sc-n7qfg8-0 gWTAqB"
+    data-testid="test-label"
+    for=""
+    id="test-label"
+  >
+    <div
+      class="style__LabelArea-sc-n7qfg8-3 llXBFs"
+    >
+      <span
+        aria-disabled="false"
+        class="style__LabelText-sc-n7qfg8-1 fmBzkl"
+      >
+        Test Label
+      </span>
+      <div
+        aria-disabled="false"
+        class="style__DescriptionText-sc-n7qfg8-2 bPRaJK"
+      >
+        Sample Description
+      </div>
+    </div>
+  </label>
+</DocumentFragment>
+`;
+
+exports[`Label capture Label with Description and Disabled Snapshot 1`] = `
+<DocumentFragment>
+  <label
+    aria-disabled="true"
+    class="style__LabelWrapper-sc-n7qfg8-0 hFkWdI"
+    data-testid="test-label"
+    disabled=""
+    for=""
+    id="test-label"
+  >
+    <div
+      class="style__LabelArea-sc-n7qfg8-3 llXBFs"
+    >
+      <span
+        aria-disabled="true"
+        class="style__LabelText-sc-n7qfg8-1 dUbdCC"
+        disabled=""
+      >
+        Test Label
+      </span>
+      <div
+        aria-disabled="true"
+        class="style__DescriptionText-sc-n7qfg8-2 ietDeC"
+        disabled=""
+      >
+        Sample Description
+      </div>
+    </div>
+  </label>
+</DocumentFragment>
+`;
+
+exports[`Label capture Label with Description and RTL Snapshot 1`] = `
+<DocumentFragment>
+  <label
+    aria-disabled="false"
+    class="style__LabelWrapper-sc-n7qfg8-0 cLUkaw"
+    data-testid="test-label"
+    for=""
+    id="test-label"
+  >
+    <div
+      class="style__LabelArea-sc-n7qfg8-3 llXBFs"
+    >
+      <span
+        aria-disabled="false"
+        class="style__LabelText-sc-n7qfg8-1 fmBzkl"
+      >
+        Test Label
+      </span>
+      <div
+        aria-disabled="false"
+        class="style__DescriptionText-sc-n7qfg8-2 bPRaJK"
+      >
+        Sample Description
+      </div>
+    </div>
+  </label>
+</DocumentFragment>
+`;
+
+exports[`Label capture Label with Description, Disabled and RTL Snapshot 1`] = `
+<DocumentFragment>
+  <label
+    aria-disabled="true"
+    class="style__LabelWrapper-sc-n7qfg8-0 cDtdsB"
+    data-testid="test-label"
+    disabled=""
+    for=""
+    id="test-label"
+  >
+    <div
+      class="style__LabelArea-sc-n7qfg8-3 llXBFs"
+    >
+      <span
+        aria-disabled="true"
+        class="style__LabelText-sc-n7qfg8-1 dUbdCC"
+        disabled=""
+      >
+        Test Label
+      </span>
+      <div
+        aria-disabled="true"
+        class="style__DescriptionText-sc-n7qfg8-2 ietDeC"
+        disabled=""
+      >
+        Sample Description
+      </div>
+    </div>
+  </label>
+</DocumentFragment>
+`;
+
+exports[`Label capture RTL Label Snapshot 1`] = `
+<DocumentFragment>
+  <label
+    aria-disabled="false"
+    class="style__LabelWrapper-sc-n7qfg8-0 cLUkaw"
+    data-testid="test-label"
+    for=""
+    id="test-label"
+  >
+    <div
+      class="style__LabelArea-sc-n7qfg8-3 llXBFs"
+    >
+      <span
+        aria-disabled="false"
+        class="style__LabelText-sc-n7qfg8-1 fmBzkl"
+      >
+        Test Label
+      </span>
+      <div
+        aria-disabled="false"
+        class="style__DescriptionText-sc-n7qfg8-2 bPRaJK"
+      >
+        Sample Test Label
+      </div>
+    </div>
+  </label>
+</DocumentFragment>
+`;

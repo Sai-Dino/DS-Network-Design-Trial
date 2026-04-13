@@ -1,0 +1,105 @@
+# ============================================================
+# docker-compose.yml — Start the ENTIRE stack with one command:
+#
+#   docker compose up --build
+#
+# This starts 5 services:
+#   1. app       — The Flask web server (via Gunicorn)
+#   2. worker    — Celery worker for background calculations
+#   3. db        — PostgreSQL database for persistence
+#   4. redis     — Message broker for Celery + caching
+#   5. osrm      — OSRM routing engine (optional, bring your own)
+# ============================================================
+
+services:
+
+  # ── Web application ──────────────────────────────────────────
+  app:
+    build: .
+    ports:
+      - "${APP_PORT:-8080}:8080"
+    environment:
+      APP_ENV: production
+      DATABASE_URL: postgresql://hyperlocal:hyperlocal@db:5432/hyperlocal
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      OSRM_URL: http://osrm:5000
+      OSRM_ALLOWED_HOSTS: osrm,localhost,127.0.0.1
+      SECRET_KEY: ${SECRET_KEY:-change-me-in-production}
+      DATA_DIR: /app/data
+      LOG_LEVEL: INFO
+    volumes:
+      - appdata:/app/data
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ── Celery worker (runs heavy distance calculations) ─────────
+  worker:
+    build: .
+    command: celery -A app.tasks.celery_app worker --loglevel=info --concurrency=4
+    environment:
+      APP_ENV: production
+      DATABASE_URL: postgresql://hyperlocal:hyperlocal@db:5432/hyperlocal
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      OSRM_URL: http://osrm:5000
+      OSRM_ALLOWED_HOSTS: osrm,localhost,127.0.0.1
+      DATA_DIR: /app/data
+    volumes:
+      - appdata:/app/data
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ── PostgreSQL database ──────────────────────────────────────
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: hyperlocal
+      POSTGRES_USER: hyperlocal
+      POSTGRES_PASSWORD: hyperlocal
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"                    # 5433 externally to avoid conflicts
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hyperlocal"]
+      interval: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ── Redis (message broker + result backend) ──────────────────
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6380:6379"                    # 6380 externally to avoid conflicts
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ── OSRM routing engine (optional) ──────────────────────────
+  # To use: download India PBF data, extract, and mount the volume.
+  # See scripts/setup_osrm.sh for data preparation.
+  osrm:
+    image: osrm/osrm-backend:latest
+    command: osrm-routed --algorithm mld /data/india-latest.osrm
+    volumes:
+      - ${OSRM_DATA_DIR:-./osrm-data}:/data
+    ports:
+      - "5000:5000"
+    profiles:
+      - with-osrm                     # Only starts with: docker compose --profile with-osrm up
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  appdata:

@@ -1,0 +1,46 @@
+{
+  "name": "@murv/pagination",
+  "version": "1.4.0",
+  "author": "Ummimath Farisha",
+  "main": "dist/murv-pagination.cjs.js",
+  "module": "dist/murv-pagination.esm.js",
+  "exports": {
+    ".": {
+      "import": "./dist/murv-pagination.esm.js",
+      "require": "./dist/murv-pagination.cjs.js",
+      "default": "./dist/murv-pagination.cjs.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "license": "MIT",
+  "peerDependencies": {
+    "react": "^17.0.0",
+    "styled-components": "^5.0.0"
+  },
+  "dependencies": {
+    "@murv/icons": "^0.0.68",
+    "@murv/provider": "^1.4.0",
+    "@murv/single-select": "^1.2.0"
+  },
+  "devDependencies": {
+    "@murv/divider": "1.0.0",
+    "@murv/grid-table": "^1.4.0"
+  },
+  "publishConfig": {
+    "registry": "https://jfrog.fkinternal.com/artifactory/api/npm/npm_virtual/"
+  },
+  "volta": {
+    "extends": "../../package.json"
+  },
+  "preconstruct": {
+    "exports": {
+      "extra": {
+        ".": {
+          "import": "./dist/murv-pagination.esm.js",
+          "require": "./dist/murv-pagination.cjs.js",
+          "default": "./dist/murv-pagination.cjs.js"
+        }
+      }
+    }
+  }
+}

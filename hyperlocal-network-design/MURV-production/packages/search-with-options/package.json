@@ -1,0 +1,23 @@
+{
+  "name": "@murv/search-with-options",
+  "version": "1.2.0",
+  "main": "dist/murv-search-with-options.cjs.js",
+  "module": "dist/murv-search-with-options.esm.js",
+  "author": "Murali Krishna Reddy",
+  "license": "MIT",
+  "peerDependencies": {
+    "react": "^17.0.0",
+    "styled-components": "^5.0.0"
+  },
+  "publishConfig": {
+    "registry": "https://jfrog.fkinternal.com/artifactory/api/npm/npm_virtual/"
+  },
+  "volta": {
+    "extends": "../../package.json"
+  },
+  "dependencies": {
+    "@murv/search": "^1.5.0",
+    "@murv/search-suggestions": "^1.4.0",
+    "@murv/single-select": "^1.1.1"
+  }
+}

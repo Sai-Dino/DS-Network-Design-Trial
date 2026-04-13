@@ -1,0 +1,4 @@
+{
+  "main": "dist/murv-core-components-focus-trap.cjs.js",
+  "module": "dist/murv-core-components-focus-trap.esm.js"
+}

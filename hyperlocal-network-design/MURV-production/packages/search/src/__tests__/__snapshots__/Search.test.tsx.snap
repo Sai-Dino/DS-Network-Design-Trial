@@ -1,0 +1,556 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`Search component default handles focus and blur events 1`] = `
+{
+  "asFragment": [Function],
+  "baseElement": <body>
+    <div>
+      <div
+        class="styles__SearchWrapper-sc-1d8vwui-0 iiBLDe"
+      >
+        <div
+          class="styles__BeforeInput-sc-1d8vwui-3 enIlOB"
+        >
+          <div
+            class="styles__IconWrapper-sc-1d8vwui-5 fiJbmb search-icon icon"
+          >
+            <svg
+              class="fk-icon"
+              color="#666666"
+              height="20px"
+              style="fill: currentColor; stroke: currentColor;"
+              viewBox="0 -960 960 960"
+              width="20px"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <title>
+                Search
+              </title>
+              <path
+                d="M378-329q-108.162 0-183.081-75Q120-479 120-585t75-181q75-75 181.5-75t181 75Q632-691 632-584.85 632-542 618-502q-14 40-42 75l242 240q9 8.556 9 21.778T818-143q-9 9-22.222 9-13.222 0-21.778-9L533-384q-30 26-69.959 40.5T378-329Zm-1-60q81.25 0 138.125-57.5T572-585q0-81-56.875-138.5T377-781q-82.083 0-139.542 57.5Q180-666 180-585t57.458 138.5Q294.917-389 377-389Z"
+              />
+            </svg>
+          </div>
+        </div>
+        <input
+          aria-label="Search"
+          aria-placeholder="Search..."
+          class="styles__SearchInputField-sc-1d8vwui-2 jaBXMm"
+          id="search1"
+          placeholder="Search..."
+          type="text"
+          value=""
+        />
+        <div
+          class="styles__AfterInput-sc-1d8vwui-4 iZTNKk"
+        >
+          <div
+            class="styles__IconWrapper-sc-1d8vwui-5 fiJbmb search-icon trigger disabled"
+          >
+            <svg
+              class="fk-icon"
+              color="#666666"
+              height="20px"
+              style="fill: currentColor; stroke: currentColor;"
+              viewBox="0 -960 960 960"
+              width="20px"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <title>
+                Search
+              </title>
+              <path
+                d="M378-329q-108.162 0-183.081-75Q120-479 120-585t75-181q75-75 181.5-75t181 75Q632-691 632-584.85 632-542 618-502q-14 40-42 75l242 240q9 8.556 9 21.778T818-143q-9 9-22.222 9-13.222 0-21.778-9L533-384q-30 26-69.959 40.5T378-329Zm-1-60q81.25 0 138.125-57.5T572-585q0-81-56.875-138.5T377-781q-82.083 0-139.542 57.5Q180-666 180-585t57.458 138.5Q294.917-389 377-389Z"
+              />
+            </svg>
+          </div>
+        </div>
+      </div>
+    </div>
+  </body>,
+  "container": <div>
+    <div
+      class="styles__SearchWrapper-sc-1d8vwui-0 iiBLDe"
+    >
+      <div
+        class="styles__BeforeInput-sc-1d8vwui-3 enIlOB"
+      >
+        <div
+          class="styles__IconWrapper-sc-1d8vwui-5 fiJbmb search-icon icon"
+        >
+          <svg
+            class="fk-icon"
+            color="#666666"
+            height="20px"
+            style="fill: currentColor; stroke: currentColor;"
+            viewBox="0 -960 960 960"
+            width="20px"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <title>
+              Search
+            </title>
+            <path
+              d="M378-329q-108.162 0-183.081-75Q120-479 120-585t75-181q75-75 181.5-75t181 75Q632-691 632-584.85 632-542 618-502q-14 40-42 75l242 240q9 8.556 9 21.778T818-143q-9 9-22.222 9-13.222 0-21.778-9L533-384q-30 26-69.959 40.5T378-329Zm-1-60q81.25 0 138.125-57.5T572-585q0-81-56.875-138.5T377-781q-82.083 0-139.542 57.5Q180-666 180-585t57.458 138.5Q294.917-389 377-389Z"
+            />
+          </svg>
+        </div>
+      </div>
+      <input
+        aria-label="Search"
+        aria-placeholder="Search..."
+        class="styles__SearchInputField-sc-1d8vwui-2 jaBXMm"
+        id="search1"
+        placeholder="Search..."
+        type="text"
+        value=""
+      />
+      <div
+        class="styles__AfterInput-sc-1d8vwui-4 iZTNKk"
+      >
+        <div
+          class="styles__IconWrapper-sc-1d8vwui-5 fiJbmb search-icon trigger disabled"
+        >
+          <svg
+            class="fk-icon"
+            color="#666666"
+            height="20px"
+            style="fill: currentColor; stroke: currentColor;"
+            viewBox="0 -960 960 960"
+            width="20px"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <title>
+              Search
+            </title>
+            <path
+              d="M378-329q-108.162 0-183.081-75Q120-479 120-585t75-181q75-75 181.5-75t181 75Q632-691 632-584.85 632-542 618-502q-14 40-42 75l242 240q9 8.556 9 21.778T818-143q-9 9-22.222 9-13.222 0-21.778-9L533-384q-30 26-69.959 40.5T378-329Zm-1-60q81.25 0 138.125-57.5T572-585q0-81-56.875-138.5T377-781q-82.083 0-139.542 57.5Q180-666 180-585t57.458 138.5Q294.917-389 377-389Z"
+            />
+          </svg>
+        </div>
+      </div>
+    </div>
+  </div>,
+  "debug": [Function],
+  "findAllByAltText": [Function],
+  "findAllByDisplayValue": [Function],
+  "findAllByLabelText": [Function],
+  "findAllByPlaceholderText": [Function],
+  "findAllByRole": [Function],
+  "findAllByTestId": [Function],
+  "findAllByText": [Function],
+  "findAllByTitle": [Function],
+  "findByAltText": [Function],
+  "findByDisplayValue": [Function],
+  "findByLabelText": [Function],
+  "findByPlaceholderText": [Function],
+  "findByRole": [Function],
+  "findByTestId": [Function],
+  "findByText": [Function],
+  "findByTitle": [Function],
+  "getAllByAltText": [Function],
+  "getAllByDisplayValue": [Function],
+  "getAllByLabelText": [Function],
+  "getAllByPlaceholderText": [Function],
+  "getAllByRole": [Function],
+  "getAllByTestId": [Function],
+  "getAllByText": [Function],
+  "getAllByTitle": [Function],
+  "getByAltText": [Function],
+  "getByDisplayValue": [Function],
+  "getByLabelText": [Function],
+  "getByPlaceholderText": [Function],
+  "getByRole": [Function],
+  "getByTestId": [Function],
+  "getByText": [Function],
+  "getByTitle": [Function],
+  "queryAllByAltText": [Function],
+  "queryAllByDisplayValue": [Function],
+  "queryAllByLabelText": [Function],
+  "queryAllByPlaceholderText": [Function],
+  "queryAllByRole": [Function],
+  "queryAllByTestId": [Function],
+  "queryAllByText": [Function],
+  "queryAllByTitle": [Function],
+  "queryByAltText": [Function],
+  "queryByDisplayValue": [Function],
+  "queryByLabelText": [Function],
+  "queryByPlaceholderText": [Function],
+  "queryByRole": [Function],
+  "queryByTestId": [Function],
+  "queryByText": [Function],
+  "queryByTitle": [Function],
+  "rerender": [Function],
+  "unmount": [Function],
+}
+`;
+
+exports[`Search component default handles focus and blur events 2`] = `
+{
+  "asFragment": [Function],
+  "baseElement": <body>
+    <div>
+      <div
+        class="styles__SearchWrapper-sc-1d8vwui-0 iiBLDe"
+      >
+        <div
+          class="styles__BeforeInput-sc-1d8vwui-3 enIlOB"
+        >
+          <div
+            class="styles__IconWrapper-sc-1d8vwui-5 fiJbmb search-icon icon"
+          >
+            <svg
+              class="fk-icon"
+              color="#666666"
+              height="20px"
+              style="fill: currentColor; stroke: currentColor;"
+              viewBox="0 -960 960 960"
+              width="20px"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <title>
+                Search
+              </title>
+              <path
+                d="M378-329q-108.162 0-183.081-75Q120-479 120-585t75-181q75-75 181.5-75t181 75Q632-691 632-584.85 632-542 618-502q-14 40-42 75l242 240q9 8.556 9 21.778T818-143q-9 9-22.222 9-13.222 0-21.778-9L533-384q-30 26-69.959 40.5T378-329Zm-1-60q81.25 0 138.125-57.5T572-585q0-81-56.875-138.5T377-781q-82.083 0-139.542 57.5Q180-666 180-585t57.458 138.5Q294.917-389 377-389Z"
+              />
+            </svg>
+          </div>
+        </div>
+        <input
+          aria-label="Search"
+          aria-placeholder="Search..."
+          class="styles__SearchInputField-sc-1d8vwui-2 jaBXMm"
+          id="search1"
+          placeholder="Search..."
+          type="text"
+          value=""
+        />
+        <div
+          class="styles__AfterInput-sc-1d8vwui-4 iZTNKk"
+        >
+          <div
+            class="styles__IconWrapper-sc-1d8vwui-5 fiJbmb search-icon trigger disabled"
+          >
+            <svg
+              class="fk-icon"
+              color="#666666"
+              height="20px"
+              style="fill: currentColor; stroke: currentColor;"
+              viewBox="0 -960 960 960"
+              width="20px"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <title>
+                Search
+              </title>
+              <path
+                d="M378-329q-108.162 0-183.081-75Q120-479 120-585t75-181q75-75 181.5-75t181 75Q632-691 632-584.85 632-542 618-502q-14 40-42 75l242 240q9 8.556 9 21.778T818-143q-9 9-22.222 9-13.222 0-21.778-9L533-384q-30 26-69.959 40.5T378-329Zm-1-60q81.25 0 138.125-57.5T572-585q0-81-56.875-138.5T377-781q-82.083 0-139.542 57.5Q180-666 180-585t57.458 138.5Q294.917-389 377-389Z"
+              />
+            </svg>
+          </div>
+        </div>
+      </div>
+    </div>
+  </body>,
+  "container": <div>
+    <div
+      class="styles__SearchWrapper-sc-1d8vwui-0 iiBLDe"
+    >
+      <div
+        class="styles__BeforeInput-sc-1d8vwui-3 enIlOB"
+      >
+        <div
+          class="styles__IconWrapper-sc-1d8vwui-5 fiJbmb search-icon icon"
+        >
+          <svg
+            class="fk-icon"
+            color="#666666"
+            height="20px"
+            style="fill: currentColor; stroke: currentColor;"
+            viewBox="0 -960 960 960"
+            width="20px"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <title>
+              Search
+            </title>
+            <path
+              d="M378-329q-108.162 0-183.081-75Q120-479 120-585t75-181q75-75 181.5-75t181 75Q632-691 632-584.85 632-542 618-502q-14 40-42 75l242 240q9 8.556 9 21.778T818-143q-9 9-22.222 9-13.222 0-21.778-9L533-384q-30 26-69.959 40.5T378-329Zm-1-60q81.25 0 138.125-57.5T572-585q0-81-56.875-138.5T377-781q-82.083 0-139.542 57.5Q180-666 180-585t57.458 138.5Q294.917-389 377-389Z"
+            />
+          </svg>
+        </div>
+      </div>
+      <input
+        aria-label="Search"
+        aria-placeholder="Search..."
+        class="styles__SearchInputField-sc-1d8vwui-2 jaBXMm"
+        id="search1"
+        placeholder="Search..."
+        type="text"
+        value=""
+      />
+      <div
+        class="styles__AfterInput-sc-1d8vwui-4 iZTNKk"
+      >
+        <div
+          class="styles__IconWrapper-sc-1d8vwui-5 fiJbmb search-icon trigger disabled"
+        >
+          <svg
+            class="fk-icon"
+            color="#666666"
+            height="20px"
+            style="fill: currentColor; stroke: currentColor;"
+            viewBox="0 -960 960 960"
+            width="20px"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <title>
+              Search
+            </title>
+            <path
+              d="M378-329q-108.162 0-183.081-75Q120-479 120-585t75-181q75-75 181.5-75t181 75Q632-691 632-584.85 632-542 618-502q-14 40-42 75l242 240q9 8.556 9 21.778T818-143q-9 9-22.222 9-13.222 0-21.778-9L533-384q-30 26-69.959 40.5T378-329Zm-1-60q81.25 0 138.125-57.5T572-585q0-81-56.875-138.5T377-781q-82.083 0-139.542 57.5Q180-666 180-585t57.458 138.5Q294.917-389 377-389Z"
+            />
+          </svg>
+        </div>
+      </div>
+    </div>
+  </div>,
+  "debug": [Function],
+  "findAllByAltText": [Function],
+  "findAllByDisplayValue": [Function],
+  "findAllByLabelText": [Function],
+  "findAllByPlaceholderText": [Function],
+  "findAllByRole": [Function],
+  "findAllByTestId": [Function],
+  "findAllByText": [Function],
+  "findAllByTitle": [Function],
+  "findByAltText": [Function],
+  "findByDisplayValue": [Function],
+  "findByLabelText": [Function],
+  "findByPlaceholderText": [Function],
+  "findByRole": [Function],
+  "findByTestId": [Function],
+  "findByText": [Function],
+  "findByTitle": [Function],
+  "getAllByAltText": [Function],
+  "getAllByDisplayValue": [Function],
+  "getAllByLabelText": [Function],
+  "getAllByPlaceholderText": [Function],
+  "getAllByRole": [Function],
+  "getAllByTestId": [Function],
+  "getAllByText": [Function],
+  "getAllByTitle": [Function],
+  "getByAltText": [Function],
+  "getByDisplayValue": [Function],
+  "getByLabelText": [Function],
+  "getByPlaceholderText": [Function],
+  "getByRole": [Function],
+  "getByTestId": [Function],
+  "getByText": [Function],
+  "getByTitle": [Function],
+  "queryAllByAltText": [Function],
+  "queryAllByDisplayValue": [Function],
+  "queryAllByLabelText": [Function],
+  "queryAllByPlaceholderText": [Function],
+  "queryAllByRole": [Function],
+  "queryAllByTestId": [Function],
+  "queryAllByText": [Function],
+  "queryAllByTitle": [Function],
+  "queryByAltText": [Function],
+  "queryByDisplayValue": [Function],
+  "queryByLabelText": [Function],
+  "queryByPlaceholderText": [Function],
+  "queryByRole": [Function],
+  "queryByTestId": [Function],
+  "queryByText": [Function],
+  "queryByTitle": [Function],
+  "rerender": [Function],
+  "unmount": [Function],
+}
+`;
+
+exports[`Search component default renders with default props 1`] = `
+{
+  "asFragment": [Function],
+  "baseElement": <body>
+    <div>
+      <div
+        class="styles__SearchWrapper-sc-1d8vwui-0 iiBLDe"
+      >
+        <div
+          class="styles__BeforeInput-sc-1d8vwui-3 enIlOB"
+        >
+          <div
+            class="styles__IconWrapper-sc-1d8vwui-5 fiJbmb search-icon icon"
+          >
+            <svg
+              class="fk-icon"
+              color="#666666"
+              height="20px"
+              style="fill: currentColor; stroke: currentColor;"
+              viewBox="0 -960 960 960"
+              width="20px"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <title>
+                Search
+              </title>
+              <path
+                d="M378-329q-108.162 0-183.081-75Q120-479 120-585t75-181q75-75 181.5-75t181 75Q632-691 632-584.85 632-542 618-502q-14 40-42 75l242 240q9 8.556 9 21.778T818-143q-9 9-22.222 9-13.222 0-21.778-9L533-384q-30 26-69.959 40.5T378-329Zm-1-60q81.25 0 138.125-57.5T572-585q0-81-56.875-138.5T377-781q-82.083 0-139.542 57.5Q180-666 180-585t57.458 138.5Q294.917-389 377-389Z"
+              />
+            </svg>
+          </div>
+        </div>
+        <input
+          aria-label="Search"
+          aria-placeholder="Search..."
+          class="styles__SearchInputField-sc-1d8vwui-2 jaBXMm"
+          id="search1"
+          placeholder="Search..."
+          type="text"
+          value=""
+        />
+        <div
+          class="styles__AfterInput-sc-1d8vwui-4 iZTNKk"
+        >
+          <div
+            class="styles__IconWrapper-sc-1d8vwui-5 fiJbmb search-icon trigger disabled"
+          >
+            <svg
+              class="fk-icon"
+              color="#666666"
+              height="20px"
+              style="fill: currentColor; stroke: currentColor;"
+              viewBox="0 -960 960 960"
+              width="20px"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <title>
+                Search
+              </title>
+              <path
+                d="M378-329q-108.162 0-183.081-75Q120-479 120-585t75-181q75-75 181.5-75t181 75Q632-691 632-584.85 632-542 618-502q-14 40-42 75l242 240q9 8.556 9 21.778T818-143q-9 9-22.222 9-13.222 0-21.778-9L533-384q-30 26-69.959 40.5T378-329Zm-1-60q81.25 0 138.125-57.5T572-585q0-81-56.875-138.5T377-781q-82.083 0-139.542 57.5Q180-666 180-585t57.458 138.5Q294.917-389 377-389Z"
+              />
+            </svg>
+          </div>
+        </div>
+      </div>
+    </div>
+  </body>,
+  "container": <div>
+    <div
+      class="styles__SearchWrapper-sc-1d8vwui-0 iiBLDe"
+    >
+      <div
+        class="styles__BeforeInput-sc-1d8vwui-3 enIlOB"
+      >
+        <div
+          class="styles__IconWrapper-sc-1d8vwui-5 fiJbmb search-icon icon"
+        >
+          <svg
+            class="fk-icon"
+            color="#666666"
+            height="20px"
+            style="fill: currentColor; stroke: currentColor;"
+            viewBox="0 -960 960 960"
+            width="20px"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <title>
+              Search
+            </title>
+            <path
+              d="M378-329q-108.162 0-183.081-75Q120-479 120-585t75-181q75-75 181.5-75t181 75Q632-691 632-584.85 632-542 618-502q-14 40-42 75l242 240q9 8.556 9 21.778T818-143q-9 9-22.222 9-13.222 0-21.778-9L533-384q-30 26-69.959 40.5T378-329Zm-1-60q81.25 0 138.125-57.5T572-585q0-81-56.875-138.5T377-781q-82.083 0-139.542 57.5Q180-666 180-585t57.458 138.5Q294.917-389 377-389Z"
+            />
+          </svg>
+        </div>
+      </div>
+      <input
+        aria-label="Search"
+        aria-placeholder="Search..."
+        class="styles__SearchInputField-sc-1d8vwui-2 jaBXMm"
+        id="search1"
+        placeholder="Search..."
+        type="text"
+        value=""
+      />
+      <div
+        class="styles__AfterInput-sc-1d8vwui-4 iZTNKk"
+      >
+        <div
+          class="styles__IconWrapper-sc-1d8vwui-5 fiJbmb search-icon trigger disabled"
+        >
+          <svg
+            class="fk-icon"
+            color="#666666"
+            height="20px"
+            style="fill: currentColor; stroke: currentColor;"
+            viewBox="0 -960 960 960"
+            width="20px"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <title>
+              Search
+            </title>
+            <path
+              d="M378-329q-108.162 0-183.081-75Q120-479 120-585t75-181q75-75 181.5-75t181 75Q632-691 632-584.85 632-542 618-502q-14 40-42 75l242 240q9 8.556 9 21.778T818-143q-9 9-22.222 9-13.222 0-21.778-9L533-384q-30 26-69.959 40.5T378-329Zm-1-60q81.25 0 138.125-57.5T572-585q0-81-56.875-138.5T377-781q-82.083 0-139.542 57.5Q180-666 180-585t57.458 138.5Q294.917-389 377-389Z"
+            />
+          </svg>
+        </div>
+      </div>
+    </div>
+  </div>,
+  "debug": [Function],
+  "findAllByAltText": [Function],
+  "findAllByDisplayValue": [Function],
+  "findAllByLabelText": [Function],
+  "findAllByPlaceholderText": [Function],
+  "findAllByRole": [Function],
+  "findAllByTestId": [Function],
+  "findAllByText": [Function],
+  "findAllByTitle": [Function],
+  "findByAltText": [Function],
+  "findByDisplayValue": [Function],
+  "findByLabelText": [Function],
+  "findByPlaceholderText": [Function],
+  "findByRole": [Function],
+  "findByTestId": [Function],
+  "findByText": [Function],
+  "findByTitle": [Function],
+  "getAllByAltText": [Function],
+  "getAllByDisplayValue": [Function],
+  "getAllByLabelText": [Function],
+  "getAllByPlaceholderText": [Function],
+  "getAllByRole": [Function],
+  "getAllByTestId": [Function],
+  "getAllByText": [Function],
+  "getAllByTitle": [Function],
+  "getByAltText": [Function],
+  "getByDisplayValue": [Function],
+  "getByLabelText": [Function],
+  "getByPlaceholderText": [Function],
+  "getByRole": [Function],
+  "getByTestId": [Function],
+  "getByText": [Function],
+  "getByTitle": [Function],
+  "queryAllByAltText": [Function],
+  "queryAllByDisplayValue": [Function],
+  "queryAllByLabelText": [Function],
+  "queryAllByPlaceholderText": [Function],
+  "queryAllByRole": [Function],
+  "queryAllByTestId": [Function],
+  "queryAllByText": [Function],
+  "queryAllByTitle": [Function],
+  "queryByAltText": [Function],
+  "queryByDisplayValue": [Function],
+  "queryByLabelText": [Function],
+  "queryByPlaceholderText": [Function],
+  "queryByRole": [Function],
+  "queryByTestId": [Function],
+  "queryByText": [Function],
+  "queryByTitle": [Function],
+  "rerender": [Function],
+  "unmount": [Function],
+}
+`;

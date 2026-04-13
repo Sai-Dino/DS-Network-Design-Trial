@@ -1,0 +1,1032 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`Segmented Control component renders with default props 1`] = `
+{
+  "asFragment": [Function],
+  "baseElement": <body>
+    <div>
+      <fieldset
+        aria-orientation="horizontal"
+        class="styles__SegmentedControlWrapper-sc-b0rj5j-0 YJOnf"
+        data-testid="test-id"
+        id="test"
+      >
+        <legend
+          class="styles__StyledLegend-sc-b0rj5j-1 kSnzbj"
+        >
+          Please select the applicable option
+        </legend>
+        <label
+          aria-disabled="false"
+          class="styles__SegmentedControlOptionWrapper-sc-b0rj5j-2 bXmLAU"
+        >
+          Option 1
+          <input
+            class="styles__OptionsInput-sc-b0rj5j-3 csQYzb"
+            id="Option 1"
+            name="Option 1"
+            type="radio"
+            value="Option 1"
+          />
+          <div
+            aria-disabled="false"
+            aria-label="10"
+            aria-labelledby="10"
+            class="styles__StyledBadge-sc-1x6v4lh-0 hxupkE"
+            tabindex="0"
+            title="10"
+            type="subtle"
+          >
+            10
+          </div>
+        </label>
+        <label
+          aria-disabled="false"
+          class="styles__SegmentedControlOptionWrapper-sc-b0rj5j-2 bXmLAU"
+        >
+          Option 2
+          <input
+            class="styles__OptionsInput-sc-b0rj5j-3 csQYzb"
+            id="Option 2"
+            name="Option 2"
+            type="radio"
+            value="Option 2"
+          />
+          <div
+            aria-disabled="false"
+            aria-label="12"
+            aria-labelledby="12"
+            class="styles__StyledBadge-sc-1x6v4lh-0 hxupkE"
+            tabindex="0"
+            title="12"
+            type="subtle"
+          >
+            12
+          </div>
+        </label>
+      </fieldset>
+    </div>
+  </body>,
+  "container": <div>
+    <fieldset
+      aria-orientation="horizontal"
+      class="styles__SegmentedControlWrapper-sc-b0rj5j-0 YJOnf"
+      data-testid="test-id"
+      id="test"
+    >
+      <legend
+        class="styles__StyledLegend-sc-b0rj5j-1 kSnzbj"
+      >
+        Please select the applicable option
+      </legend>
+      <label
+        aria-disabled="false"
+        class="styles__SegmentedControlOptionWrapper-sc-b0rj5j-2 bXmLAU"
+      >
+        Option 1
+        <input
+          class="styles__OptionsInput-sc-b0rj5j-3 csQYzb"
+          id="Option 1"
+          name="Option 1"
+          type="radio"
+          value="Option 1"
+        />
+        <div
+          aria-disabled="false"
+          aria-label="10"
+          aria-labelledby="10"
+          class="styles__StyledBadge-sc-1x6v4lh-0 hxupkE"
+          tabindex="0"
+          title="10"
+          type="subtle"
+        >
+          10
+        </div>
+      </label>
+      <label
+        aria-disabled="false"
+        class="styles__SegmentedControlOptionWrapper-sc-b0rj5j-2 bXmLAU"
+      >
+        Option 2
+        <input
+          class="styles__OptionsInput-sc-b0rj5j-3 csQYzb"
+          id="Option 2"
+          name="Option 2"
+          type="radio"
+          value="Option 2"
+        />
+        <div
+          aria-disabled="false"
+          aria-label="12"
+          aria-labelledby="12"
+          class="styles__StyledBadge-sc-1x6v4lh-0 hxupkE"
+          tabindex="0"
+          title="12"
+          type="subtle"
+        >
+          12
+        </div>
+      </label>
+    </fieldset>
+  </div>,
+  "debug": [Function],
+  "findAllByAltText": [Function],
+  "findAllByDisplayValue": [Function],
+  "findAllByLabelText": [Function],
+  "findAllByPlaceholderText": [Function],
+  "findAllByRole": [Function],
+  "findAllByTestId": [Function],
+  "findAllByText": [Function],
+  "findAllByTitle": [Function],
+  "findByAltText": [Function],
+  "findByDisplayValue": [Function],
+  "findByLabelText": [Function],
+  "findByPlaceholderText": [Function],
+  "findByRole": [Function],
+  "findByTestId": [Function],
+  "findByText": [Function],
+  "findByTitle": [Function],
+  "getAllByAltText": [Function],
+  "getAllByDisplayValue": [Function],
+  "getAllByLabelText": [Function],
+  "getAllByPlaceholderText": [Function],
+  "getAllByRole": [Function],
+  "getAllByTestId": [Function],
+  "getAllByText": [Function],
+  "getAllByTitle": [Function],
+  "getByAltText": [Function],
+  "getByDisplayValue": [Function],
+  "getByLabelText": [Function],
+  "getByPlaceholderText": [Function],
+  "getByRole": [Function],
+  "getByTestId": [Function],
+  "getByText": [Function],
+  "getByTitle": [Function],
+  "queryAllByAltText": [Function],
+  "queryAllByDisplayValue": [Function],
+  "queryAllByLabelText": [Function],
+  "queryAllByPlaceholderText": [Function],
+  "queryAllByRole": [Function],
+  "queryAllByTestId": [Function],
+  "queryAllByText": [Function],
+  "queryAllByTitle": [Function],
+  "queryByAltText": [Function],
+  "queryByDisplayValue": [Function],
+  "queryByLabelText": [Function],
+  "queryByPlaceholderText": [Function],
+  "queryByRole": [Function],
+  "queryByTestId": [Function],
+  "queryByText": [Function],
+  "queryByTitle": [Function],
+  "rerender": [Function],
+  "unmount": [Function],
+}
+`;
+
+exports[`Segmented Control component renders with default selected option 1`] = `
+{
+  "asFragment": [Function],
+  "baseElement": <body>
+    <div>
+      <fieldset
+        aria-orientation="horizontal"
+        class="styles__SegmentedControlWrapper-sc-b0rj5j-0 YJOnf"
+        data-testid="test-id"
+        id="test"
+      >
+        <legend
+          class="styles__StyledLegend-sc-b0rj5j-1 kSnzbj"
+        >
+          Please select the applicable option
+        </legend>
+        <label
+          aria-disabled="false"
+          class="styles__SegmentedControlOptionWrapper-sc-b0rj5j-2 bXmLAU"
+        >
+          Option 1
+          <input
+            class="styles__OptionsInput-sc-b0rj5j-3 csQYzb"
+            id="Option 1"
+            name="Option 1"
+            type="radio"
+            value="Option 1"
+          />
+          <div
+            aria-disabled="false"
+            aria-label="10"
+            aria-labelledby="10"
+            class="styles__StyledBadge-sc-1x6v4lh-0 hxupkE"
+            tabindex="0"
+            title="10"
+            type="subtle"
+          >
+            10
+          </div>
+        </label>
+        <label
+          aria-disabled="false"
+          class="styles__SegmentedControlOptionWrapper-sc-b0rj5j-2 mZea-D"
+        >
+          Option 2
+          <input
+            checked=""
+            class="styles__OptionsInput-sc-b0rj5j-3 csQYzb"
+            id="Option 2"
+            name="Option 2"
+            type="radio"
+            value="Option 2"
+          />
+          <div
+            aria-disabled="false"
+            aria-label="12"
+            aria-labelledby="12"
+            class="styles__StyledBadge-sc-1x6v4lh-0 hxupkE"
+            tabindex="0"
+            title="12"
+            type="subtle"
+          >
+            12
+          </div>
+        </label>
+      </fieldset>
+    </div>
+  </body>,
+  "container": <div>
+    <fieldset
+      aria-orientation="horizontal"
+      class="styles__SegmentedControlWrapper-sc-b0rj5j-0 YJOnf"
+      data-testid="test-id"
+      id="test"
+    >
+      <legend
+        class="styles__StyledLegend-sc-b0rj5j-1 kSnzbj"
+      >
+        Please select the applicable option
+      </legend>
+      <label
+        aria-disabled="false"
+        class="styles__SegmentedControlOptionWrapper-sc-b0rj5j-2 bXmLAU"
+      >
+        Option 1
+        <input
+          class="styles__OptionsInput-sc-b0rj5j-3 csQYzb"
+          id="Option 1"
+          name="Option 1"
+          type="radio"
+          value="Option 1"
+        />
+        <div
+          aria-disabled="false"
+          aria-label="10"
+          aria-labelledby="10"
+          class="styles__StyledBadge-sc-1x6v4lh-0 hxupkE"
+          tabindex="0"
+          title="10"
+          type="subtle"
+        >
+          10
+        </div>
+      </label>
+      <label
+        aria-disabled="false"
+        class="styles__SegmentedControlOptionWrapper-sc-b0rj5j-2 mZea-D"
+      >
+        Option 2
+        <input
+          checked=""
+          class="styles__OptionsInput-sc-b0rj5j-3 csQYzb"
+          id="Option 2"
+          name="Option 2"
+          type="radio"
+          value="Option 2"
+        />
+        <div
+          aria-disabled="false"
+          aria-label="12"
+          aria-labelledby="12"
+          class="styles__StyledBadge-sc-1x6v4lh-0 hxupkE"
+          tabindex="0"
+          title="12"
+          type="subtle"
+        >
+          12
+        </div>
+      </label>
+    </fieldset>
+  </div>,
+  "debug": [Function],
+  "findAllByAltText": [Function],
+  "findAllByDisplayValue": [Function],
+  "findAllByLabelText": [Function],
+  "findAllByPlaceholderText": [Function],
+  "findAllByRole": [Function],
+  "findAllByTestId": [Function],
+  "findAllByText": [Function],
+  "findAllByTitle": [Function],
+  "findByAltText": [Function],
+  "findByDisplayValue": [Function],
+  "findByLabelText": [Function],
+  "findByPlaceholderText": [Function],
+  "findByRole": [Function],
+  "findByTestId": [Function],
+  "findByText": [Function],
+  "findByTitle": [Function],
+  "getAllByAltText": [Function],
+  "getAllByDisplayValue": [Function],
+  "getAllByLabelText": [Function],
+  "getAllByPlaceholderText": [Function],
+  "getAllByRole": [Function],
+  "getAllByTestId": [Function],
+  "getAllByText": [Function],
+  "getAllByTitle": [Function],
+  "getByAltText": [Function],
+  "getByDisplayValue": [Function],
+  "getByLabelText": [Function],
+  "getByPlaceholderText": [Function],
+  "getByRole": [Function],
+  "getByTestId": [Function],
+  "getByText": [Function],
+  "getByTitle": [Function],
+  "queryAllByAltText": [Function],
+  "queryAllByDisplayValue": [Function],
+  "queryAllByLabelText": [Function],
+  "queryAllByPlaceholderText": [Function],
+  "queryAllByRole": [Function],
+  "queryAllByTestId": [Function],
+  "queryAllByText": [Function],
+  "queryAllByTitle": [Function],
+  "queryByAltText": [Function],
+  "queryByDisplayValue": [Function],
+  "queryByLabelText": [Function],
+  "queryByPlaceholderText": [Function],
+  "queryByRole": [Function],
+  "queryByTestId": [Function],
+  "queryByText": [Function],
+  "queryByTitle": [Function],
+  "rerender": [Function],
+  "unmount": [Function],
+}
+`;
+
+exports[`Segmented Control component renders with default selected option and a disabled option 1`] = `
+{
+  "asFragment": [Function],
+  "baseElement": <body>
+    <div>
+      <fieldset
+        aria-orientation="horizontal"
+        class="styles__SegmentedControlWrapper-sc-b0rj5j-0 YJOnf"
+        data-testid="test-id"
+        id="test"
+      >
+        <legend
+          class="styles__StyledLegend-sc-b0rj5j-1 kSnzbj"
+        >
+          Please select the applicable option
+        </legend>
+        <label
+          aria-disabled="false"
+          class="styles__SegmentedControlOptionWrapper-sc-b0rj5j-2 bXmLAU"
+        >
+          Option 1
+          <input
+            class="styles__OptionsInput-sc-b0rj5j-3 csQYzb"
+            id="Option 1"
+            name="Option 1"
+            type="radio"
+            value="Option 1"
+          />
+          <div
+            aria-disabled="false"
+            aria-label="10"
+            aria-labelledby="10"
+            class="styles__StyledBadge-sc-1x6v4lh-0 hxupkE"
+            tabindex="0"
+            title="10"
+            type="subtle"
+          >
+            10
+          </div>
+        </label>
+        <label
+          aria-disabled="false"
+          class="styles__SegmentedControlOptionWrapper-sc-b0rj5j-2 mZea-D"
+        >
+          Option 2
+          <input
+            checked=""
+            class="styles__OptionsInput-sc-b0rj5j-3 csQYzb"
+            id="Option 2"
+            name="Option 2"
+            type="radio"
+            value="Option 2"
+          />
+          <div
+            aria-disabled="false"
+            aria-label="12"
+            aria-labelledby="12"
+            class="styles__StyledBadge-sc-1x6v4lh-0 hxupkE"
+            tabindex="0"
+            title="12"
+            type="subtle"
+          >
+            12
+          </div>
+        </label>
+        <label
+          aria-disabled="true"
+          class="styles__SegmentedControlOptionWrapper-sc-b0rj5j-2 hfgePj"
+          disabled=""
+        >
+          Option 2
+          <input
+            class="styles__OptionsInput-sc-b0rj5j-3 csQYzb"
+            id="Option 2"
+            name="Option 3"
+            type="radio"
+            value="Option 2"
+          />
+          <div
+            aria-disabled="true"
+            aria-label="12"
+            aria-labelledby="12"
+            class="styles__StyledBadge-sc-1x6v4lh-0 WBYlX"
+            disabled=""
+            tabindex="0"
+            title="12"
+            type="subtle"
+          >
+            12
+          </div>
+        </label>
+        <label
+          aria-disabled="false"
+          class="styles__SegmentedControlOptionWrapper-sc-b0rj5j-2 bXmLAU"
+        >
+          Option 2
+          <input
+            class="styles__OptionsInput-sc-b0rj5j-3 csQYzb"
+            id="Option 2"
+            name="Option 4"
+            type="radio"
+            value="Option 2"
+          />
+          <div
+            aria-disabled="false"
+            aria-label="12"
+            aria-labelledby="12"
+            class="styles__StyledBadge-sc-1x6v4lh-0 hxupkE"
+            tabindex="0"
+            title="12"
+            type="subtle"
+          >
+            12
+          </div>
+        </label>
+      </fieldset>
+    </div>
+  </body>,
+  "container": <div>
+    <fieldset
+      aria-orientation="horizontal"
+      class="styles__SegmentedControlWrapper-sc-b0rj5j-0 YJOnf"
+      data-testid="test-id"
+      id="test"
+    >
+      <legend
+        class="styles__StyledLegend-sc-b0rj5j-1 kSnzbj"
+      >
+        Please select the applicable option
+      </legend>
+      <label
+        aria-disabled="false"
+        class="styles__SegmentedControlOptionWrapper-sc-b0rj5j-2 bXmLAU"
+      >
+        Option 1
+        <input
+          class="styles__OptionsInput-sc-b0rj5j-3 csQYzb"
+          id="Option 1"
+          name="Option 1"
+          type="radio"
+          value="Option 1"
+        />
+        <div
+          aria-disabled="false"
+          aria-label="10"
+          aria-labelledby="10"
+          class="styles__StyledBadge-sc-1x6v4lh-0 hxupkE"
+          tabindex="0"
+          title="10"
+          type="subtle"
+        >
+          10
+        </div>
+      </label>
+      <label
+        aria-disabled="false"
+        class="styles__SegmentedControlOptionWrapper-sc-b0rj5j-2 mZea-D"
+      >
+        Option 2
+        <input
+          checked=""
+          class="styles__OptionsInput-sc-b0rj5j-3 csQYzb"
+          id="Option 2"
+          name="Option 2"
+          type="radio"
+          value="Option 2"
+        />
+        <div
+          aria-disabled="false"
+          aria-label="12"
+          aria-labelledby="12"
+          class="styles__StyledBadge-sc-1x6v4lh-0 hxupkE"
+          tabindex="0"
+          title="12"
+          type="subtle"
+        >
+          12
+        </div>
+      </label>
+      <label
+        aria-disabled="true"
+        class="styles__SegmentedControlOptionWrapper-sc-b0rj5j-2 hfgePj"
+        disabled=""
+      >
+        Option 2
+        <input
+          class="styles__OptionsInput-sc-b0rj5j-3 csQYzb"
+          id="Option 2"
+          name="Option 3"
+          type="radio"
+          value="Option 2"
+        />
+        <div
+          aria-disabled="true"
+          aria-label="12"
+          aria-labelledby="12"
+          class="styles__StyledBadge-sc-1x6v4lh-0 WBYlX"
+          disabled=""
+          tabindex="0"
+          title="12"
+          type="subtle"
+        >
+          12
+        </div>
+      </label>
+      <label
+        aria-disabled="false"
+        class="styles__SegmentedControlOptionWrapper-sc-b0rj5j-2 bXmLAU"
+      >
+        Option 2
+        <input
+          class="styles__OptionsInput-sc-b0rj5j-3 csQYzb"
+          id="Option 2"
+          name="Option 4"
+          type="radio"
+          value="Option 2"
+        />
+        <div
+          aria-disabled="false"
+          aria-label="12"
+          aria-labelledby="12"
+          class="styles__StyledBadge-sc-1x6v4lh-0 hxupkE"
+          tabindex="0"
+          title="12"
+          type="subtle"
+        >
+          12
+        </div>
+      </label>
+    </fieldset>
+  </div>,
+  "debug": [Function],
+  "findAllByAltText": [Function],
+  "findAllByDisplayValue": [Function],
+  "findAllByLabelText": [Function],
+  "findAllByPlaceholderText": [Function],
+  "findAllByRole": [Function],
+  "findAllByTestId": [Function],
+  "findAllByText": [Function],
+  "findAllByTitle": [Function],
+  "findByAltText": [Function],
+  "findByDisplayValue": [Function],
+  "findByLabelText": [Function],
+  "findByPlaceholderText": [Function],
+  "findByRole": [Function],
+  "findByTestId": [Function],
+  "findByText": [Function],
+  "findByTitle": [Function],
+  "getAllByAltText": [Function],
+  "getAllByDisplayValue": [Function],
+  "getAllByLabelText": [Function],
+  "getAllByPlaceholderText": [Function],
+  "getAllByRole": [Function],
+  "getAllByTestId": [Function],
+  "getAllByText": [Function],
+  "getAllByTitle": [Function],
+  "getByAltText": [Function],
+  "getByDisplayValue": [Function],
+  "getByLabelText": [Function],
+  "getByPlaceholderText": [Function],
+  "getByRole": [Function],
+  "getByTestId": [Function],
+  "getByText": [Function],
+  "getByTitle": [Function],
+  "queryAllByAltText": [Function],
+  "queryAllByDisplayValue": [Function],
+  "queryAllByLabelText": [Function],
+  "queryAllByPlaceholderText": [Function],
+  "queryAllByRole": [Function],
+  "queryAllByTestId": [Function],
+  "queryAllByText": [Function],
+  "queryAllByTitle": [Function],
+  "queryByAltText": [Function],
+  "queryByDisplayValue": [Function],
+  "queryByLabelText": [Function],
+  "queryByPlaceholderText": [Function],
+  "queryByRole": [Function],
+  "queryByTestId": [Function],
+  "queryByText": [Function],
+  "queryByTitle": [Function],
+  "rerender": [Function],
+  "unmount": [Function],
+}
+`;
+
+exports[`Segmented Control component renders with disabled option 1`] = `
+{
+  "asFragment": [Function],
+  "baseElement": <body>
+    <div>
+      <fieldset
+        aria-orientation="horizontal"
+        class="styles__SegmentedControlWrapper-sc-b0rj5j-0 YJOnf"
+        data-testid="test-id"
+        id="test"
+      >
+        <legend
+          class="styles__StyledLegend-sc-b0rj5j-1 kSnzbj"
+        >
+          Please select the applicable option
+        </legend>
+        <label
+          aria-disabled="false"
+          class="styles__SegmentedControlOptionWrapper-sc-b0rj5j-2 bXmLAU"
+        >
+          Option 1
+          <input
+            class="styles__OptionsInput-sc-b0rj5j-3 csQYzb"
+            id="Option 1"
+            name="Option 1"
+            type="radio"
+            value="Option 1"
+          />
+          <div
+            aria-disabled="false"
+            aria-label="10"
+            aria-labelledby="10"
+            class="styles__StyledBadge-sc-1x6v4lh-0 hxupkE"
+            tabindex="0"
+            title="10"
+            type="subtle"
+          >
+            10
+          </div>
+        </label>
+        <label
+          aria-disabled="true"
+          class="styles__SegmentedControlOptionWrapper-sc-b0rj5j-2 hfgePj"
+          disabled=""
+        >
+          Option 2
+          <input
+            class="styles__OptionsInput-sc-b0rj5j-3 csQYzb"
+            id="Option 2"
+            name="Option 2"
+            type="radio"
+            value="Option 2"
+          />
+          <div
+            aria-disabled="true"
+            aria-label="12"
+            aria-labelledby="12"
+            class="styles__StyledBadge-sc-1x6v4lh-0 WBYlX"
+            disabled=""
+            tabindex="0"
+            title="12"
+            type="subtle"
+          >
+            12
+          </div>
+        </label>
+      </fieldset>
+    </div>
+  </body>,
+  "container": <div>
+    <fieldset
+      aria-orientation="horizontal"
+      class="styles__SegmentedControlWrapper-sc-b0rj5j-0 YJOnf"
+      data-testid="test-id"
+      id="test"
+    >
+      <legend
+        class="styles__StyledLegend-sc-b0rj5j-1 kSnzbj"
+      >
+        Please select the applicable option
+      </legend>
+      <label
+        aria-disabled="false"
+        class="styles__SegmentedControlOptionWrapper-sc-b0rj5j-2 bXmLAU"
+      >
+        Option 1
+        <input
+          class="styles__OptionsInput-sc-b0rj5j-3 csQYzb"
+          id="Option 1"
+          name="Option 1"
+          type="radio"
+          value="Option 1"
+        />
+        <div
+          aria-disabled="false"
+          aria-label="10"
+          aria-labelledby="10"
+          class="styles__StyledBadge-sc-1x6v4lh-0 hxupkE"
+          tabindex="0"
+          title="10"
+          type="subtle"
+        >
+          10
+        </div>
+      </label>
+      <label
+        aria-disabled="true"
+        class="styles__SegmentedControlOptionWrapper-sc-b0rj5j-2 hfgePj"
+        disabled=""
+      >
+        Option 2
+        <input
+          class="styles__OptionsInput-sc-b0rj5j-3 csQYzb"
+          id="Option 2"
+          name="Option 2"
+          type="radio"
+          value="Option 2"
+        />
+        <div
+          aria-disabled="true"
+          aria-label="12"
+          aria-labelledby="12"
+          class="styles__StyledBadge-sc-1x6v4lh-0 WBYlX"
+          disabled=""
+          tabindex="0"
+          title="12"
+          type="subtle"
+        >
+          12
+        </div>
+      </label>
+    </fieldset>
+  </div>,
+  "debug": [Function],
+  "findAllByAltText": [Function],
+  "findAllByDisplayValue": [Function],
+  "findAllByLabelText": [Function],
+  "findAllByPlaceholderText": [Function],
+  "findAllByRole": [Function],
+  "findAllByTestId": [Function],
+  "findAllByText": [Function],
+  "findAllByTitle": [Function],
+  "findByAltText": [Function],
+  "findByDisplayValue": [Function],
+  "findByLabelText": [Function],
+  "findByPlaceholderText": [Function],
+  "findByRole": [Function],
+  "findByTestId": [Function],
+  "findByText": [Function],
+  "findByTitle": [Function],
+  "getAllByAltText": [Function],
+  "getAllByDisplayValue": [Function],
+  "getAllByLabelText": [Function],
+  "getAllByPlaceholderText": [Function],
+  "getAllByRole": [Function],
+  "getAllByTestId": [Function],
+  "getAllByText": [Function],
+  "getAllByTitle": [Function],
+  "getByAltText": [Function],
+  "getByDisplayValue": [Function],
+  "getByLabelText": [Function],
+  "getByPlaceholderText": [Function],
+  "getByRole": [Function],
+  "getByTestId": [Function],
+  "getByText": [Function],
+  "getByTitle": [Function],
+  "queryAllByAltText": [Function],
+  "queryAllByDisplayValue": [Function],
+  "queryAllByLabelText": [Function],
+  "queryAllByPlaceholderText": [Function],
+  "queryAllByRole": [Function],
+  "queryAllByTestId": [Function],
+  "queryAllByText": [Function],
+  "queryAllByTitle": [Function],
+  "queryByAltText": [Function],
+  "queryByDisplayValue": [Function],
+  "queryByLabelText": [Function],
+  "queryByPlaceholderText": [Function],
+  "queryByRole": [Function],
+  "queryByTestId": [Function],
+  "queryByText": [Function],
+  "queryByTitle": [Function],
+  "rerender": [Function],
+  "unmount": [Function],
+}
+`;
+
+exports[`Segmented Control component renders with no badge count 1`] = `
+{
+  "asFragment": [Function],
+  "baseElement": <body>
+    <div>
+      <fieldset
+        aria-orientation="horizontal"
+        class="styles__SegmentedControlWrapper-sc-b0rj5j-0 YJOnf"
+        data-testid="test-id"
+        id="test"
+      >
+        <legend
+          class="styles__StyledLegend-sc-b0rj5j-1 kSnzbj"
+        >
+          Please select the applicable option
+        </legend>
+        <label
+          aria-disabled="false"
+          class="styles__SegmentedControlOptionWrapper-sc-b0rj5j-2 bXmLAU"
+        >
+          Option 1
+          <input
+            class="styles__OptionsInput-sc-b0rj5j-3 csQYzb"
+            id="Option 1"
+            name="Option 1"
+            type="radio"
+            value="Option 1"
+          />
+        </label>
+        <label
+          aria-disabled="false"
+          class="styles__SegmentedControlOptionWrapper-sc-b0rj5j-2 bXmLAU"
+        >
+          Option 2
+          <input
+            class="styles__OptionsInput-sc-b0rj5j-3 csQYzb"
+            id="Option 2"
+            name="Option 2"
+            type="radio"
+            value="Option 2"
+          />
+        </label>
+        <label
+          aria-disabled="false"
+          class="styles__SegmentedControlOptionWrapper-sc-b0rj5j-2 bXmLAU"
+        >
+          Option 2
+          <input
+            class="styles__OptionsInput-sc-b0rj5j-3 csQYzb"
+            id="Option 2"
+            name="Option 3"
+            type="radio"
+            value="Option 2"
+          />
+        </label>
+        <label
+          aria-disabled="false"
+          class="styles__SegmentedControlOptionWrapper-sc-b0rj5j-2 bXmLAU"
+        >
+          Option 2
+          <input
+            class="styles__OptionsInput-sc-b0rj5j-3 csQYzb"
+            id="Option 2"
+            name="Option 4"
+            type="radio"
+            value="Option 2"
+          />
+        </label>
+      </fieldset>
+    </div>
+  </body>,
+  "container": <div>
+    <fieldset
+      aria-orientation="horizontal"
+      class="styles__SegmentedControlWrapper-sc-b0rj5j-0 YJOnf"
+      data-testid="test-id"
+      id="test"
+    >
+      <legend
+        class="styles__StyledLegend-sc-b0rj5j-1 kSnzbj"
+      >
+        Please select the applicable option
+      </legend>
+      <label
+        aria-disabled="false"
+        class="styles__SegmentedControlOptionWrapper-sc-b0rj5j-2 bXmLAU"
+      >
+        Option 1
+        <input
+          class="styles__OptionsInput-sc-b0rj5j-3 csQYzb"
+          id="Option 1"
+          name="Option 1"
+          type="radio"
+          value="Option 1"
+        />
+      </label>
+      <label
+        aria-disabled="false"
+        class="styles__SegmentedControlOptionWrapper-sc-b0rj5j-2 bXmLAU"
+      >
+        Option 2
+        <input
+          class="styles__OptionsInput-sc-b0rj5j-3 csQYzb"
+          id="Option 2"
+          name="Option 2"
+          type="radio"
+          value="Option 2"
+        />
+      </label>
+      <label
+        aria-disabled="false"
+        class="styles__SegmentedControlOptionWrapper-sc-b0rj5j-2 bXmLAU"
+      >
+        Option 2
+        <input
+          class="styles__OptionsInput-sc-b0rj5j-3 csQYzb"
+          id="Option 2"
+          name="Option 3"
+          type="radio"
+          value="Option 2"
+        />
+      </label>
+      <label
+        aria-disabled="false"
+        class="styles__SegmentedControlOptionWrapper-sc-b0rj5j-2 bXmLAU"
+      >
+        Option 2
+        <input
+          class="styles__OptionsInput-sc-b0rj5j-3 csQYzb"
+          id="Option 2"
+          name="Option 4"
+          type="radio"
+          value="Option 2"
+        />
+      </label>
+    </fieldset>
+  </div>,
+  "debug": [Function],
+  "findAllByAltText": [Function],
+  "findAllByDisplayValue": [Function],
+  "findAllByLabelText": [Function],
+  "findAllByPlaceholderText": [Function],
+  "findAllByRole": [Function],
+  "findAllByTestId": [Function],
+  "findAllByText": [Function],
+  "findAllByTitle": [Function],
+  "findByAltText": [Function],
+  "findByDisplayValue": [Function],
+  "findByLabelText": [Function],
+  "findByPlaceholderText": [Function],
+  "findByRole": [Function],
+  "findByTestId": [Function],
+  "findByText": [Function],
+  "findByTitle": [Function],
+  "getAllByAltText": [Function],
+  "getAllByDisplayValue": [Function],
+  "getAllByLabelText": [Function],
+  "getAllByPlaceholderText": [Function],
+  "getAllByRole": [Function],
+  "getAllByTestId": [Function],
+  "getAllByText": [Function],
+  "getAllByTitle": [Function],
+  "getByAltText": [Function],
+  "getByDisplayValue": [Function],
+  "getByLabelText": [Function],
+  "getByPlaceholderText": [Function],
+  "getByRole": [Function],
+  "getByTestId": [Function],
+  "getByText": [Function],
+  "getByTitle": [Function],
+  "queryAllByAltText": [Function],
+  "queryAllByDisplayValue": [Function],
+  "queryAllByLabelText": [Function],
+  "queryAllByPlaceholderText": [Function],
+  "queryAllByRole": [Function],
+  "queryAllByTestId": [Function],
+  "queryAllByText": [Function],
+  "queryAllByTitle": [Function],
+  "queryByAltText": [Function],
+  "queryByDisplayValue": [Function],
+  "queryByLabelText": [Function],
+  "queryByPlaceholderText": [Function],
+  "queryByRole": [Function],
+  "queryByTestId": [Function],
+  "queryByText": [Function],
+  "queryByTitle": [Function],
+  "rerender": [Function],
+  "unmount": [Function],
+}
+`;

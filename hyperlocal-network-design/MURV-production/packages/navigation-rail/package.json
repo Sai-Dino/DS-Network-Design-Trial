@@ -1,0 +1,46 @@
+{
+  "name": "@murv/navigation-rail",
+  "version": "1.11.0",
+  "main": "dist/murv-navigation-rail.cjs.js",
+  "module": "dist/murv-navigation-rail.esm.js",
+  "exports": {
+    ".": {
+      "import": "./dist/murv-navigation-rail.esm.js",
+      "require": "./dist/murv-navigation-rail.cjs.js",
+      "default": "./dist/murv-navigation-rail.cjs.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "author": "Godfrey Fernandes",
+  "license": "MIT",
+  "dependencies": {
+    "@murv/core": "^1.0.0",
+    "@murv/icons": "^0.0.68",
+    "@murv/menu": "^1.8.2",
+    "lodash.throttle": "^4.1.1"
+  },
+  "devDependencies": {
+    "@murv/visibility-toggle": "^1.1.0"
+  },
+  "peerDependencies": {
+    "react": "^17.0.0",
+    "styled-components": "^5.0.0"
+  },
+  "publishConfig": {
+    "registry": "https://jfrog.fkinternal.com/artifactory/api/npm/npm_virtual/"
+  },
+  "volta": {
+    "extends": "../../package.json"
+  },
+  "preconstruct": {
+    "exports": {
+      "extra": {
+        ".": {
+          "import": "./dist/murv-navigation-rail.esm.js",
+          "require": "./dist/murv-navigation-rail.cjs.js",
+          "default": "./dist/murv-navigation-rail.cjs.js"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,1967 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flipkart Hyperlocal Distance Analysis</title>
+
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: #f5f7fa;
+            color: #333;
+            line-height: 1.6;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #2874f0 0%, #1d4ed8 100%);
+            color: white;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .header h1 {
+            font-size: 28px;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 14px;
+            opacity: 0.95;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .osrm-config {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            border: 1px solid #e8eaed;
+        }
+
+        .config-section {
+            display: flex;
+            gap: 20px;
+            align-items: flex-end;
+            flex-wrap: wrap;
+        }
+
+        .config-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .config-group label {
+            font-size: 13px;
+            font-weight: 500;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .radio-group {
+            display: flex;
+            gap: 15px;
+        }
+
+        .radio-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+        }
+
+        .radio-item input[type="radio"] {
+            cursor: pointer;
+        }
+
+        .radio-item label {
+            margin: 0;
+            text-transform: none;
+            cursor: pointer;
+            font-weight: 400;
+            color: #333;
+        }
+
+        .url-input-group {
+            display: flex;
+            gap: 8px;
+        }
+
+        input[type="text"],
+        input[type="file"],
+        select {
+            padding: 10px 12px;
+            border: 1px solid #d0d7de;
+            border-radius: 4px;
+            font-size: 13px;
+            font-family: inherit;
+            transition: border-color 0.2s;
+        }
+
+        input[type="text"]:focus,
+        select:focus {
+            outline: none;
+            border-color: #2874f0;
+            box-shadow: 0 0 0 3px rgba(40, 116, 240, 0.1);
+        }
+
+        .url-input-group input[type="text"] {
+            flex: 1;
+            min-width: 200px;
+        }
+
+        button {
+            padding: 10px 16px;
+            background: #2874f0;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.2s;
+            white-space: nowrap;
+        }
+
+        button:hover {
+            background: #1d4ed8;
+        }
+
+        button:disabled {
+            background: #bbb;
+            cursor: not-allowed;
+        }
+
+        .button-secondary {
+            background: #f1f3f5;
+            color: #333;
+            border: 1px solid #d0d7de;
+        }
+
+        .button-secondary:hover {
+            background: #e8eaed;
+        }
+
+        .connection-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 12px;
+            background: #f5f7fa;
+            border-radius: 4px;
+            border: 1px solid #d0d7de;
+            font-size: 13px;
+        }
+
+        .status-indicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #999;
+            transition: background 0.3s;
+        }
+
+        .status-indicator.connected {
+            background: #22c55e;
+        }
+
+        .status-indicator.error {
+            background: #ef4444;
+        }
+
+        .info-box {
+            background: #eff6ff;
+            border: 1px solid #bfdbfe;
+            border-radius: 4px;
+            padding: 12px;
+            font-size: 13px;
+            margin-top: 12px;
+            color: #1e40af;
+        }
+
+        .info-box strong {
+            display: block;
+            margin-bottom: 4px;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 0;
+            background: white;
+            border-bottom: 2px solid #e8eaed;
+            margin-bottom: 20px;
+            border-radius: 8px 8px 0 0;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+
+        .tab-button {
+            padding: 14px 20px;
+            background: none;
+            border: none;
+            color: #666;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            margin-bottom: -2px;
+            transition: all 0.2s;
+        }
+
+        .tab-button:hover {
+            color: #2874f0;
+            background: #f5f7fa;
+        }
+
+        .tab-button.active {
+            color: #2874f0;
+            border-bottom-color: #2874f0;
+            background: none;
+        }
+
+        .tab-content {
+            display: none;
+            background: white;
+            border-radius: 0 0 8px 8px;
+            padding: 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* Setup Guide Styles */
+        .setup-guide { max-width: 900px; }
+        .setup-step {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 16px;
+            position: relative;
+        }
+        .setup-step h3 {
+            font-size: 16px;
+            margin-bottom: 10px;
+            color: #1e293b;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .step-number {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            background: #2874f0;
+            color: white;
+            font-size: 14px;
+            font-weight: 600;
+            flex-shrink: 0;
+        }
+        .setup-step p {
+            font-size: 14px;
+            color: #475569;
+            margin-bottom: 10px;
+            line-height: 1.6;
+        }
+        .code-block {
+            background: #1e293b;
+            color: #e2e8f0;
+            padding: 14px 16px;
+            border-radius: 6px;
+            font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+            font-size: 13px;
+            line-height: 1.7;
+            overflow-x: auto;
+            position: relative;
+            margin: 8px 0;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+        .code-block .comment { color: #64748b; }
+        .copy-btn {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            background: #334155;
+            color: #e2e8f0;
+            border: none;
+            padding: 4px 10px;
+            font-size: 11px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .copy-btn:hover { background: #475569; }
+        .os-tabs { display: flex; gap: 0; margin-bottom: 12px; }
+        .os-tab {
+            padding: 8px 16px;
+            background: #e2e8f0;
+            border: none;
+            color: #475569;
+            font-size: 13px;
+            cursor: pointer;
+            font-weight: 500;
+        }
+        .os-tab:first-child { border-radius: 6px 0 0 6px; }
+        .os-tab:last-child { border-radius: 0 6px 6px 0; }
+        .os-tab.active { background: #2874f0; color: white; }
+        .recommendation-banner {
+            background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+            border: 1px solid #86efac;
+            border-radius: 8px;
+            padding: 16px 20px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .recommendation-banner .rec-icon { font-size: 24px; }
+        .recommendation-banner .rec-text { flex: 1; }
+        .recommendation-banner .rec-text strong { color: #166534; display: block; font-size: 15px; }
+        .recommendation-banner .rec-text span { color: #15803d; font-size: 13px; }
+        .time-estimate {
+            display: inline-block;
+            background: #dbeafe;
+            color: #1e40af;
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+            margin-left: 8px;
+        }
+        .platform-content { display: none; }
+        .platform-content.active { display: block; }
+
+        .upload-zone {
+            border: 2px dashed #d0d7de;
+            border-radius: 8px;
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            background: #fafbfc;
+            transition: all 0.2s;
+            margin-bottom: 20px;
+        }
+
+        .upload-zone:hover {
+            border-color: #2874f0;
+            background: #f0f7ff;
+        }
+
+        .upload-zone.dragover {
+            border-color: #2874f0;
+            background: #e7f1ff;
+            transform: scale(1.02);
+        }
+
+        .upload-zone input[type="file"] {
+            display: none;
+        }
+
+        .upload-icon {
+            font-size: 32px;
+            margin-bottom: 12px;
+            display: block;
+        }
+
+        .upload-text {
+            font-weight: 500;
+            color: #333;
+            margin-bottom: 4px;
+        }
+
+        .upload-hint {
+            font-size: 12px;
+            color: #999;
+        }
+
+        .column-mapping {
+            margin: 20px 0;
+            padding: 20px;
+            background: #fafbfc;
+            border-radius: 8px;
+            border: 1px solid #e8eaed;
+        }
+
+        .mapping-row {
+            display: grid;
+            grid-template-columns: 150px 1fr 150px 1fr;
+            gap: 15px;
+            margin-bottom: 15px;
+            align-items: center;
+        }
+
+        .mapping-row:last-child {
+            margin-bottom: 0;
+        }
+
+        .mapping-label {
+            font-size: 12px;
+            font-weight: 600;
+            color: #666;
+            text-transform: uppercase;
+        }
+
+        .mapping-select {
+            padding: 8px 10px;
+            border: 1px solid #d0d7de;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+
+        .progress-container {
+            margin: 20px 0;
+            display: none;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 24px;
+            background: #e8eaed;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-bottom: 8px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #2874f0, #1d4ed8);
+            width: 0%;
+            transition: width 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        .progress-text {
+            font-size: 13px;
+            color: #666;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            border: 1px solid #e8eaed;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: #999;
+            text-transform: uppercase;
+            font-weight: 600;
+            margin-bottom: 8px;
+            letter-spacing: 0.5px;
+        }
+
+        .stat-value {
+            font-size: 28px;
+            font-weight: 700;
+            color: #2874f0;
+        }
+
+        .stat-unit {
+            font-size: 14px;
+            color: #666;
+            margin-left: 4px;
+        }
+
+        .charts-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+            gap: 20px;
+        }
+
+        .chart-container {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            border: 1px solid #e8eaed;
+            position: relative;
+            min-height: 300px;
+        }
+
+        .chart-title {
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: #333;
+        }
+
+        #map {
+            width: 100%;
+            height: 600px;
+            border-radius: 8px;
+            border: 1px solid #e8eaed;
+        }
+
+        .map-controls {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .filter-group label {
+            font-size: 12px;
+            font-weight: 600;
+            color: #666;
+            text-transform: uppercase;
+        }
+
+        .filter-group select {
+            padding: 8px 10px;
+            border: 1px solid #d0d7de;
+            border-radius: 4px;
+            font-size: 13px;
+            min-width: 200px;
+        }
+
+        .data-table-wrapper {
+            background: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            border: 1px solid #e8eaed;
+        }
+
+        .table-toolbar {
+            display: flex;
+            gap: 15px;
+            padding: 15px 20px;
+            border-bottom: 1px solid #e8eaed;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .search-box {
+            flex: 1;
+            min-width: 200px;
+            padding: 8px 12px;
+            border: 1px solid #d0d7de;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+
+        thead {
+            background: #f5f7fa;
+            border-bottom: 2px solid #e8eaed;
+        }
+
+        th {
+            padding: 12px 15px;
+            text-align: left;
+            font-weight: 600;
+            color: #666;
+            cursor: pointer;
+            user-select: none;
+            white-space: nowrap;
+        }
+
+        th:hover {
+            background: #eef2f7;
+        }
+
+        th.sortable::after {
+            content: ' ⇅';
+            opacity: 0.5;
+        }
+
+        th.sorted-asc::after {
+            content: ' ↑';
+            opacity: 1;
+        }
+
+        th.sorted-desc::after {
+            content: ' ↓';
+            opacity: 1;
+        }
+
+        td {
+            padding: 12px 15px;
+            border-bottom: 1px solid #e8eaed;
+        }
+
+        tbody tr:hover {
+            background: #fafbfc;
+        }
+
+        .pagination {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            padding: 20px;
+            border-top: 1px solid #e8eaed;
+        }
+
+        .pagination button {
+            padding: 6px 10px;
+            min-width: auto;
+            font-size: 12px;
+        }
+
+        .pagination button.active {
+            background: #2874f0;
+        }
+
+        .pagination button:disabled {
+            background: #bbb;
+        }
+
+        .error-message {
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            color: #991b1b;
+            padding: 12px;
+            border-radius: 4px;
+            margin: 15px 0;
+            font-size: 13px;
+        }
+
+        .success-message {
+            background: #f0fdf4;
+            border: 1px solid #bbf7d0;
+            color: #166534;
+            padding: 12px;
+            border-radius: 4px;
+            margin: 15px 0;
+            font-size: 13px;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #999;
+        }
+
+        .empty-state-icon {
+            font-size: 48px;
+            margin-bottom: 15px;
+            display: block;
+        }
+
+        .loading-spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid #2874f0;
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+            vertical-align: middle;
+            margin-right: 8px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .marker-popup {
+            font-size: 12px;
+            min-width: 200px;
+        }
+
+        .marker-popup strong {
+            display: block;
+            margin-bottom: 6px;
+            color: #2874f0;
+        }
+
+        .marker-popup div {
+            margin-bottom: 4px;
+        }
+
+        .no-data {
+            grid-column: 1 / -1;
+            text-align: center;
+            padding: 40px 20px;
+            color: #999;
+        }
+
+        @media (max-width: 768px) {
+            .config-section {
+                flex-direction: column;
+                align-items: stretch;
+            }
+
+            .url-input-group {
+                flex-direction: column;
+            }
+
+            .mapping-row {
+                grid-template-columns: 1fr;
+            }
+
+            .charts-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .table-toolbar {
+                flex-direction: column;
+            }
+
+            .search-box {
+                min-width: 100%;
+            }
+
+            .stats-grid {
+                grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Flipkart Hyperlocal Distance Analysis</h1>
+        <p>Calculate shortest road distances between dark stores and customer locations using OSRM</p>
+    </div>
+
+    <div class="container">
+        <!-- OSRM Configuration -->
+        <div class="osrm-config">
+            <div class="config-section">
+                <div class="config-group">
+                    <label>OSRM Server</label>
+                    <div class="radio-group">
+                        <div class="radio-item">
+                            <input type="radio" id="osrm-public" name="osrm-type" value="public" checked>
+                            <label for="osrm-public">Public OSRM</label>
+                        </div>
+                        <div class="radio-item">
+                            <input type="radio" id="osrm-self" name="osrm-type" value="self">
+                            <label for="osrm-self">Self-hosted OSRM</label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="config-group" id="url-group" style="display: none;">
+                    <label>Server URL</label>
+                    <div class="url-input-group">
+                        <input type="text" id="osrm-url" placeholder="http://localhost:5000" value="http://localhost:5000">
+                        <button onclick="testConnection()">Test Connection</button>
+                    </div>
+                </div>
+
+                <div class="config-group">
+                    <label>&nbsp;</label>
+                    <div class="connection-status">
+                        <span class="status-indicator" id="status-indicator"></span>
+                        <span id="status-text">Not connected</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="recommendation-banner">
+                <div class="rec-icon">&#9889;</div>
+                <div class="rec-text">
+                    <strong>Recommended: Use Self-hosted OSRM for best performance</strong>
+                    <span>Process 1.2 lakh orders in 2-3 minutes vs hours on the public server. See the <a href="#" onclick="switchTab('setup');return false;" style="color:#1e40af;font-weight:600;">OSRM Setup Guide</a> tab to install locally in ~20 minutes.</span>
+                </div>
+            </div>
+            <div class="info-box" style="margin-top: 0;">
+                <strong>Team Sharing:</strong>
+                To share with your team, enter the OSRM server IP in the URL field above (e.g., http://192.168.1.100:5000) instead of localhost. Make sure your team members can reach that IP on the network.
+            </div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="tabs">
+            <button class="tab-button active" onclick="switchTab('upload')">Upload & Calculate</button>
+            <button class="tab-button" onclick="switchTab('dashboard')">Dashboard</button>
+            <button class="tab-button" onclick="switchTab('map')">Map View</button>
+            <button class="tab-button" onclick="switchTab('table')">Data Table</button>
+            <button class="tab-button" onclick="switchTab('setup')" style="margin-left:auto; color:#22c55e; font-weight:600;">OSRM Setup Guide</button>
+        </div>
+
+        <!-- Tab 1: Upload & Calculate -->
+        <div id="upload" class="tab-content active">
+            <div class="upload-zone" id="upload-zone">
+                <span class="upload-icon">📁</span>
+                <div class="upload-text">Drag and drop your CSV file here</div>
+                <div class="upload-hint">or click to browse</div>
+                <input type="file" id="file-input" accept=".csv" onchange="handleFileSelect(event)">
+            </div>
+
+            <div id="column-mapping" class="column-mapping" style="display: none;">
+                <div style="margin-bottom: 15px;">
+                    <strong>Detected Columns</strong>
+                    <p style="font-size: 12px; color: #999; margin-top: 4px;">Override the detected mappings if needed</p>
+                </div>
+                <div class="mapping-row">
+                    <div class="mapping-label">Store Latitude</div>
+                    <select id="store-lat-select" class="mapping-select"></select>
+                    <div class="mapping-label">Store Longitude</div>
+                    <select id="store-lon-select" class="mapping-select"></select>
+                </div>
+                <div class="mapping-row">
+                    <div class="mapping-label">Order Latitude</div>
+                    <select id="order-lat-select" class="mapping-select"></select>
+                    <div class="mapping-label">Order Longitude</div>
+                    <select id="order-lon-select" class="mapping-select"></select>
+                </div>
+                <div class="mapping-row">
+                    <div class="mapping-label">Order ID (Optional)</div>
+                    <select id="order-id-select" class="mapping-select">
+                        <option value="">--Not Used--</option>
+                    </select>
+                    <div class="mapping-label">Store ID (Optional)</div>
+                    <select id="store-id-select" class="mapping-select">
+                        <option value="">--Not Used--</option>
+                    </select>
+                </div>
+            </div>
+
+            <div id="calculation-message"></div>
+
+            <div class="progress-container" id="progress-container">
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progress-fill"></div>
+                </div>
+                <div class="progress-text">
+                    <span id="progress-text-left">0 / 0 orders processed</span>
+                    <span id="progress-text-right">Estimating...</span>
+                </div>
+            </div>
+
+            <div style="margin-top: 20px; display: flex; gap: 10px;">
+                <button id="calculate-btn" onclick="calculateDistances()" style="display: none;">Calculate Distances</button>
+            </div>
+        </div>
+
+        <!-- Tab 2: Dashboard -->
+        <div id="dashboard" class="tab-content">
+            <div class="stats-grid" id="stats-grid">
+                <!-- Populated by JS -->
+            </div>
+
+            <div class="charts-grid">
+                <div class="chart-container">
+                    <div class="chart-title">Distance Distribution</div>
+                    <canvas id="histogram-chart"></canvas>
+                </div>
+                <div class="chart-container">
+                    <div class="chart-title">Average Distance by Store</div>
+                    <canvas id="store-chart"></canvas>
+                </div>
+                <div class="chart-container">
+                    <div class="chart-title">Orders per Store</div>
+                    <canvas id="orders-chart"></canvas>
+                </div>
+                <div class="chart-container">
+                    <div class="chart-title">Distance Ranges</div>
+                    <canvas id="ranges-chart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab 3: Map View -->
+        <div id="map" class="tab-content" style="padding: 0; display: none;">
+            <div style="background: white; border-radius: 8px; padding: 20px; border: 1px solid #e8eaed;">
+                <div class="map-controls">
+                    <div class="filter-group">
+                        <label>Filter by Store</label>
+                        <select id="map-store-filter" onchange="updateMap()">
+                            <option value="">All Stores</option>
+                        </select>
+                    </div>
+                </div>
+                <div id="map" style="width: 100%; height: 600px; border-radius: 8px; border: 1px solid #e8eaed;"></div>
+            </div>
+        </div>
+
+        <!-- Tab 4: Data Table -->
+        <div id="table" class="tab-content">
+            <div class="data-table-wrapper">
+                <div class="table-toolbar">
+                    <input type="text" class="search-box" id="search-box" placeholder="Search by Order ID, Store ID..." onkeyup="updateTable()">
+                    <div class="filter-group">
+                        <label>Store</label>
+                        <select id="table-store-filter" onchange="updateTable()">
+                            <option value="">All Stores</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label>Distance Range</label>
+                        <select id="distance-filter" onchange="updateTable()">
+                            <option value="">All Ranges</option>
+                            <option value="0-3">0-3 km</option>
+                            <option value="3-5">3-5 km</option>
+                            <option value="5-8">5-8 km</option>
+                            <option value="8-10">8-10 km</option>
+                            <option value="10+">10+ km</option>
+                        </select>
+                    </div>
+                    <button class="button-secondary" onclick="downloadCSV(false)">Download Filtered</button>
+                    <button class="button-secondary" onclick="downloadCSV(true)">Download All</button>
+                </div>
+                <div style="overflow-x: auto;">
+                    <table id="data-table">
+                        <thead>
+                            <tr>
+                                <th class="sortable" onclick="sortTable('store_id')">Store ID</th>
+                                <th class="sortable" onclick="sortTable('order_id')">Order ID</th>
+                                <th class="sortable" onclick="sortTable('store_lat')">Store Lat</th>
+                                <th class="sortable" onclick="sortTable('store_lon')">Store Lon</th>
+                                <th class="sortable" onclick="sortTable('order_lat')">Order Lat</th>
+                                <th class="sortable" onclick="sortTable('order_lon')">Order Lon</th>
+                                <th class="sortable" onclick="sortTable('distance')">Road Distance (km)</th>
+                                <th class="sortable" onclick="sortTable('straight_distance')">Straight Distance (km)</th>
+                                <th class="sortable" onclick="sortTable('detour_ratio')">Detour Ratio</th>
+                            </tr>
+                        </thead>
+                        <tbody id="table-body">
+                        </tbody>
+                    </table>
+                </div>
+                <div class="pagination" id="pagination"></div>
+            </div>
+        </div>
+
+        <!-- Tab 5: OSRM Setup Guide -->
+        <div id="setup" class="tab-content">
+            <div class="setup-guide">
+                <div class="recommendation-banner" style="margin-bottom:24px;">
+                    <div class="rec-icon">&#128640;</div>
+                    <div class="rec-text">
+                        <strong>Why Self-hosted OSRM?</strong>
+                        <span>Public OSRM is rate-limited and slow for bulk queries. With local OSRM, you can process <b>1.2 lakh orders in 2-3 minutes</b> instead of hours. One-time setup takes about 20 minutes.</span>
+                    </div>
+                </div>
+
+                <div class="os-tabs">
+                    <button class="os-tab active" onclick="switchPlatform('mac', this)">macOS</button>
+                    <button class="os-tab" onclick="switchPlatform('windows', this)">Windows</button>
+                    <button class="os-tab" onclick="switchPlatform('linux', this)">Linux</button>
+                </div>
+
+                <!-- macOS Instructions -->
+                <div id="platform-mac" class="platform-content active">
+                    <div class="setup-step">
+                        <h3><span class="step-number">1</span> Install Homebrew (if not installed) <span class="time-estimate">2 min</span></h3>
+                        <p>Open Terminal (Cmd + Space, type "Terminal") and paste:</p>
+                        <div class="code-block"><button class="copy-btn" onclick="copyCode(this)">Copy</button>/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"</div>
+                        <p>If you already have Homebrew, skip this step. Check by running <code>brew --version</code>.</p>
+                    </div>
+
+                    <div class="setup-step">
+                        <h3><span class="step-number">2</span> Install OSRM Backend <span class="time-estimate">3 min</span></h3>
+                        <div class="code-block"><button class="copy-btn" onclick="copyCode(this)">Copy</button>brew install osrm-backend</div>
+                        <p>Verify installation: <code>osrm-extract --version</code> should show v6.0.0 or similar.</p>
+                    </div>
+
+                    <div class="setup-step">
+                        <h3><span class="step-number">3</span> Download India Map <span class="time-estimate">7-10 min</span></h3>
+                        <p>Create a folder and download the India OpenStreetMap data (~1.6 GB):</p>
+                        <div class="code-block"><button class="copy-btn" onclick="copyCode(this)">Copy</button>mkdir -p ~/osrm-data && cd ~/osrm-data
+curl -L -o india-latest.osm.pbf https://download.geofabrik.de/asia/india-latest.osm.pbf</div>
+                        <p>This downloads the full India road network. Download time depends on your internet speed.</p>
+                    </div>
+
+                    <div class="setup-step">
+                        <h3><span class="step-number">4</span> Process the Map <span class="time-estimate">15-25 min</span></h3>
+                        <p>Run these three commands <b>one at a time</b> (each takes a few minutes). Wait for each to finish before running the next:</p>
+                        <div class="code-block"><button class="copy-btn" onclick="copyCode(this)">Copy</button><span class="comment"># Step 4a: Extract road data (~5 min)</span>
+cd ~/osrm-data
+osrm-extract -p /opt/homebrew/opt/osrm-backend/share/osrm/profiles/car.lua india-latest.osm.pbf</div>
+                        <p>Wait until you see <b>"extraction finished"</b> and the terminal prompt (<code>%</code>) returns.</p>
+                        <div class="code-block"><button class="copy-btn" onclick="copyCode(this)">Copy</button><span class="comment"># Step 4b: Partition the graph (~8 min)</span>
+osrm-partition india-latest.osrm</div>
+                        <p>Wait until you see <b>"Bisection took X seconds"</b> and the prompt returns.</p>
+                        <div class="code-block"><button class="copy-btn" onclick="copyCode(this)">Copy</button><span class="comment"># Step 4c: Customize weights (~1 min)</span>
+osrm-customize india-latest.osrm</div>
+                        <p>Wait until you see <b>"Graph writing took X seconds"</b> and the prompt returns.</p>
+                    </div>
+
+                    <div class="setup-step">
+                        <h3><span class="step-number">5</span> Start the OSRM Server <span class="time-estimate">10 sec</span></h3>
+                        <div class="code-block"><button class="copy-btn" onclick="copyCode(this)">Copy</button>cd ~/osrm-data
+osrm-routed --algorithm mld india-latest.osrm --port 5000</div>
+                        <p>You should see <b>"running and waiting for requests"</b>. Keep this terminal open!</p>
+                    </div>
+
+                    <div class="setup-step">
+                        <h3><span class="step-number">6</span> Test It <span class="time-estimate">10 sec</span></h3>
+                        <p>Open a <b>new terminal tab</b> (Cmd + T) and run:</p>
+                        <div class="code-block"><button class="copy-btn" onclick="copyCode(this)">Copy</button>curl "http://localhost:5000/route/v1/driving/77.5946,12.9716;77.6200,13.0000?overview=false"</div>
+                        <p>You should see a JSON response with <code>"code":"Ok"</code>. If yes, you're all set!</p>
+                        <p>Now switch to the <a href="#" onclick="switchTab('upload');return false;" style="color:#2874f0;font-weight:600;">Upload & Calculate</a> tab, select "Self-hosted OSRM", and start analyzing.</p>
+                    </div>
+
+                    <div class="setup-step" style="background:#fffbeb; border-color:#fde68a;">
+                        <h3 style="color:#92400e;">&#128161; Tips for Daily Use</h3>
+                        <p>You only need to do Steps 1-4 once. After that, just run Step 5 each time you want to use the tool:</p>
+                        <div class="code-block"><button class="copy-btn" onclick="copyCode(this)">Copy</button>cd ~/osrm-data && osrm-routed --algorithm mld india-latest.osrm --port 5000</div>
+                        <p>To update the map data (recommended monthly), re-download and re-process Steps 3-4.</p>
+                    </div>
+                </div>
+
+                <!-- Windows Instructions -->
+                <div id="platform-windows" class="platform-content">
+                    <div class="setup-step">
+                        <h3><span class="step-number">1</span> Install Docker Desktop <span class="time-estimate">5 min</span></h3>
+                        <p>Download and install Docker Desktop from <a href="https://www.docker.com/products/docker-desktop/" target="_blank" style="color:#2874f0;">docker.com/products/docker-desktop</a>.</p>
+                        <p>After installation, restart your computer and ensure Docker Desktop is running (check the system tray icon).</p>
+                    </div>
+
+                    <div class="setup-step">
+                        <h3><span class="step-number">2</span> Download India Map <span class="time-estimate">7-10 min</span></h3>
+                        <p>Open PowerShell and run:</p>
+                        <div class="code-block"><button class="copy-btn" onclick="copyCode(this)">Copy</button>mkdir C:\osrm-data
+cd C:\osrm-data
+Invoke-WebRequest -Uri "https://download.geofabrik.de/asia/india-latest.osm.pbf" -OutFile "india-latest.osm.pbf"</div>
+                    </div>
+
+                    <div class="setup-step">
+                        <h3><span class="step-number">3</span> Process & Run OSRM via Docker <span class="time-estimate">20-30 min</span></h3>
+                        <p>Run these commands <b>one at a time</b> in PowerShell:</p>
+                        <div class="code-block"><button class="copy-btn" onclick="copyCode(this)">Copy</button><span class="comment"># Extract (~5 min)</span>
+docker run -t -v C:\osrm-data:/data ghcr.io/project-osrm/osrm-backend osrm-extract -p /opt/car.lua /data/india-latest.osm.pbf</div>
+                        <div class="code-block"><button class="copy-btn" onclick="copyCode(this)">Copy</button><span class="comment"># Partition (~8 min)</span>
+docker run -t -v C:\osrm-data:/data ghcr.io/project-osrm/osrm-backend osrm-partition /data/india-latest.osrm</div>
+                        <div class="code-block"><button class="copy-btn" onclick="copyCode(this)">Copy</button><span class="comment"># Customize (~1 min)</span>
+docker run -t -v C:\osrm-data:/data ghcr.io/project-osrm/osrm-backend osrm-customize /data/india-latest.osrm</div>
+                    </div>
+
+                    <div class="setup-step">
+                        <h3><span class="step-number">4</span> Start the Server <span class="time-estimate">10 sec</span></h3>
+                        <div class="code-block"><button class="copy-btn" onclick="copyCode(this)">Copy</button>docker run -t -p 5000:5000 -v C:\osrm-data:/data ghcr.io/project-osrm/osrm-backend osrm-routed --algorithm mld /data/india-latest.osrm --port 5000</div>
+                        <p>Keep this terminal open. Test at <code>http://localhost:5000</code>.</p>
+                    </div>
+
+                    <div class="setup-step" style="background:#fffbeb; border-color:#fde68a;">
+                        <h3 style="color:#92400e;">&#128161; Daily Use</h3>
+                        <p>Just run Step 4 each day. Steps 1-3 are one-time only.</p>
+                    </div>
+                </div>
+
+                <!-- Linux Instructions -->
+                <div id="platform-linux" class="platform-content">
+                    <div class="setup-step">
+                        <h3><span class="step-number">1</span> Install OSRM Backend <span class="time-estimate">3 min</span></h3>
+                        <div class="code-block"><button class="copy-btn" onclick="copyCode(this)">Copy</button>sudo apt-get update
+sudo apt-get install -y osrm-backend</div>
+                        <p>If not available via apt, use Docker (see Windows instructions for Docker commands, just replace <code>C:\osrm-data</code> with <code>~/osrm-data</code>).</p>
+                    </div>
+
+                    <div class="setup-step">
+                        <h3><span class="step-number">2</span> Download India Map <span class="time-estimate">7-10 min</span></h3>
+                        <div class="code-block"><button class="copy-btn" onclick="copyCode(this)">Copy</button>mkdir -p ~/osrm-data && cd ~/osrm-data
+wget https://download.geofabrik.de/asia/india-latest.osm.pbf</div>
+                    </div>
+
+                    <div class="setup-step">
+                        <h3><span class="step-number">3</span> Process the Map <span class="time-estimate">15-25 min</span></h3>
+                        <div class="code-block"><button class="copy-btn" onclick="copyCode(this)">Copy</button>cd ~/osrm-data
+osrm-extract -p /usr/share/osrm/profiles/car.lua india-latest.osm.pbf
+osrm-partition india-latest.osrm
+osrm-customize india-latest.osrm</div>
+                    </div>
+
+                    <div class="setup-step">
+                        <h3><span class="step-number">4</span> Start the Server <span class="time-estimate">10 sec</span></h3>
+                        <div class="code-block"><button class="copy-btn" onclick="copyCode(this)">Copy</button>cd ~/osrm-data
+osrm-routed --algorithm mld india-latest.osrm --port 5000</div>
+                        <p>Keep this terminal open. Test with: <code>curl "http://localhost:5000/route/v1/driving/77.5946,12.9716;77.6200,13.0000?overview=false"</code></p>
+                    </div>
+
+                    <div class="setup-step" style="background:#fffbeb; border-color:#fde68a;">
+                        <h3 style="color:#92400e;">&#128161; Daily Use</h3>
+                        <p>Just run Step 4 each day. Steps 1-3 are one-time only.</p>
+                    </div>
+                </div>
+
+                <div class="setup-step" style="background:#f0f9ff; border-color:#bae6fd; margin-top:24px;">
+                    <h3 style="color:#0369a1;">&#128101; Sharing OSRM with Your Team</h3>
+                    <p>If one person sets up OSRM, the whole team can use it! The person running the server just needs to share their IP address. Others enter that IP in the OSRM URL field (e.g., <code>http://192.168.1.100:5000</code>).</p>
+                    <p>To find your IP, run: <code>ipconfig getifaddr en0</code> (macOS) or <code>ipconfig</code> (Windows) or <code>hostname -I</code> (Linux).</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- PapaParse -->
+    <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
+
+    <script>
+        // ========== State Management ==========
+        let appState = {
+            data: [],
+            filteredData: [],
+            currentPage: 1,
+            itemsPerPage: 100,
+            sortColumn: null,
+            sortDirection: 'asc',
+            charts: {},
+            map: null,
+            markers: {
+                stores: [],
+                orders: [],
+                lines: []
+            },
+            clusterGroup: null,
+            osrmConnected: false,
+            osrmType: 'public'
+        };
+
+        const OSRM_PUBLIC = 'https://router.project-osrm.org';
+        const HAVERSINE_RADIUS = 6371; // km
+
+        // ========== Utility Functions ==========
+        function getOsrmUrl() {
+            if (appState.osrmType === 'public') {
+                return OSRM_PUBLIC;
+            }
+            return document.getElementById('osrm-url').value || 'http://localhost:5000';
+        }
+
+        function haversineDistance(lat1, lon1, lat2, lon2) {
+            const toRad = Math.PI / 180;
+            const dLat = (lat2 - lat1) * toRad;
+            const dLon = (lon2 - lon1) * toRad;
+            const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * toRad) * Math.cos(lat2 * toRad) * Math.sin(dLon / 2) ** 2;
+            return HAVERSINE_RADIUS * 2 * Math.asin(Math.sqrt(a));
+        }
+
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.tab-button').forEach(el => el.classList.remove('active'));
+
+            document.getElementById(tabName).classList.add('active');
+            const btn = document.querySelector(`button[onclick="switchTab('${tabName}')"]`);
+            if (btn) btn.classList.add('active');
+
+            if (tabName === 'map' && appState.map === null) {
+                setTimeout(initMap, 100);
+            }
+        }
+
+        function switchTabDirect(tabName) {
+            switchTab(tabName);
+        }
+
+        function switchPlatform(platform, btn) {
+            document.querySelectorAll('.platform-content').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.os-tab').forEach(el => el.classList.remove('active'));
+            document.getElementById('platform-' + platform).classList.add('active');
+            btn.classList.add('active');
+        }
+
+        function copyCode(btn) {
+            const codeBlock = btn.parentElement;
+            const text = codeBlock.innerText.replace('Copy', '').trim();
+            navigator.clipboard.writeText(text).then(() => {
+                btn.textContent = 'Copied!';
+                setTimeout(() => btn.textContent = 'Copy', 2000);
+            }).catch(() => {
+                // Fallback
+                const ta = document.createElement('textarea');
+                ta.value = text;
+                document.body.appendChild(ta);
+                ta.select();
+                document.execCommand('copy');
+                document.body.removeChild(ta);
+                btn.textContent = 'Copied!';
+                setTimeout(() => btn.textContent = 'Copy', 2000);
+            });
+        }
+
+        // ========== OSRM Configuration ==========
+        document.querySelectorAll('input[name="osrm-type"]').forEach(radio => {
+            radio.addEventListener('change', (e) => {
+                appState.osrmType = e.target.value;
+                document.getElementById('url-group').style.display = e.target.value === 'self' ? 'flex' : 'none';
+                updateConnectionStatus();
+            });
+        });
+
+        async function testConnection() {
+            const btn = event.target;
+            const origText = btn.textContent;
+            btn.disabled = true;
+            btn.innerHTML = '<span class="loading-spinner"></span>Testing...';
+
+            try {
+                const url = getOsrmUrl();
+                const testRoute = `${url}/route/v1/driving/77.5946,12.9716;77.6046,12.9816?overview=false`;
+
+                const response = await fetch(testRoute, { signal: AbortSignal.timeout(5000) });
+                if (response.ok) {
+                    appState.osrmConnected = true;
+                    updateConnectionStatus();
+                    showMessage('Connection successful!', 'success');
+                } else {
+                    throw new Error('Server returned ' + response.status);
+                }
+            } catch (error) {
+                appState.osrmConnected = false;
+                updateConnectionStatus();
+                showMessage('Connection failed: ' + error.message, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = origText;
+            }
+        }
+
+        function updateConnectionStatus() {
+            const indicator = document.getElementById('status-indicator');
+            const text = document.getElementById('status-text');
+
+            if (appState.osrmConnected) {
+                indicator.classList.add('connected');
+                indicator.classList.remove('error');
+                text.textContent = 'Connected';
+            } else {
+                indicator.classList.remove('connected');
+                indicator.classList.add('error');
+                text.textContent = 'Not connected';
+            }
+        }
+
+        // ========== File Upload ==========
+        const uploadZone = document.getElementById('upload-zone');
+        const fileInput = document.getElementById('file-input');
+
+        uploadZone.addEventListener('click', () => fileInput.click());
+        uploadZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadZone.classList.add('dragover');
+        });
+        uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('dragover'));
+        uploadZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadZone.classList.remove('dragover');
+            if (e.dataTransfer.files.length) {
+                fileInput.files = e.dataTransfer.files;
+                handleFileSelect({ target: fileInput });
+            }
+        });
+
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            Papa.parse(file, {
+                header: true,
+                complete: (results) => {
+                    if (results.data.length === 0) {
+                        showMessage('CSV file is empty', 'error');
+                        return;
+                    }
+                    detectColumns(results.data);
+                },
+                error: (error) => {
+                    showMessage('Error parsing CSV: ' + error.message, 'error');
+                }
+            });
+        }
+
+        function detectColumns(data) {
+            const headers = Object.keys(data[0]);
+            const patterns = {
+                store_lat: /^(store_?lat|lat_?store|store_?latitude|latitude_?store|lat_s|origin_?lat)$/i,
+                store_lon: /^(store_?lon|lon_?store|store_?longitude|longitude_?store|lon_s|origin_?lon)$/i,
+                order_lat: /^(order_?lat|lat_?order|customer_?lat|lat_?customer|destination_?lat|lat_d)$/i,
+                order_lon: /^(order_?lon|lon_?order|customer_?lon|lon_?customer|destination_?lon|lon_d)$/i,
+                order_id: /^(order_?id|id|order_number)$/i,
+                store_id: /^(store_?id|store_?name|store_code)$/i
+            };
+
+            const detected = {};
+            for (const [key, pattern] of Object.entries(patterns)) {
+                detected[key] = headers.find(h => pattern.test(h)) || '';
+            }
+
+            displayColumnMapping(headers, detected, data);
+        }
+
+        function displayColumnMapping(headers, detected, data) {
+            appState.data = data;
+
+            const selects = ['store-lat-select', 'store-lon-select', 'order-lat-select', 'order-lon-select', 'order-id-select', 'store-id-select'];
+            selects.forEach(id => {
+                const select = document.getElementById(id);
+                select.innerHTML = headers.map(h =>
+                    `<option value="${h}" ${detected[id.replace('-select', '')] === h ? 'selected' : ''}>${h}</option>`
+                ).join('');
+            });
+
+            document.getElementById('column-mapping').style.display = 'block';
+            document.getElementById('calculate-btn').style.display = 'inline-block';
+            document.getElementById('calculation-message').innerHTML = '';
+        }
+
+        // ========== Distance Calculation ==========
+        async function calculateDistances() {
+            if (!appState.data.length) {
+                showMessage('No data loaded', 'error');
+                return;
+            }
+
+            const mapping = {
+                store_lat: document.getElementById('store-lat-select').value,
+                store_lon: document.getElementById('store-lon-select').value,
+                order_lat: document.getElementById('order-lat-select').value,
+                order_lon: document.getElementById('order-lon-select').value,
+                order_id: document.getElementById('order-id-select').value,
+                store_id: document.getElementById('store-id-select').value
+            };
+
+            if (!mapping.store_lat || !mapping.store_lon || !mapping.order_lat || !mapping.order_lon) {
+                showMessage('Please map all required columns', 'error');
+                return;
+            }
+
+            // Prepare data
+            const rows = appState.data.map((row, idx) => ({
+                index: idx,
+                store_lat: parseFloat(row[mapping.store_lat]),
+                store_lon: parseFloat(row[mapping.store_lon]),
+                order_lat: parseFloat(row[mapping.order_lat]),
+                order_lon: parseFloat(row[mapping.order_lon]),
+                order_id: mapping.order_id ? row[mapping.order_id] : `Order_${idx + 1}`,
+                store_id: mapping.store_id ? row[mapping.store_id] : `Store_${idx + 1}`
+            })).filter(row =>
+                !isNaN(row.store_lat) && !isNaN(row.store_lon) &&
+                !isNaN(row.order_lat) && !isNaN(row.order_lon)
+            );
+
+            // Group by store
+            const grouped = {};
+            rows.forEach(row => {
+                const key = `${row.store_lat},${row.store_lon}`;
+                if (!grouped[key]) grouped[key] = [];
+                grouped[key].push(row);
+            });
+
+            appState.filteredData = [];
+            const totalOrders = rows.length;
+            let processedOrders = 0;
+            let failedOrders = 0;
+
+            document.getElementById('progress-container').style.display = 'block';
+            document.getElementById('calculate-btn').disabled = true;
+
+            const startTime = Date.now();
+            const batchDelay = appState.osrmType === 'public' ? 1500 : 50;
+
+            for (const storeKey of Object.keys(grouped)) {
+                const storeOrders = grouped[storeKey];
+                const [storeLon, storeLat] = storeKey.split(',').map(parseFloat);
+
+                // Batch destinations (max 50 per request)
+                for (let i = 0; i < storeOrders.length; i += 50) {
+                    const batch = storeOrders.slice(i, i + 50);
+
+                    try {
+                        const distances = await getDistances(storeLat, storeLon, batch);
+
+                        batch.forEach((order, idx) => {
+                            const roadDist = distances[idx] || null;
+                            const straightDist = haversineDistance(order.store_lat, order.store_lon, order.order_lat, order.order_lon);
+
+                            appState.filteredData.push({
+                                store_id: order.store_id,
+                                order_id: order.order_id,
+                                store_lat: order.store_lat,
+                                store_lon: order.store_lon,
+                                order_lat: order.order_lat,
+                                order_lon: order.order_lon,
+                                distance: roadDist,
+                                straight_distance: straightDist,
+                                detour_ratio: roadDist ? (roadDist / straightDist).toFixed(2) : null
+                            });
+
+                            processedOrders++;
+                            if (roadDist === null) failedOrders++;
+
+                            updateProgress(processedOrders, totalOrders, startTime);
+                        });
+                    } catch (error) {
+                        batch.forEach((order, idx) => {
+                            const straightDist = haversineDistance(order.store_lat, order.store_lon, order.order_lat, order.order_lon);
+                            appState.filteredData.push({
+                                store_id: order.store_id,
+                                order_id: order.order_id,
+                                store_lat: order.store_lat,
+                                store_lon: order.store_lon,
+                                order_lat: order.order_lat,
+                                order_lon: order.order_lon,
+                                distance: null,
+                                straight_distance: straightDist,
+                                detour_ratio: null
+                            });
+                            processedOrders++;
+                            failedOrders++;
+                            updateProgress(processedOrders, totalOrders, startTime);
+                        });
+                    }
+
+                    if (i + 50 < storeOrders.length) {
+                        await new Promise(resolve => setTimeout(resolve, batchDelay));
+                    }
+                }
+            }
+
+            document.getElementById('progress-container').style.display = 'none';
+            document.getElementById('calculate-btn').disabled = false;
+
+            showMessage(`Calculation complete! ${appState.filteredData.length - failedOrders}/${totalOrders} orders processed successfully.`, 'success');
+
+            updateDashboard();
+            switchTabDirect('dashboard');
+        }
+
+        async function getDistances(storeLat, storeLon, orders) {
+            const url = getOsrmUrl();
+
+            // Prepare coordinates
+            const coords = [storeLon, storeLat];
+            orders.forEach(order => {
+                coords.push([order.order_lon, order.order_lat]);
+            });
+
+            const coordsStr = coords.map(c => Array.isArray(c) ? `${c[0]},${c[1]}` : `${c[0]},${c[1]}`).join(';');
+            const destinations = orders.map((_, i) => i + 1).join(';');
+
+            const routeUrl = `${url}/table/v1/driving/${coordsStr}?sources=0&destinations=${destinations}&annotations=distance`;
+
+            try {
+                const response = await fetch(routeUrl, { signal: AbortSignal.timeout(30000) });
+
+                if (response.status === 429) {
+                    // Rate limit - retry
+                    await new Promise(resolve => setTimeout(resolve, 2000));
+                    return getDistances(storeLat, storeLon, orders);
+                }
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                const data = await response.json();
+                if (data.code === 'Ok' && data.distances && data.distances[0]) {
+                    return data.distances[0].map(d => d ? d / 1000 : null); // Convert to km
+                } else {
+                    throw new Error(data.message || 'Unknown error');
+                }
+            } catch (error) {
+                console.warn('OSRM error:', error);
+                // Return null for all distances
+                return orders.map(() => null);
+            }
+        }
+
+        function updateProgress(processed, total, startTime) {
+            const percent = (processed / total * 100).toFixed(0);
+            const elapsed = (Date.now() - startTime) / 1000;
+            const rate = processed / elapsed;
+            const remaining = (total - processed) / rate;
+
+            document.getElementById('progress-fill').style.width = percent + '%';
+            document.getElementById('progress-fill').textContent = percent + '%';
+            document.getElementById('progress-text-left').textContent = `${processed} / ${total} orders processed`;
+            document.getElementById('progress-text-right').textContent = `${Math.ceil(remaining)}s remaining`;
+        }
+
+        // ========== Dashboard ==========
+        function updateDashboard() {
+            if (!appState.filteredData.length) return;
+
+            const validDistances = appState.filteredData.filter(d => d.distance !== null).map(d => d.distance);
+            const stats = {
+                totalOrders: appState.filteredData.length,
+                avgDistance: validDistances.length ? (validDistances.reduce((a, b) => a + b, 0) / validDistances.length).toFixed(2) : 0,
+                medianDistance: validDistances.length ? getMedian(validDistances).toFixed(2) : 0,
+                maxDistance: validDistances.length ? Math.max(...validDistances).toFixed(2) : 0,
+                minDistance: validDistances.length ? Math.min(...validDistances).toFixed(2) : 0,
+                totalStores: new Set(appState.filteredData.map(d => d.store_id)).size,
+                failedCalculations: appState.filteredData.filter(d => d.distance === null).length
+            };
+
+            const statsHtml = `
+                <div class="stat-card">
+                    <div class="stat-label">Total Orders</div>
+                    <div class="stat-value">${stats.totalOrders}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Avg Distance</div>
+                    <div class="stat-value">${stats.avgDistance}<span class="stat-unit">km</span></div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Median Distance</div>
+                    <div class="stat-value">${stats.medianDistance}<span class="stat-unit">km</span></div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Max Distance</div>
+                    <div class="stat-value">${stats.maxDistance}<span class="stat-unit">km</span></div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Min Distance</div>
+                    <div class="stat-value">${stats.minDistance}<span class="stat-unit">km</span></div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Total Stores</div>
+                    <div class="stat-value">${stats.totalStores}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Failed Calculations</div>
+                    <div class="stat-value" style="color: #ef4444;">${stats.failedCalculations}</div>
+                </div>
+            `;
+
+            document.getElementById('stats-grid').innerHTML = statsHtml;
+
+            updateCharts();
+        }
+
+        function getMedian(arr) {
+            const sorted = [...arr].sort((a, b) => a - b);
+            const mid = Math.floor(sorted.length / 2);
+            return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
+        }
+
+        function updateCharts() {
+            destroyCharts();
+
+            // Distance Distribution
+            const distances = appState.filteredData.filter(d => d.distance !== null).map(d => d.distance);
+            const histogramData = {
+                '0-2': distances.filter(d => d >= 0 && d < 2).length,
+                '2-4': distances.filter(d => d >= 2 && d < 4).length,
+                '4-6': distances.filter(d => d >= 4 && d < 6).length,
+                '6-8': distances.filter(d => d >= 6 && d < 8).length,
+                '8-10': distances.filter(d => d >= 8 && d < 10).length,
+                '10+': distances.filter(d => d >= 10).length
+            };
+
+            new Chart(document.getElementById('histogram-chart'), {
+                type: 'bar',
+                data: {
+                    labels: Object.keys(histogramData),
+                    datasets: [{
+                        label: 'Number of Orders',
+                        data: Object.values(histogramData),
+                        backgroundColor: '#2874f0',
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: { legend: { display: false } },
+                    scales: { y: { beginAtZero: true } }
+                }
+            });
+
+            // Average Distance by Store
+            const storeStats = {};
+            appState.filteredData.filter(d => d.distance !== null).forEach(d => {
+                if (!storeStats[d.store_id]) storeStats[d.store_id] = { distances: [], count: 0 };
+                storeStats[d.store_id].distances.push(d.distance);
+                storeStats[d.store_id].count++;
+            });
+
+            const storeAvgs = Object.entries(storeStats).map(([id, stats]) => ({
+                id,
+                avg: (stats.distances.reduce((a, b) => a + b, 0) / stats.distances.length).toFixed(2)
+            })).sort((a, b) => parseFloat(b.avg) - parseFloat(a.avg));
+
+            new Chart(document.getElementById('store-chart'), {
+                type: 'bar',
+                data: {
+                    labels: storeAvgs.map(s => s.id),
+                    datasets: [{
+                        label: 'Avg Distance (km)',
+                        data: storeAvgs.map(s => s.avg),
+                        backgroundColor: '#10b981',
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: { legend: { display: false } },
+                    scales: { x: { beginAtZero: true } }
+                }
+            });
+
+            // Orders per Store
+            const ordersPerStore = {};
+            appState.filteredData.forEach(d => {
+                ordersPerStore[d.store_id] = (ordersPerStore[d.store_id] || 0) + 1;
+            });
+
+            new Chart(document.getElementById('orders-chart'), {
+                type: 'bar',
+                data: {
+                    labels: Object.keys(ordersPerStore),
+                    datasets: [{
+                        label: 'Number of Orders',
+                        data: Object.values(ordersPerStore),
+                        backgroundColor: '#f59e0b',
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: { legend: { display: false } },
+                    scales: { y: { beginAtZero: true } }
+                }
+            });
+
+            // Distance Ranges
+            const rangesData = {
+                '0-3km': distances.filter(d => d >= 0 && d < 3).length,
+                '3-5km': distances.filter(d => d >= 3 && d < 5).length,
+                '5-8km': distances.filter(d => d >= 5 && d < 8).length,
+                '8-10km': distances.filter(d => d >= 8 && d < 10).length,
+                '10+km': distances.filter(d => d >= 10).length
+            };
+
+            new Chart(document.getElementById('ranges-chart'), {
+                type: 'doughnut',
+                data: {
+                    labels: Object.keys(rangesData),
+                    datasets: [{
+                        data: Object.values(rangesData),
+                        backgroundColor: ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true
+                }
+            });
+        }
+
+        function destroyCharts() {
+            Object.values(Chart.helpers.instances).forEach(chart => {
+                if (chart) chart.destroy();
+            });
+        }
+
+        // ========== Map View ==========
+        function initMap() {
+            if (appState.map) return;
+
+            const mapEl = document.getElementById('map');
+            appState.map = L.map(mapEl).setView([12.9716, 77.5946], 12);
+
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors',
+                maxZoom: 19
+            }).addTo(appState.map);
+
+            appState.clusterGroup = L.markerClusterGroup();
+            appState.map.addLayer(appState.clusterGroup);
+
+            updateMap();
+        }
+
+        function updateMap() {
+            if (!appState.map) return;
+
+            // Clear existing markers
+            appState.markers.stores.forEach(m => appState.map.removeLayer(m));
+            appState.markers.orders.forEach(m => appState.map.removeLayer(m));
+            appState.markers.lines.forEach(m => appState.map.removeLayer(m));
+            appState.markers.stores = [];
+            appState.markers.orders = [];
+            appState.markers.lines = [];
+            appState.clusterGroup.clearLayers();
+
+            const storeFilter = document.getElementById('map-store-filter').value;
+            const filtered = storeFilter ? appState.filteredData.filter(d => d.store_id === storeFilter) : appState.filteredData;
+
+            const storeSet = new Set();
+            filtered.forEach(d => {
+                storeSet.add(`${d.store_lat},${d.store_lon}`);
+
+                // Order marker
+                const color = !d.distance ? '#ef4444' : d.distance < 3 ? '#22c55e' : d.distance < 7 ? '#f59e0b' : '#ef4444';
+                const marker = L.circleMarker([d.order_lat, d.order_lon], {
+                    radius: 5,
+                    fillColor: color,
+                    color: color,
+                    weight: 1,
+                    opacity: 0.8,
+                    fillOpacity: 0.7
+                });
+
+                marker.bindPopup(`
+                    <div class="marker-popup">
+                        <strong>Order: ${d.order_id}</strong>
+                        <div>Distance: ${d.distance ? d.distance.toFixed(2) : 'Failed'} km</div>
+                        <div>Store: ${d.store_id}</div>
+                    </div>
+                `);
+
+                appState.clusterGroup.addLayer(marker);
+                appState.markers.orders.push(marker);
+
+                // Line to store
+                if (d.distance !== null) {
+                    const color = d.distance < 3 ? '#22c55e' : d.distance < 7 ? '#f59e0b' : '#ef4444';
+                    const line = L.polyline([[d.store_lat, d.store_lon], [d.order_lat, d.order_lon]], {
+                        color: color,
+                        weight: 1,
+                        opacity: 0.5
+                    });
+                    appState.map.addLayer(line);
+                    appState.markers.lines.push(line);
+                }
+            });
+
+            // Store markers
+            storeSet.forEach(key => {
+                const [lat, lon] = key.split(',').map(parseFloat);
+                const marker = L.circleMarker([lat, lon], {
+                    radius: 8,
+                    fillColor: '#2874f0',
+                    color: '#2874f0',
+                    weight: 2,
+                    opacity: 1,
+                    fillOpacity: 0.9
+                });
+
+                const storeOrders = filtered.filter(d => d.store_lat === lat && d.store_lon === lon);
+                marker.bindPopup(`
+                    <div class="marker-popup">
+                        <strong>Store: ${storeOrders[0].store_id}</strong>
+                        <div>Orders: ${storeOrders.length}</div>
+                        <div>Lat: ${lat}, Lon: ${lon}</div>
+                    </div>
+                `);
+
+                appState.map.addLayer(marker);
+                appState.markers.stores.push(marker);
+            });
+        }
+
+        // ========== Data Table ==========
+        function updateTable() {
+            const search = document.getElementById('search-box').value.toLowerCase();
+            const storeFilter = document.getElementById('table-store-filter').value;
+            const distanceFilter = document.getElementById('distance-filter').value;
+
+            let filtered = appState.filteredData.filter(d => {
+                if (search && !`${d.order_id}${d.store_id}`.toLowerCase().includes(search)) return false;
+                if (storeFilter && d.store_id !== storeFilter) return false;
+                if (distanceFilter && d.distance !== null) {
+                    const [min, max] = distanceFilter === '10+' ? [10, Infinity] : distanceFilter.split('-').map(parseFloat);
+                    if (d.distance < min || d.distance >= max) return false;
+                }
+                return true;
+            });
+
+            if (appState.sortColumn) {
+                filtered.sort((a, b) => {
+                    let aVal = a[appState.sortColumn];
+                    let bVal = b[appState.sortColumn];
+
+                    if (typeof aVal === 'string') {
+                        aVal = aVal.toLowerCase();
+                        bVal = bVal.toLowerCase();
+                    }
+
+                    return appState.sortDirection === 'asc' ? (aVal < bVal ? -1 : 1) : (aVal > bVal ? -1 : 1);
+                });
+            }
+
+            appState.currentPage = 1;
+            renderTable(filtered);
+        }
+
+        function renderTable(filtered) {
+            const start = (appState.currentPage - 1) * appState.itemsPerPage;
+            const end = start + appState.itemsPerPage;
+            const page = filtered.slice(start, end);
+
+            const tbody = document.getElementById('table-body');
+            tbody.innerHTML = page.map(d => `
+                <tr>
+                    <td>${d.store_id}</td>
+                    <td>${d.order_id}</td>
+                    <td>${d.store_lat.toFixed(4)}</td>
+                    <td>${d.store_lon.toFixed(4)}</td>
+                    <td>${d.order_lat.toFixed(4)}</td>
+                    <td>${d.order_lon.toFixed(4)}</td>
+                    <td>${d.distance !== null ? d.distance.toFixed(2) : 'N/A'}</td>
+                    <td>${d.straight_distance.toFixed(2)}</td>
+                    <td>${d.detour_ratio !== null ? d.detour_ratio : 'N/A'}</td>
+                </tr>
+            `).join('');
+
+            renderPagination(filtered);
+        }
+
+        function renderPagination(filtered) {
+            const totalPages = Math.ceil(filtered.length / appState.itemsPerPage);
+            const pagination = document.getElementById('pagination');
+
+            let html = '';
+            for (let i = 1; i <= totalPages; i++) {
+                html += `<button ${i === appState.currentPage ? 'class="active"' : ''} onclick="appState.currentPage=${i};updateTable()">${i}</button>`;
+            }
+
+            pagination.innerHTML = html;
+        }
+
+        function sortTable(column) {
+            if (appState.sortColumn === column) {
+                appState.sortDirection = appState.sortDirection === 'asc' ? 'desc' : 'asc';
+            } else {
+                appState.sortColumn = column;
+                appState.sortDirection = 'asc';
+            }
+
+            document.querySelectorAll('th').forEach(th => {
+                th.classList.remove('sorted-asc', 'sorted-desc');
+                if (th.textContent.toLowerCase().includes(column.replace('_', ' '))) {
+                    th.classList.add(`sorted-${appState.sortDirection}`);
+                }
+            });
+
+            updateTable();
+        }
+
+        function downloadCSV(all) {
+            const data = all ? appState.filteredData : getFilteredTableData();
+            if (!data.length) {
+                showMessage('No data to download', 'error');
+                return;
+            }
+
+            const headers = ['Store ID', 'Order ID', 'Store Lat', 'Store Lon', 'Order Lat', 'Order Lon', 'Road Distance (km)', 'Straight Distance (km)', 'Detour Ratio'];
+            const rows = data.map(d => [
+                d.store_id,
+                d.order_id,
+                d.store_lat.toFixed(4),
+                d.store_lon.toFixed(4),
+                d.order_lat.toFixed(4),
+                d.order_lon.toFixed(4),
+                d.distance !== null ? d.distance.toFixed(2) : 'N/A',
+                d.straight_distance.toFixed(2),
+                d.detour_ratio !== null ? d.detour_ratio : 'N/A'
+            ]);
+
+            const csv = [headers, ...rows].map(r => r.map(v => `"${v}"`).join(',')).join('\n');
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `hyperlocal_distances_${new Date().toISOString().split('T')[0]}.csv`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function getFilteredTableData() {
+            const search = document.getElementById('search-box').value.toLowerCase();
+            const storeFilter = document.getElementById('table-store-filter').value;
+            const distanceFilter = document.getElementById('distance-filter').value;
+
+            return appState.filteredData.filter(d => {
+                if (search && !`${d.order_id}${d.store_id}`.toLowerCase().includes(search)) return false;
+                if (storeFilter && d.store_id !== storeFilter) return false;
+                if (distanceFilter && d.distance !== null) {
+                    const [min, max] = distanceFilter === '10+' ? [10, Infinity] : distanceFilter.split('-').map(parseFloat);
+                    if (d.distance < min || d.distance >= max) return false;
+                }
+                return true;
+            });
+        }
+
+        // ========== Utilities ==========
+        function showMessage(msg, type) {
+            const div = document.createElement('div');
+            div.className = type === 'error' ? 'error-message' : 'success-message';
+            div.textContent = msg;
+
+            const target = document.getElementById('calculation-message');
+            target.innerHTML = '';
+            target.appendChild(div);
+
+            setTimeout(() => div.remove(), 5000);
+        }
+
+        // ========== Initialization ==========
+        document.addEventListener('DOMContentLoaded', () => {
+            // Populate store filters when data changes
+            const updateStoreFilters = () => {
+                const stores = [...new Set(appState.filteredData.map(d => d.store_id))].sort();
+                ['map-store-filter', 'table-store-filter'].forEach(id => {
+                    const select = document.getElementById(id);
+                    const current = select.value;
+                    select.innerHTML = '<option value="">All Stores</option>' +
+                        stores.map(s => `<option value="${s}">${s}</option>`).join('');
+                    select.value = current;
+                });
+            };
+
+            // Override updateDashboard to also update filters
+            const origUpdateDashboard = updateDashboard;
+            updateDashboard = function() {
+                origUpdateDashboard.call(this);
+                updateStoreFilters();
+                updateTable();
+            };
+        });
+    </script>
+</body>
+</html>

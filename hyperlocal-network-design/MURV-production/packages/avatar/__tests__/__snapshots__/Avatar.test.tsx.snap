@@ -1,0 +1,81 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`Avatar Component matches snapshot with icon props 1`] = `
+<DocumentFragment>
+  <div
+    class="styles__StyledAvatar-sc-1y2t30f-0 gaWZSU"
+    type="icon"
+  >
+    <svg
+      class="fk-icon"
+      color=""
+      height="20px"
+      style="fill: currentColor; stroke: currentColor;"
+      viewBox="0 -960 960 960"
+      width="20px"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <title>
+        Person
+      </title>
+      <path
+        d="M480-481q-66 0-108-42t-42-108q0-66 42-108t108-42q66 0 108 42t42 108q0 66-42 108t-108 42ZM160-220v-34q0-38 19-65t49-41q67-30 128.5-45T480-420q62 0 123 15.5t127.921 44.694q31.301 14.126 50.19 40.966Q800-292 800-254v34q0 24.75-17.625 42.375T740-160H220q-24.75 0-42.375-17.625T160-220Zm60 0h520v-34q0-16-9.5-30.5T707-306q-64-31-117-42.5T480-360q-57 0-111 11.5T252-306q-14 7-23 21.5t-9 30.5v34Zm260-321q39 0 64.5-25.5T570-631q0-39-25.5-64.5T480-721q-39 0-64.5 25.5T390-631q0 39 25.5 64.5T480-541Zm0-90Zm0 411Z"
+      />
+    </svg>
+    <div
+      aria-disabled="false"
+      aria-label="Unread notifications"
+      aria-labelledby="Unread notifications"
+      class="styles__StyledBadge-sc-1x6v4lh-0 cHiwpI styles__StyledBadge-sc-1y2t30f-1 hCqYjA"
+      tabindex="0"
+      title="Unread notifications"
+      type="brand"
+    />
+  </div>
+</DocumentFragment>
+`;
+
+exports[`Avatar Component matches snapshot with image props 1`] = `
+<DocumentFragment>
+  <div
+    class="styles__StyledAvatar-sc-1y2t30f-0 ghyllj"
+    type="image"
+  >
+    <img
+      alt="panther"
+      src="https://st.depositphotos.com/2290789/4327/i/950/depositphotos_43274805-stock-illustration-black-panther-head.jpg"
+    />
+    <div
+      aria-disabled="false"
+      aria-label="Unread notifications"
+      aria-labelledby="Unread notifications"
+      class="styles__StyledBadge-sc-1x6v4lh-0 gQhlGP styles__StyledBadge-sc-1y2t30f-1 hCqYjA"
+      tabindex="0"
+      title="Unread notifications"
+      type="highlight"
+    />
+  </div>
+</DocumentFragment>
+`;
+
+exports[`Avatar Component matches snapshot with text props 1`] = `
+<DocumentFragment>
+  <div
+    class="styles__StyledAvatar-sc-1y2t30f-0 fIximh"
+    type="text"
+  >
+    MU
+    <div
+      aria-disabled="false"
+      aria-label="Unread notifications"
+      aria-labelledby="Unread notifications"
+      class="styles__StyledBadge-sc-1x6v4lh-0 fFwDkk styles__StyledBadge-sc-1y2t30f-1 hCqYjA"
+      tabindex="0"
+      title="Unread notifications"
+      type="highlight"
+    >
+      30
+    </div>
+  </div>
+</DocumentFragment>
+`;

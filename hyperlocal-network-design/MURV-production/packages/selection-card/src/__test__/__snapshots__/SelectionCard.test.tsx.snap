@@ -1,0 +1,50 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`SelectionCard matches snapshot 1`] = `
+<DocumentFragment>
+  <div
+    class="styles__Container-sc-1yrspju-0 jCAYQL"
+  >
+    <div
+      class="styles__ScrollableSection-sc-1yrspju-1 iJFxyF"
+    >
+      <div
+        data-testid="children"
+      >
+        Test Content
+      </div>
+    </div>
+    <div
+      class="style__DividerDiv-sc-q2gk9r-0 enyGxG"
+      direction="horizontal"
+      style="border-color: #eeeeee;"
+    />
+    <div
+      class="styles__ButtonSection-sc-1yrspju-2 eeIfNe"
+    >
+      <button
+        aria-disabled="false"
+        class="styles__StyledButton-sc-5pc2aq-1 iprlNm tertiary "
+        type="button"
+      >
+        <span
+          class="styles__BtnChild-sc-5pc2aq-2 cBBqTe"
+        >
+          Clear
+        </span>
+      </button>
+      <button
+        aria-disabled="false"
+        class="styles__StyledButton-sc-5pc2aq-1 iprlNm tertiary "
+        type="button"
+      >
+        <span
+          class="styles__BtnChild-sc-5pc2aq-2 cBBqTe"
+        >
+          Done
+        </span>
+      </button>
+    </div>
+  </div>
+</DocumentFragment>
+`;
