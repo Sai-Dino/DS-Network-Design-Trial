@@ -1,0 +1,8 @@
+{
+  "name": "network-optimizer-ui-test-harness",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "playwright-core": "^1.52.0"
+  }
+}

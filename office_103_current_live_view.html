@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>103 Fixed Live Result</title>
+  <style>
+    :root{
+      --bg:#f5f7fb;
+      --panel:#ffffff;
+      --ink:#111827;
+      --muted:#4b5563;
+      --line:#d1d5db;
+      --accent:#0f766e;
+      --warn:#92400e;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+      background:var(--bg);
+      color:var(--ink);
+    }
+    .shell{
+      max-width:1480px;
+      margin:0 auto;
+      padding:20px 18px 24px;
+    }
+    .top{
+      display:flex;
+      flex-wrap:wrap;
+      justify-content:space-between;
+      gap:14px;
+      align-items:flex-end;
+      margin-bottom:16px;
+    }
+    .eyebrow{
+      font-size:12px;
+      letter-spacing:.05em;
+      color:var(--muted);
+      text-transform:uppercase;
+      margin-bottom:6px;
+    }
+    h1{
+      margin:0;
+      font-size:32px;
+      line-height:1.1;
+    }
+    .sub{
+      margin-top:8px;
+      color:var(--muted);
+      max-width:900px;
+    }
+    .status{
+      background:#ecfdf5;
+      color:var(--accent);
+      border:1px solid #a7f3d0;
+      border-radius:8px;
+      padding:10px 12px;
+      font-weight:600;
+    }
+    .metrics{
+      display:grid;
+      grid-template-columns:repeat(6,minmax(0,1fr));
+      gap:10px;
+      margin-bottom:14px;
+    }
+    .metric{
+      background:var(--panel);
+      border:1px solid var(--line);
+      border-radius:8px;
+      padding:12px;
+      min-height:82px;
+    }
+    .metric .label{
+      font-size:12px;
+      color:var(--muted);
+      margin-bottom:6px;
+      text-transform:uppercase;
+      letter-spacing:.03em;
+    }
+    .metric .value{
+      font-size:28px;
+      font-weight:700;
+      line-height:1.05;
+    }
+    .metric .detail{
+      margin-top:6px;
+      font-size:12px;
+      color:var(--muted);
+    }
+    .note{
+      background:#fff7ed;
+      color:var(--warn);
+      border:1px solid #fed7aa;
+      border-radius:8px;
+      padding:12px 14px;
+      margin-bottom:14px;
+      font-size:14px;
+    }
+    .actions{
+      display:flex;
+      flex-wrap:wrap;
+      gap:10px;
+      margin-bottom:14px;
+    }
+    .actions a{
+      display:inline-block;
+      text-decoration:none;
+      color:#fff;
+      background:#111827;
+      border-radius:8px;
+      padding:10px 12px;
+      font-size:14px;
+      font-weight:600;
+    }
+    .actions a.secondary{
+      background:#fff;
+      color:var(--ink);
+      border:1px solid var(--line);
+    }
+    .frame{
+      background:var(--panel);
+      border:1px solid var(--line);
+      border-radius:8px;
+      overflow:hidden;
+    }
+    .frame-head{
+      padding:10px 12px;
+      border-bottom:1px solid var(--line);
+      color:var(--muted);
+      font-size:13px;
+      background:#fbfcfe;
+    }
+    iframe{
+      display:block;
+      width:100%;
+      height:calc(100vh - 330px);
+      min-height:720px;
+      border:0;
+      background:#fff;
+    }
+    @media (max-width:1100px){
+      .metrics{grid-template-columns:repeat(3,minmax(0,1fr))}
+    }
+    @media (max-width:700px){
+      .metrics{grid-template-columns:repeat(2,minmax(0,1fr))}
+      h1{font-size:28px}
+      iframe{min-height:620px;height:calc(100vh - 420px)}
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <div class="top">
+      <div>
+        <div class="eyebrow">Live Core Decision Packet</div>
+        <h1>103 Fixed Result</h1>
+        <div class="sub">
+          Wrapper around the current local UI so you can inspect the run in-browser, with the latest core metrics pinned here for reference.
+        </div>
+      </div>
+      <div class="status">World: benchmark_103 · Active branch: rescue_first_standard_100</div>
+    </div>
+
+    <div class="metrics">
+      <div class="metric">
+        <div class="label">Coverage</div>
+        <div class="value">99.53%</div>
+        <div class="detail">Hard in-scope coverage</div>
+      </div>
+      <div class="metric">
+        <div class="label">Physical Standard</div>
+        <div class="value">186</div>
+        <div class="detail">103 fixed + 63 new + 22 exception-lifted sites in play</div>
+      </div>
+      <div class="metric">
+        <div class="label">New Standard</div>
+        <div class="value">63</div>
+        <div class="detail">Current core branch count</div>
+      </div>
+      <div class="metric">
+        <div class="label">Exception Lift</div>
+        <div class="value">22</div>
+        <div class="detail">Physical Standard sites using larger radius</div>
+      </div>
+      <div class="metric">
+        <div class="label">Avg Cost</div>
+        <div class="value">₹42.62</div>
+        <div class="detail">Current core packet</div>
+      </div>
+      <div class="metric">
+        <div class="label">Mini Overlay</div>
+        <div class="value">0</div>
+        <div class="detail">Deferred branch still running</div>
+      </div>
+    </div>
+
+    <div class="note">
+      This page mirrors the live local app at <code>http://localhost:5050</code>. The deferred continuation is still running in the background, so treat these as the current core-decision numbers, not the final fully-enriched packet.
+    </div>
+
+    <div class="actions">
+      <a href="http://localhost:5050" target="_blank" rel="noreferrer">Open Live UI In New Tab</a>
+      <a class="secondary" href="office_103_benchmark_view.html" target="_blank" rel="noreferrer">Open Saved 201-Store Benchmark</a>
+    </div>
+
+    <div class="frame">
+      <div class="frame-head">Embedded local UI</div>
+      <iframe src="http://localhost:5050" title="103 fixed live local UI"></iframe>
+    </div>
+  </div>
+</body>
+</html>

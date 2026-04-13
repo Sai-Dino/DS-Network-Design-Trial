@@ -8,9 +8,9 @@
 
 ## 1. WHAT WE'RE BUILDING
 
-A **constraint-driven dark store network optimizer** for Flipkart's hyperlocal delivery in Bangalore. Given real order data (3.38M orders/month, 120K orders/day across 103 existing hubs), the engine recommends optimal placement of Mini and Standard dark stores to minimize last-mile delivery cost.
+A **constraint-driven dark store network optimizer** for Flipkart's hyperlocal delivery. Given real order data (for reference - 3.38M orders/month, 120K orders/day across 103 existing hubs), the engine recommends optimal placement of Mini and Standard dark stores to minimize last-mile delivery cost.
 
-**Business goal**: Reduce avg last-mile cost from ₹46/order to ~₹40/order by optimizing hub placement. Current network has 103 hubs; proposed network targets ~200 hubs with maximum order coverage.
+**Business goal**: Reduce avg last-mile cost by a few rupees by optimizing hub placement. Lets say Current network has 103 hubs; and we want a proposed network which targets ~200 hubs with maximum order coverage.
 
 **Core design principles**:
 - PRIMARY GOAL: Always maximize order coverage within constraints

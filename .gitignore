@@ -25,25 +25,16 @@ env/
 .DS_Store
 Thumbs.db
 
-# Large data files
-*.csv
-!feb_2026_distance_input.csv
-!store_to_points_matrix.csv
-!daily_demand_aggregated.csv
-!stores_with_polygons_all.csv
-*.xlsx
-*.xls
-
-# OSRM map data
-osrm-data/
-*.osrm
-*.osrm.*
-
 # Logs
 *.log
+nohup.out
+*.partial
 
 # Environment
 .env
 
 # Generated HTML dashboards
 feb_2026_dashboard.html
+
+# Local test / package artifacts not needed for office demo
+ui-test-harness/node_modules/

@@ -20,7 +20,7 @@ echo ""
 
 # Install dependencies (if not already installed)
 echo "Checking dependencies..."
-python3 -c "import pandas, numpy, openpyxl" 2>/dev/null || {
+python3 -c "import pandas, numpy, openpyxl, scipy, urllib3" 2>/dev/null || {
     echo "Installing dependencies..."
     pip install -r "$SCRIPT_DIR/requirements.txt"
 }
@@ -30,13 +30,17 @@ echo "=========================================="
 echo "Starting server..."
 echo "=========================================="
 echo ""
-if ! curl -sf "http://127.0.0.1:5000/route/v1/driving/77.5946,12.9716;77.6,12.97?overview=false" >/dev/null 2>&1; then
-  echo "WARNING: OSRM is not responding on http://localhost:5000"
+OSRM_CHECK_URL="${OSRM_URL:-http://127.0.0.1:5001}"
+if ! curl -sf "${OSRM_CHECK_URL}/route/v1/driving/77.5946,12.9716;77.6,12.97?overview=false" >/dev/null 2>&1; then
+  OSRM_CHECK_URL="http://127.0.0.1:5000"
+fi
+if ! curl -sf "${OSRM_CHECK_URL}/route/v1/driving/77.5946,12.9716;77.6,12.97?overview=false" >/dev/null 2>&1; then
+  echo "WARNING: OSRM is not responding on http://localhost:5001 or http://localhost:5000"
   echo "  Start it first:  ./start_osrm.sh"
   echo "  (First-time data setup from repo root: ./setup_osrm.sh)"
   echo ""
 fi
-echo "OSRM expected at: http://localhost:5000"
+echo "OSRM expected at: ${OSRM_CHECK_URL}"
 echo ""
 echo "The optimizer will be available at:"
 echo "  http://localhost:5050"
