@@ -45,7 +45,7 @@ from collections import defaultdict
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 from pathlib import Path
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError as FuturesTimeoutError
 
 import numpy as np
 import pandas as pd
@@ -105,7 +105,10 @@ MAX_UPLOAD_MB = 3000  # Support up to 3GB files
 # below your osrm-routed thread capacity so requests queue instead of timing out.
 OSRM_WORKERS = max(1, int(os.environ.get('OSRM_WORKERS', '16')))
 OSRM_BATCH_SIZE = int(os.environ.get('OSRM_BATCH_SIZE', '100'))  # coords per OSRM table call (OSRM default max ~100)
+OSRM_TABLE_DEST_BATCH = max(1, int(os.environ.get('OSRM_TABLE_DEST_BATCH', '25')))
 OSRM_TIMEOUT = 30
+# Long waits on one hung local table call are worse than a quick retry with a fresh socket.
+OSRM_FUTURE_TIMEOUT = max(float(OSRM_TIMEOUT) + 5.0, 35.0)
 EXACT_GRAPH_BATCH_PARALLELISM = max(
     1,
     int(os.environ.get('EXACT_GRAPH_BATCH_PARALLELISM', str(max(1, min(4, OSRM_WORKERS // 2 or 1))))),
@@ -115,7 +118,7 @@ EXACT_GRAPH_BATCH_PARALLELISM = max(
 _osrm_pool = urllib3.PoolManager(
     num_pools=8,
     maxsize=max(32, OSRM_WORKERS * 4),        # absorb bursty table fans without discarding hot connections
-    retries=urllib3.Retry(total=3, backoff_factor=0.3),
+    retries=False,
     timeout=urllib3.Timeout(connect=5.0, read=float(OSRM_TIMEOUT)),
 )
 _osrm_executor = ThreadPoolExecutor(max_workers=OSRM_WORKERS)
@@ -481,6 +484,18 @@ def _osrm_table_batch(src_batch, dst_batch):
     n_d = len(dst_batch)
     if n_s == 0 or n_d == 0:
         return np.empty((n_s, n_d), dtype=np.float64)
+    max_coords_per_call = max(2, int(OSRM_BATCH_SIZE or 1))
+    if n_s + n_d > max_coords_per_call:
+        if n_d > 1 and (n_d >= n_s or n_s == 1):
+            mid = n_d // 2
+            left = _osrm_table_batch(src_batch, dst_batch[:mid])
+            right = _osrm_table_batch(src_batch, dst_batch[mid:])
+            return np.concatenate([left, right], axis=1)
+        if n_s > 1:
+            mid = n_s // 2
+            top = _osrm_table_batch(src_batch[:mid], dst_batch)
+            bottom = _osrm_table_batch(src_batch[mid:], dst_batch)
+            return np.concatenate([top, bottom], axis=0)
     coords = []
     for lat, lon in src_batch:
         coords.append(f"{lon},{lat}")
@@ -528,12 +543,46 @@ def _osrm_table_batch(src_batch, dst_batch):
     raise RuntimeError(f"OSRM table request failed: {last_error}") from last_error
 
 
+def _osrm_table_batch_fresh(src_batch, dst_batch):
+    """Fallback OSRM table call using a fresh client to avoid stuck pooled sockets."""
+    n_s = len(src_batch)
+    n_d = len(dst_batch)
+    if n_s == 0 or n_d == 0:
+        return np.empty((n_s, n_d), dtype=np.float64)
+    coords = []
+    for lat, lon in src_batch:
+        coords.append(f"{lon},{lat}")
+    for lat, lon in dst_batch:
+        coords.append(f"{lon},{lat}")
+    coords_str = ";".join(coords)
+    src_idx = ";".join(str(i) for i in range(n_s))
+    dst_idx = ";".join(str(i) for i in range(n_s, n_s + n_d))
+    url = (f"{OSRM_BASE_URL}/table/v1/driving/{coords_str}"
+           f"?sources={src_idx}&destinations={dst_idx}&annotations=distance")
+    probe_pool = urllib3.PoolManager(
+        retries=False,
+        timeout=urllib3.Timeout(connect=5.0, read=float(OSRM_TIMEOUT)),
+    )
+    resp = probe_pool.request('GET', url, headers={'Connection': 'close'})
+    body = resp.data
+    if not body or len(body) == 0:
+        raise RuntimeError("OSRM returned empty response")
+    data = json.loads(body)
+    if data.get('code') != 'Ok':
+        msg = data.get('message', '')
+        raise RuntimeError(f"OSRM table code={data.get('code')!r} {msg}")
+    dm = np.array(data['distances'], dtype=float)
+    dm[dm == None] = np.inf
+    return dm / 1000.0
+
+
 def _iter_osrm_table_batch_results(src, demand_lats, demand_lons, demand_union, batch_size=None, parallelism=None):
     batch_size = max(1, int(batch_size or OSRM_BATCH_SIZE or 1))
+    max_dst_batch = max(1, min(int(OSRM_TABLE_DEST_BATCH or 1), batch_size - len(src)))
     parallelism = max(1, int(parallelism or EXACT_GRAPH_BATCH_PARALLELISM or 1))
     jobs = []
-    for dst_start in range(0, len(demand_union), batch_size):
-        dst_indices = np.asarray(demand_union[dst_start:dst_start + batch_size], dtype=np.int64)
+    for dst_start in range(0, len(demand_union), max_dst_batch):
+        dst_indices = np.asarray(demand_union[dst_start:dst_start + max_dst_batch], dtype=np.int64)
         dst = list(zip(demand_lats[dst_indices], demand_lons[dst_indices]))
         jobs.append((dst_indices, dst))
 
@@ -544,12 +593,24 @@ def _iter_osrm_table_batch_results(src, demand_lats, demand_lons, demand_union, 
 
     for start in range(0, len(jobs), parallelism):
         chunk = jobs[start:start + parallelism]
-        futures = [
-            (dst_indices, _osrm_executor.submit(_osrm_table_batch, src, dst))
+        future_map = {
+            _osrm_executor.submit(_osrm_table_batch, src, dst): (dst_indices, dst)
             for dst_indices, dst in chunk
-        ]
-        for dst_indices, fut in futures:
-            yield dst_indices, fut.result()
+        }
+        completed = set()
+        try:
+            for fut in as_completed(future_map, timeout=float(OSRM_FUTURE_TIMEOUT)):
+                completed.add(fut)
+                dst_indices, _dst = future_map[fut]
+                yield dst_indices, fut.result()
+        except FuturesTimeoutError:
+            pass
+
+        for fut, (dst_indices, dst) in future_map.items():
+            if fut in completed:
+                continue
+            fut.cancel()
+            yield dst_indices, _osrm_table_batch_fresh(src, dst)
 
 
 def osrm_min_distances_parallel(point_lats, point_lons, hub_lats, hub_lons, progress_cb=None):
@@ -1708,7 +1769,7 @@ def _canonical_meeting_exact_candidate_cap(params=None):
         business_target_hint = float(base.get('business_target_coverage_pct', 100.0) or 100.0)
     except (TypeError, ValueError):
         business_target_hint = 100.0
-    default_candidate_cap = 15000 if business_target_hint >= 99.95 else 5000
+    default_candidate_cap = 15000 if business_target_hint >= 99.8 else 5000
     if raw_candidate_cap is None and allow_full_candidate_pool:
         return None
     try:
@@ -5352,7 +5413,11 @@ def _effective_fixed_store_mode(params):
         return 'override_file'
     if state.fixed_store_source_mode == 'old_103_exact_locations' and len(state.existing_stores) == 103:
         return 'benchmark_103'
-    return 'uploaded_current'
+    if state.fixed_store_source_mode == 'clean_slate':
+        return 'clean_slate'
+    if state.fixed_store_source_mode in {'store_scope_file', 'uploaded_current'}:
+        return 'uploaded_current'
+    return 'uploaded_current' if (state.existing_stores or []) else 'clean_slate'
 
 
 def _effective_fixed_store_source_mode(params):
@@ -6415,8 +6480,9 @@ def _complete_standard_branch_from_base(scope_grid, base_plan, params, branch_ty
     wts = scope_grid['orders_per_day'].values.astype(np.float64)
     uncovered_orders = float(np.sum(wts[~covered]))
     coverage_pct = 100.0 * float(np.sum(wts[covered])) / max(float(np.sum(wts)), 1e-9)
-    physical_count_at_100 = len(fixed_sites) + len(new_sites) if not np.any(~covered) else None
-    frontier_max = _compact_standard_frontier_limit(physical_count_at_100, params=params)
+    reached_branch_target = bool(coverage_pct >= branch_target_coverage_pct - 1e-9)
+    physical_count_at_target = len(fixed_sites) + len(new_sites) if reached_branch_target else None
+    frontier_max = _compact_standard_frontier_limit(physical_count_at_target, params=params)
     refinement_site_limit = None
     exact_total_standard_stores = base_plan.get('exact_total_standard_stores')
     max_new_standard_stores = base_plan.get('max_new_standard_stores')
@@ -6430,6 +6496,8 @@ def _complete_standard_branch_from_base(scope_grid, base_plan, params, branch_ty
             refinement_site_limit = len(fixed_sites) + max(0, int(max_new_standard_stores))
         except (TypeError, ValueError):
             refinement_site_limit = None
+    if refinement_site_limit is None and frontier_max is not None:
+        refinement_site_limit = int(frontier_max)
     frontier_added = 0
     frontier_daily_gain = 0.0
     allow_frontier_refine = True
@@ -6442,7 +6510,7 @@ def _complete_standard_branch_from_base(scope_grid, base_plan, params, branch_ty
                     f"branch budget reached before frontier refinement "
                     f"({time.time() - branch_started_at:.1f}s/{branch_budget_seconds:.1f}s)"
                 )
-    if allow_frontier_refine and physical_count_at_100 is not None and refinement_site_limit is not None and len(fixed_sites) + len(new_sites) < refinement_site_limit:
+    if allow_frontier_refine and physical_count_at_target is not None and refinement_site_limit is not None and len(fixed_sites) + len(new_sites) < refinement_site_limit:
         actual_min_d, frontier_added, frontier_daily_gain = _run_standard_cost_frontier_pass(
             scope_grid,
             fixed_sites,
@@ -8176,8 +8244,15 @@ def _finish_site_edge_graph_from_warm_start_partial(
     site_lons = np.array([float(site['lon']) for site in sites], dtype=np.float64)
     site_xy = _latlon_to_xy_km(site_lats, site_lons, ref_lat=ref_lat)
     nearby_lists = demand_tree.query_ball_point(site_xy, graph_max_radius + 0.05)
-    site_block_size = max(1, int(OSRM_BATCH_SIZE or 1))
-    checkpoint_sites = max(site_block_size, 200)
+    try:
+        configured_site_block_size = int(
+            (partial_payload or {}).get('site_block_size')
+            or 1
+        )
+    except Exception:
+        configured_site_block_size = 1
+    delta_site_block_size = max(1, configured_site_block_size)
+    checkpoint_sites = max(delta_site_block_size, 200)
     total_work_sites = int(all_row_site_indices.size + (missing_demand_indices.size if missing_demand_indices.size else 0))
     processed_sites = 0
     missing_demand_set = {int(idx) for idx in missing_demand_indices.tolist()}
@@ -8201,8 +8276,8 @@ def _finish_site_edge_graph_from_warm_start_partial(
             return
         ordered_site_indices = active_site_indices[np.lexsort((site_xy[active_site_indices, 1], site_xy[active_site_indices, 0]))]
         progress_every = 100 if total_work_sites > 1000 else 10
-        for block_start in range(0, len(ordered_site_indices), site_block_size):
-            block_indices = ordered_site_indices[block_start:block_start + site_block_size]
+        for block_start in range(0, len(ordered_site_indices), delta_site_block_size):
+            block_indices = ordered_site_indices[block_start:block_start + delta_site_block_size]
             demand_union = sorted({int(idx) for site_idx in block_indices for idx in nearby_lists[int(site_idx)]})
             if restricted_rows is not None:
                 demand_union = [idx for idx in demand_union if idx in restricted_rows]
@@ -8250,11 +8325,20 @@ def _finish_site_edge_graph_from_warm_start_partial(
         try:
             configured_row_block_size = int(
                 (partial_payload or {}).get('missing_row_block_size')
-                or min(25, int(OSRM_BATCH_SIZE or 1))
+                or 1
             )
         except Exception:
-            configured_row_block_size = min(25, int(OSRM_BATCH_SIZE or 1))
+            configured_row_block_size = 1
         row_block_size = max(1, configured_row_block_size)
+        max_row_repair_site_block = max(1, int(OSRM_BATCH_SIZE or 1) - row_block_size)
+        try:
+            configured_row_repair_site_block = int(
+                (partial_payload or {}).get('missing_row_site_block_size')
+                or min(25, max_row_repair_site_block)
+            )
+        except Exception:
+            configured_row_repair_site_block = min(25, max_row_repair_site_block)
+        row_repair_site_block_size = max(1, min(configured_row_repair_site_block, max_row_repair_site_block))
         progress_every = 25 if ordered_rows.size > 200 else 5
         radius_limit = float(graph_max_radius) + 0.05
         for block_start in range(0, len(ordered_rows), row_block_size):
@@ -8274,8 +8358,8 @@ def _finish_site_edge_graph_from_warm_start_partial(
                     progress_cb(f"Exact Standard: {status_label} warm row repair {processed_sites}/{total_work_sites}")
                 continue
             block_site_indices = active_site_indices[np.asarray(union_local_site_indices, dtype=np.int64)]
-            for site_start in range(0, len(block_site_indices), site_block_size):
-                site_block = block_site_indices[site_start:site_start + site_block_size]
+            for site_start in range(0, len(block_site_indices), row_repair_site_block_size):
+                site_block = block_site_indices[site_start:site_start + row_repair_site_block_size]
                 src = [(float(site_lats[int(site_idx)]), float(site_lons[int(site_idx)])) for site_idx in site_block]
                 for dst_indices, dm in _iter_osrm_table_batch_results(
                     src,
@@ -8610,19 +8694,6 @@ def _candidate_graph_superset_alias_paths(scope_grid, candidate_sites, params):
                 legacy_mode_sensitive=True,
             )
         )
-        try:
-            alt_fixed_sites = _build_fixed_standard_sites(alt_params)
-        except Exception:
-            continue
-        paths.append(
-            _exact_graph_cache_path(
-                scope_grid,
-                alt_fixed_sites,
-                candidate_sites,
-                alt_params,
-                allow_exceptions=True,
-            )
-        )
     deduped = []
     seen = set()
     for path in paths:
@@ -8642,6 +8713,7 @@ def _site_edge_context_from_graph(sites, site_graph, demand_count, raw_grid_idx=
         'candidate_graph': site_graph,
         'graph_edge_lists': edge_lists,
         'site_to_demand_cache': {},
+        'site_reverse_index': None,
         'coord_to_site_idx': {
             _rounded_site_key(site.get('cell_lat', site['lat']), site.get('cell_lon', site['lon'])): int(idx)
             for idx, site in enumerate(sites)
@@ -8655,9 +8727,99 @@ def _site_edge_context_from_graph(sites, site_graph, demand_count, raw_grid_idx=
     return context
 
 
+def _ensure_site_reverse_index(context):
+    if context is None:
+        return None
+    reverse_index = context.get('site_reverse_index')
+    if reverse_index is not None:
+        return reverse_index
+    edge_lists = context.get('graph_edge_lists')
+    if edge_lists is None:
+        edge_lists = list(((context.get('candidate_graph') or {}).get('fixed_edges', [])))
+        context['graph_edge_lists'] = edge_lists
+    site_count = len(context.get('candidate_sites') or [])
+    if site_count <= 0:
+        reverse_index = {
+            'offsets': np.zeros(1, dtype=np.int64),
+            'demand_indices': np.empty(0, dtype=np.int32),
+            'distances': np.empty(0, dtype=np.float32),
+        }
+        context['site_reverse_index'] = reverse_index
+        return reverse_index
+
+    counts = np.zeros(site_count, dtype=np.int64)
+    total_edges = 0
+    for demand_edges in edge_lists or ():
+        for site_idx, _dist in demand_edges:
+            site_idx = int(site_idx)
+            if 0 <= site_idx < site_count:
+                counts[site_idx] += 1
+                total_edges += 1
+
+    offsets = np.zeros(site_count + 1, dtype=np.int64)
+    if site_count > 0:
+        offsets[1:] = np.cumsum(counts, dtype=np.int64)
+    demand_dtype = np.int32 if int(context.get('demand_count', 0) or 0) < (2 ** 31) else np.int64
+    demand_indices = np.empty(total_edges, dtype=demand_dtype)
+    distances = np.empty(total_edges, dtype=np.float32)
+    write_pos = offsets[:-1].copy()
+    for demand_idx, demand_edges in enumerate(edge_lists or ()):
+        for site_idx, dist in demand_edges:
+            site_idx = int(site_idx)
+            if not (0 <= site_idx < site_count):
+                continue
+            pos = int(write_pos[site_idx])
+            demand_indices[pos] = int(demand_idx)
+            distances[pos] = float(dist)
+            write_pos[site_idx] += 1
+
+    reverse_index = {
+        'offsets': offsets,
+        'demand_indices': demand_indices,
+        'distances': distances,
+    }
+    context['site_reverse_index'] = reverse_index
+    return reverse_index
+
+
+def _site_demand_arrays_from_context(context, site_idx):
+    if context is None:
+        return None, None
+    site_idx = int(site_idx)
+    reverse_index = _ensure_site_reverse_index(context)
+    if reverse_index is not None:
+        offsets = reverse_index.get('offsets')
+        if offsets is None or site_idx < 0 or site_idx + 1 >= len(offsets):
+            return None, None
+        start = int(offsets[site_idx])
+        end = int(offsets[site_idx + 1])
+        return (
+            reverse_index.get('demand_indices', np.empty(0, dtype=np.int32))[start:end],
+            reverse_index.get('distances', np.empty(0, dtype=np.float32))[start:end],
+        )
+    cache = context.setdefault('site_to_demand_cache', {})
+    cached = cache.get(site_idx)
+    if cached is None:
+        return None, None
+    if isinstance(cached, tuple) and len(cached) == 2:
+        return cached
+    if not cached:
+        empty_idx = np.empty(0, dtype=np.int32)
+        empty_dist = np.empty(0, dtype=np.float32)
+        cache[site_idx] = (empty_idx, empty_dist)
+        return empty_idx, empty_dist
+    demand_idx_arr = np.fromiter((int(demand_idx) for demand_idx, _dist in cached), dtype=np.int32)
+    dist_arr = np.fromiter((float(dist) for _demand_idx, dist in cached), dtype=np.float32)
+    cache[site_idx] = (demand_idx_arr, dist_arr)
+    return demand_idx_arr, dist_arr
+
+
 def _site_demand_pairs_from_context(context, site_idx):
     if context is None:
         return None
+    demand_idx_arr, dist_arr = _site_demand_arrays_from_context(context, site_idx)
+    if demand_idx_arr is not None and dist_arr is not None:
+        return zip(demand_idx_arr.tolist(), dist_arr.tolist())
     cache = context.setdefault('site_to_demand_cache', {})
     site_idx = int(site_idx)
     cached = cache.get(site_idx)
@@ -8716,6 +8878,7 @@ def _get_all_demand_candidate_context(grid_data, params, progress_cb=None):
     candidate_pool = _build_exact_standard_candidate_pool(grid_data, [], ctx_params, progress_cb=progress_cb)
     candidate_sites = candidate_pool.get('sites', [])
     candidate_cache_path = _exact_candidate_graph_cache_path(grid_data, candidate_sites, ctx_params, allow_exceptions=True)
+    partial_candidate_cache_path = _exact_graph_partial_cache_path(candidate_cache_path)
     if not os.path.exists(candidate_cache_path) and ctx_params.get('exact_candidate_cap') not in (None, '', 0, '0', 'all', 'ALL'):
         full_ctx_params = dict(ctx_params)
         full_ctx_params['exact_candidate_cap'] = None
@@ -8732,7 +8895,7 @@ def _get_all_demand_candidate_context(grid_data, params, progress_cb=None):
             subset_graph = _derive_subset_site_edge_graph(full_sites, full_graph, candidate_sites, graph_max_radius)
             if subset_graph is not None:
                 _write_exact_superset_component_cache(candidate_cache_path, subset_graph)
-    if not os.path.exists(candidate_cache_path):
+    if not os.path.exists(candidate_cache_path) and not os.path.exists(partial_candidate_cache_path):
         for superset_path in _candidate_graph_superset_alias_paths(grid_data, candidate_sites, ctx_params):
             if not superset_path or not os.path.exists(superset_path):
                 continue
@@ -8751,11 +8914,11 @@ def _get_all_demand_candidate_context(grid_data, params, progress_cb=None):
                 if progress_cb:
                     progress_cb(
                         f"Exact Standard: reusing cached candidate graph from {os.path.basename(superset_path)}"
-                    )
+                )
                 break
             except Exception:
                 continue
-    if not os.path.exists(candidate_cache_path):
+    if not os.path.exists(candidate_cache_path) and not os.path.exists(partial_candidate_cache_path):
         derived_graph, derived_pool_path, derived_superset_path = _try_derive_candidate_graph_from_completed_superset(
             grid_data,
             candidate_sites,
@@ -8769,8 +8932,7 @@ def _get_all_demand_candidate_context(grid_data, params, progress_cb=None):
                 progress_cb(
                     f"Exact Standard: cached candidate graph derived from {os.path.basename(derived_superset_path)}"
                 )
-    partial_candidate_cache_path = _exact_graph_partial_cache_path(candidate_cache_path)
-    if not os.path.exists(candidate_cache_path):
+    if not os.path.exists(candidate_cache_path) and not os.path.exists(partial_candidate_cache_path):
         seeded_partial, seeded_pool_path, seeded_superset_path = _try_seed_candidate_graph_delta_from_completed_superset(
             grid_data,
             candidate_sites,
@@ -8785,6 +8947,10 @@ def _get_all_demand_candidate_context(grid_data, params, progress_cb=None):
                 progress_cb(
                     f"Exact Standard: warm delta seeded from {os.path.basename(seeded_superset_path)}"
                 )
+    elif progress_cb and os.path.exists(partial_candidate_cache_path) and not os.path.exists(candidate_cache_path):
+        progress_cb(
+            f"Exact Standard: resuming cached warm-start partial {os.path.basename(partial_candidate_cache_path)}"
+        )
     if progress_cb and os.path.exists(candidate_cache_path):
         progress_cb(f"Exact Standard: loading cached candidate graph {os.path.basename(candidate_cache_path)}")
     candidate_graph = _load_or_build_exact_site_edge_graph(
@@ -8851,15 +9017,17 @@ def _distance_mask_from_cached_seed(context, seed_lat, seed_lon, demand_count, r
     site_idx = coord_to_site_idx.get(_rounded_site_key(seed_lat, seed_lon))
     if site_idx is None:
         return None
-    site_pairs = _site_demand_pairs_from_context(context, site_idx)
-    if site_pairs is None:
+    demand_idx_arr, dist_arr = _site_demand_arrays_from_context(context, site_idx)
+    if demand_idx_arr is None or dist_arr is None:
         return None
     effective_count = int(context.get('demand_count', demand_count if demand_count is not None else 0) or 0)
     mask = np.zeros(effective_count, dtype=bool)
     radius_limit = float(radius_km) + 1e-5
-    for demand_idx, dist in site_pairs:
-        if int(demand_idx) < effective_count and float(dist) <= radius_limit:
-            mask[int(demand_idx)] = True
+    if len(demand_idx_arr):
+        valid = np.asarray(dist_arr, dtype=np.float64) <= radius_limit
+        demand_idx_arr = np.asarray(demand_idx_arr, dtype=np.int64)
+        valid &= demand_idx_arr < effective_count
+        mask[demand_idx_arr[valid]] = True
     return mask
 
 
@@ -8868,14 +9036,15 @@ def _distance_array_from_cached_seed(context, seed_lat, seed_lon, demand_count):
     site_idx = coord_to_site_idx.get(_rounded_site_key(seed_lat, seed_lon))
     if site_idx is None:
         return None
-    site_pairs = _site_demand_pairs_from_context(context, site_idx)
-    if site_pairs is None:
+    demand_idx_arr, dist_arr = _site_demand_arrays_from_context(context, site_idx)
+    if demand_idx_arr is None or dist_arr is None:
         return None
     effective_count = int(context.get('demand_count', demand_count if demand_count is not None else 0) or 0)
     dists = np.full(effective_count, np.inf, dtype=np.float64)
-    for demand_idx, dist in site_pairs:
-        if int(demand_idx) < effective_count:
-            dists[int(demand_idx)] = float(dist)
+    if len(demand_idx_arr):
+        demand_idx_arr = np.asarray(demand_idx_arr, dtype=np.int64)
+        valid = demand_idx_arr < effective_count
+        dists[demand_idx_arr[valid]] = np.asarray(dist_arr, dtype=np.float64)[valid]
     return dists
 
 
@@ -8899,13 +9068,19 @@ def _min_distances_from_cached_hubs(context, hubs, demand_count, radius_km=None)
         site_idx = coord_to_site_idx.get(_rounded_site_key(hub['lat'], hub['lon']))
         if site_idx is None:
             return None
-        site_pairs = _site_demand_pairs_from_context(context, site_idx)
-        if site_pairs is None:
+        demand_idx_arr, dist_arr = _site_demand_arrays_from_context(context, site_idx)
+        if demand_idx_arr is None or dist_arr is None:
             return None
-        for demand_idx, dist in site_pairs:
-            dist = float(dist)
-            if dist <= radius_limit and dist < dists[int(demand_idx)]:
-                dists[int(demand_idx)] = dist
+        if not len(demand_idx_arr):
+            continue
+        demand_idx_arr = np.asarray(demand_idx_arr, dtype=np.int64)
+        dist_arr = np.asarray(dist_arr, dtype=np.float64)
+        valid = (demand_idx_arr < int(demand_count)) & (dist_arr <= radius_limit)
+        if not np.any(valid):
+            continue
+        demand_idx_arr = demand_idx_arr[valid]
+        dist_arr = dist_arr[valid]
+        dists[demand_idx_arr] = np.minimum(dists[demand_idx_arr], dist_arr)
     return dists
 
 
@@ -8925,13 +9100,17 @@ def _min_distances_from_cached_hub_contexts(contexts, hubs, demand_count, radius
             site_idx = coord_to_site_idx.get(_rounded_site_key(hub['lat'], hub['lon']))
             if site_idx is None:
                 continue
-            site_pairs = _site_demand_pairs_from_context(context, site_idx)
-            if site_pairs is None:
+            demand_idx_arr, dist_arr = _site_demand_arrays_from_context(context, site_idx)
+            if demand_idx_arr is None or dist_arr is None:
                 continue
-            for demand_idx, dist in site_pairs:
-                dist = float(dist)
-                if dist <= radius_limit and dist < dists[int(demand_idx)]:
-                    dists[int(demand_idx)] = dist
+            if len(demand_idx_arr):
+                demand_idx_arr = np.asarray(demand_idx_arr, dtype=np.int64)
+                dist_arr = np.asarray(dist_arr, dtype=np.float64)
+                valid = (demand_idx_arr < int(demand_count)) & (dist_arr <= radius_limit)
+                if np.any(valid):
+                    demand_idx_arr = demand_idx_arr[valid]
+                    dist_arr = dist_arr[valid]
+                    dists[demand_idx_arr] = np.minimum(dists[demand_idx_arr], dist_arr)
             found = True
             break
         if not found:
@@ -13858,29 +14037,24 @@ class Handler(SimpleHTTPRequestHandler):
                         cold_wait_s = float(normalized_params.get('meeting_cold_start_wait_seconds', 120.0) or 0.0)
                     except (TypeError, ValueError):
                         cold_wait_s = 120.0
-                    raw_candidate_cap = normalized_params.get('exact_candidate_cap')
-                    if raw_candidate_cap in ('', None, 0, '0', 'all', 'ALL'):
-                        requested_candidate_cap = None
-                    else:
-                        try:
-                            requested_candidate_cap = max(50, int(float(raw_candidate_cap)))
-                        except (TypeError, ValueError):
-                            requested_candidate_cap = None
-                    prewarm_candidate_cap = _meeting_prewarm_default_params().get('exact_candidate_cap')
-                    fixed_mode = str(normalized_params.get('fixed_store_mode', '')).strip().lower()
-                    skip_prewarm_wait = (
-                        fixed_mode == 'clean_slate'
-                        and requested_candidate_cap is not None
-                        and prewarm_candidate_cap not in (None, '', 0, '0', 'all', 'ALL')
-                        and requested_candidate_cap >= int(prewarm_candidate_cap)
+                    prewarm_ready = _wait_for_meeting_prewarm_core(
+                        progress_cb=progress_setter,
+                        timeout_s=cold_wait_s,
                     )
-                    if skip_prewarm_wait:
+                    if not prewarm_ready and state.meeting_prewarm_running:
                         progress_setter(
-                            f"Skipping shared {int(prewarm_candidate_cap)}-candidate prewarm wait; "
-                            f"running clean-slate with {requested_candidate_cap} candidates directly..."
+                            "Shared meeting cache is still warming; waiting for the canonical candidate graph "
+                            "instead of starting a competing clean-slate builder..."
                         )
-                    else:
-                        _wait_for_meeting_prewarm_core(progress_cb=progress_setter, timeout_s=cold_wait_s)
+                        while _is_latest_run() and state.meeting_prewarm_running:
+                            current_progress = state.meeting_prewarm_progress or 'warming shared meeting cache...'
+                            progress_setter(f"Waiting for meeting cache core: {current_progress}")
+                            time.sleep(0.5)
+                        prewarm_ready = bool(state.meeting_prewarm_core_ready or state.meeting_prewarm_ready)
+                    if not prewarm_ready and state.meeting_prewarm_error:
+                        raise RuntimeError(
+                            f"Meeting cache prewarm failed before optimization could start: {state.meeting_prewarm_error}"
+                        )
 
                 def release_core_handoff(core_result_obj, progress_message=None):
                     nonlocal core_published
