@@ -1300,6 +1300,29 @@ def _violates_same_tier_spacing(lat, lon, hubs, spacing_km):
         return bool(np.any(euclid[nearby_idx] <= float(spacing_km) + 1e-6))
 
 
+def _normalized_standard_rescue_spacing_km(params):
+    base = dict(params or {})
+    raw_value = base.get('standard_rescue_spacing_km', '__missing__')
+    try:
+        default_spacing = max(0.0, float(base.get('standard_ds_radius', 3.0) or 3.0))
+    except (TypeError, ValueError):
+        default_spacing = 3.0
+    if raw_value == '__missing__' or raw_value in ('', None):
+        return default_spacing
+    try:
+        return max(default_spacing, float(raw_value))
+    except (TypeError, ValueError):
+        return default_spacing
+
+
+def _default_standard_rescue_handover_pct(target_pct):
+    try:
+        target = float(target_pct)
+    except (TypeError, ValueError):
+        target = 100.0
+    return min(98.0, max(90.0, target))
+
+
 def normalize_placement_params(params):
     """Copy params and coerce tier min orders so invalid values cannot disable min thresholds."""
     base = dict(params or {})
@@ -1492,11 +1515,7 @@ def normalize_placement_params(params):
                 base['standard_total_hub_cap'] = max(0, int(float(raw_standard_total_hub_cap)))
             except (TypeError, ValueError):
                 base['standard_total_hub_cap'] = None
-        try:
-            rescue_spacing = float(base.get('standard_rescue_spacing_km', 0.0) or 0.0)
-        except (TypeError, ValueError):
-            rescue_spacing = 0.0
-        base['standard_rescue_spacing_km'] = max(0.0, rescue_spacing)
+        base['standard_rescue_spacing_km'] = _normalized_standard_rescue_spacing_km(base)
         try:
             rescue_penalty = float(base.get('standard_rescue_open_penalty_per_day', 25000.0) or 0.0)
         except (TypeError, ValueError):
@@ -1507,15 +1526,17 @@ def normalize_placement_params(params):
         except (TypeError, ValueError):
             rescue_top_k = 8
         base['standard_rescue_seed_top_k'] = max(1, rescue_top_k)
+        default_handover_pct = _default_standard_rescue_handover_pct(
+            float(base.get('meeting_fast_target_coverage_pct', 100.0) or 100.0)
+        )
+        raw_rescue_handover = base.get('standard_rescue_handover_coverage_pct', '__missing__')
         try:
-            rescue_handover_pct = float(
-                base.get(
-                    'standard_rescue_handover_coverage_pct',
-                    float(base.get('meeting_fast_target_coverage_pct', 100.0) or 100.0),
-                ) or float(base.get('meeting_fast_target_coverage_pct', 100.0) or 100.0)
-            )
+            if raw_rescue_handover == '__missing__':
+                rescue_handover_pct = default_handover_pct
+            else:
+                rescue_handover_pct = float(raw_rescue_handover or default_handover_pct)
         except (TypeError, ValueError):
-            rescue_handover_pct = float(base.get('meeting_fast_target_coverage_pct', 100.0) or 100.0)
+            rescue_handover_pct = default_handover_pct
         base['standard_rescue_handover_coverage_pct'] = min(
             float(base['meeting_fast_target_coverage_pct']),
             max(90.0, rescue_handover_pct),
@@ -1610,11 +1631,7 @@ def normalize_placement_params(params):
                 base['standard_total_hub_cap'] = max(0, int(float(base.get('standard_total_hub_cap'))))
             except (TypeError, ValueError):
                 base['standard_total_hub_cap'] = None
-        try:
-            rescue_spacing = float(base.get('standard_rescue_spacing_km', 0.0) or 0.0)
-        except (TypeError, ValueError):
-            rescue_spacing = 0.0
-        base['standard_rescue_spacing_km'] = max(0.0, rescue_spacing)
+        base['standard_rescue_spacing_km'] = _normalized_standard_rescue_spacing_km(base)
         try:
             rescue_penalty = float(base.get('standard_rescue_open_penalty_per_day', 25000.0) or 0.0)
         except (TypeError, ValueError):
@@ -1625,11 +1642,16 @@ def normalize_placement_params(params):
         except (TypeError, ValueError):
             rescue_top_k = 8
         base['standard_rescue_seed_top_k'] = max(1, rescue_top_k)
-        try:
-            rescue_handover_pct = float(base.get('standard_rescue_handover_coverage_pct', 100.0) or 100.0)
-        except (TypeError, ValueError):
-            rescue_handover_pct = 100.0
         exact_target_pct = float(base.get('business_target_coverage_pct', 100.0) or 100.0)
+        default_handover_pct = _default_standard_rescue_handover_pct(exact_target_pct)
+        raw_rescue_handover = base.get('standard_rescue_handover_coverage_pct', '__missing__')
+        try:
+            if raw_rescue_handover == '__missing__':
+                rescue_handover_pct = default_handover_pct
+            else:
+                rescue_handover_pct = float(raw_rescue_handover or default_handover_pct)
+        except (TypeError, ValueError):
+            rescue_handover_pct = default_handover_pct
         base['standard_rescue_handover_coverage_pct'] = min(
             exact_target_pct,
             max(90.0, rescue_handover_pct),
@@ -3985,8 +4007,11 @@ def _build_service_gap_polygons(uncovered_pockets, grid_data, stage_label='base'
         polygons.append({
             'gap_id': f'gap-{stage_label}-{i}',
             'stage': stage_label,
-            'lat': round(float(pocket.get('lat', 0) or 0), 5),
-            'lon': round(float(pocket.get('lon', 0) or 0), 5),
+            'lat': round(float(pocket.get('seed_lat', pocket.get('lat', 0)) or 0), 5),
+            'lon': round(float(pocket.get('seed_lon', pocket.get('lon', 0)) or 0), 5),
+            'centroid_lat': round(float(pocket.get('centroid_lat', pocket.get('lat', 0)) or 0), 5),
+            'centroid_lon': round(float(pocket.get('centroid_lon', pocket.get('lon', 0)) or 0), 5),
+            'pocket_radius_km': round(float(pocket.get('pocket_radius_km', 0.0) or 0.0), 3),
             'orders_per_day': round(float(pocket.get('orders_per_day', 0) or 0), 2),
             'num_cells': int(pocket.get('num_cells', 0) or 0),
             'polygon': polygon,
@@ -5284,10 +5309,19 @@ def _group_uncovered_pockets(lats, lons, orders, pocket_radius_km=3.0, progress_
         pocket_orders = float(orders[pocket_cells].sum())
         pocket_lat = float((lats[pocket_cells] * orders[pocket_cells]).sum() / max(pocket_orders, 1e-9))
         pocket_lon = float((lons[pocket_cells] * orders[pocket_cells]).sum() / max(pocket_orders, 1e-9))
+        within_dists = np.asarray(dists[within], dtype=np.float64) if np.any(within) else np.asarray([], dtype=np.float64)
+        if within_dists.size == 0:
+            within_dists = np.asarray([0.0], dtype=np.float64)
 
         pocket = {
             'lat': pocket_lat,
             'lon': pocket_lon,
+            'centroid_lat': pocket_lat,
+            'centroid_lon': pocket_lon,
+            'seed_lat': float(lats[seed_i]),
+            'seed_lon': float(lons[seed_i]),
+            'seed_orders_per_day': round(float(orders[seed_i]), 2),
+            'pocket_radius_km': round(float(np.nanmax(within_dists)), 3),
             'orders_per_day': round(pocket_orders, 0),
             'num_cells': int(len(pocket_cells)),
         }
@@ -5673,6 +5707,7 @@ def _meeting_reference_candidate_sites(params):
 def _apply_standard_exception_overrides(scope_grid, covered_mask, standard_sites, params, remaining_slots=None, progress_cb=None):
     base_radius = float(params.get('standard_ds_radius', 3.0) or 3.0)
     exception_radius = float(params.get('standard_exception_radius_km', 5.0) or 5.0)
+    exception_spacing_km = max(base_radius, _tier_spacing_radius(params, 'standard'))
     if exception_radius <= base_radius + 1e-5 or not standard_sites or scope_grid is None or len(scope_grid) == 0:
         return [], np.array(covered_mask, copy=True)
 
@@ -5747,6 +5782,12 @@ def _apply_standard_exception_overrides(scope_grid, covered_mask, standard_sites
         site = site_by_id.get(str(rec.get('hub_id')))
         if site is None:
             continue
+        spacing_reference_sites = [
+            other for other in standard_sites
+            if str(other.get('id')) != str(site.get('id'))
+        ]
+        if _violates_same_tier_spacing(float(site['lat']), float(site['lon']), spacing_reference_sites, exception_spacing_km):
+            continue
         site['exception_standard'] = True
         site['base_radius_km'] = base_radius
         site['radius_km'] = float(rec.get('new_radius_km', exception_radius) or exception_radius)
@@ -5762,6 +5803,150 @@ def _apply_standard_exception_overrides(scope_grid, covered_mask, standard_sites
         revised_covered |= np.isfinite(dists) & (dists <= float(site['radius_km']) + 1e-5)
         exception_sites.append(site)
     return exception_sites, revised_covered
+
+
+def _standard_site_role_counts(new_sites):
+    counts = {
+        'base_new_count': 0,
+        'gap_fill_count': 0,
+        'rescue_count': 0,
+        'frontier_count': 0,
+    }
+    for site in (new_sites or []):
+        if bool(site.get('cost_frontier_refine')):
+            counts['frontier_count'] += 1
+        elif bool(site.get('rescue_gap_fill')):
+            counts['rescue_count'] += 1
+        elif bool(site.get('gap_fill')):
+            counts['gap_fill_count'] += 1
+        else:
+            counts['base_new_count'] += 1
+    return counts
+
+
+def _site_cover_mask_for_scope(scope_grid, site, params, cached_context=None):
+    if scope_grid is None or len(scope_grid) == 0:
+        return np.zeros(0, dtype=bool)
+    try:
+        radius_km = float(
+            site.get('radius_km', params.get('standard_ds_radius', 3.0)) or params.get('standard_ds_radius', 3.0)
+        )
+    except (TypeError, ValueError):
+        radius_km = float(params.get('standard_ds_radius', 3.0) or 3.0)
+    lat = float(site['lat'])
+    lon = float(site['lon'])
+    cached_mask = (
+        _distance_mask_from_cached_seed(cached_context, lat, lon, len(scope_grid), radius_km)
+        if cached_context is not None else None
+    )
+    if cached_mask is not None:
+        return np.array(cached_mask, copy=True)
+    d_full = osrm_one_to_many(
+        lat,
+        lon,
+        scope_grid['avg_cust_lat'].values,
+        scope_grid['avg_cust_lon'].values,
+    )
+    return np.isfinite(d_full) & (d_full <= radius_km + 1e-5)
+
+
+def _prune_redundant_standard_sites(
+    scope_grid,
+    fixed_sites,
+    new_sites,
+    exception_sites,
+    params,
+    cached_context=None,
+    progress_cb=None,
+):
+    if scope_grid is None or len(scope_grid) == 0 or not new_sites:
+        return list(new_sites or []), np.array([], dtype=bool), {'removed_total': 0}
+
+    weights = scope_grid['orders_per_day'].values.astype(np.float64)
+    total_orders = float(np.sum(weights))
+    if total_orders <= 0:
+        return list(new_sites or []), np.zeros(len(scope_grid), dtype=bool), {'removed_total': 0}
+
+    try:
+        target_coverage_pct = float(params.get('meeting_fast_target_coverage_pct', _business_target_coverage_pct(params)) or _business_target_coverage_pct(params))
+    except (TypeError, ValueError):
+        target_coverage_pct = _business_target_coverage_pct(params)
+    target_coverage_pct = min(100.0, max(0.0, target_coverage_pct))
+    target_orders = total_orders * target_coverage_pct / 100.0
+
+    fixed_masks = [
+        _site_cover_mask_for_scope(scope_grid, site, params, cached_context=cached_context)
+        for site in (fixed_sites or [])
+    ]
+    new_masks = [
+        _site_cover_mask_for_scope(scope_grid, site, params, cached_context=cached_context)
+        for site in (new_sites or [])
+    ]
+    exception_masks = [
+        _site_cover_mask_for_scope(scope_grid, site, params, cached_context=None)
+        for site in (exception_sites or [])
+    ]
+
+    coverage_count = np.zeros(len(scope_grid), dtype=np.int32)
+    for mask in fixed_masks + new_masks + exception_masks:
+        coverage_count += mask.astype(np.int32)
+    covered_orders = float(np.sum(weights[coverage_count > 0]))
+
+    def _prune_priority(item):
+        idx, site = item
+        if bool(site.get('cost_frontier_refine')):
+            role_rank = 0
+        elif bool(site.get('rescue_gap_fill')):
+            role_rank = 1
+        elif bool(site.get('gap_fill')):
+            role_rank = 2
+        else:
+            role_rank = 3
+        marginal_orders = float(site.get('marginal_covered_orders_per_day', site.get('orders_per_day', 0.0)) or 0.0)
+        total_orders_day = float(site.get('orders_per_day', 0.0) or 0.0)
+        return (role_rank, marginal_orders, total_orders_day, idx)
+
+    keep_mask = np.ones(len(new_sites), dtype=bool)
+    removed = {
+        'removed_total': 0,
+        'removed_base_new': 0,
+        'removed_gap_fill': 0,
+        'removed_rescue': 0,
+        'removed_frontier': 0,
+        'removed_unique_orders_per_day': 0.0,
+    }
+    for idx, site in sorted(list(enumerate(new_sites)), key=_prune_priority):
+        if not keep_mask[idx]:
+            continue
+        site_mask = new_masks[idx]
+        unique_mask = site_mask & (coverage_count == 1)
+        unique_orders = float(np.sum(weights[unique_mask]))
+        if covered_orders - unique_orders + 1e-9 < target_orders:
+            continue
+        keep_mask[idx] = False
+        coverage_count[site_mask] -= 1
+        covered_orders -= unique_orders
+        removed['removed_total'] += 1
+        removed['removed_unique_orders_per_day'] += unique_orders
+        if bool(site.get('cost_frontier_refine')):
+            removed['removed_frontier'] += 1
+        elif bool(site.get('rescue_gap_fill')):
+            removed['removed_rescue'] += 1
+        elif bool(site.get('gap_fill')):
+            removed['removed_gap_fill'] += 1
+        else:
+            removed['removed_base_new'] += 1
+
+    pruned_new_sites = [dict(site) for idx, site in enumerate(new_sites) if keep_mask[idx]]
+    final_covered = coverage_count > 0
+    removed['removed_unique_orders_per_day'] = round(float(removed['removed_unique_orders_per_day']), 2)
+    if progress_cb and removed['removed_total'] > 0:
+        progress_cb(
+            "Standard redundancy prune: removed "
+            f"{removed['removed_total']} overlapping Standard site(s) "
+            f"while preserving the {target_coverage_pct:.2f}% branch target."
+        )
+    return pruned_new_sites, final_covered, removed
 
 
 def _run_standard_rescue_pass(
@@ -5794,7 +5979,7 @@ def _run_standard_rescue_pass(
             return covered_mask, current_min_d, 0, 0.0
 
     radius = float(params.get('standard_ds_radius', 3.0) or 3.0)
-    rescue_spacing_km = float(params.get('standard_rescue_spacing_km', 0.0) or 0.0)
+    rescue_spacing_km = _normalized_standard_rescue_spacing_km(params)
     rescue_penalty_per_day = float(params.get('standard_rescue_open_penalty_per_day', 0.0) or 0.0)
     rescue_seed_top_k = max(1, int(float(params.get('standard_rescue_seed_top_k', 8) or 8)))
     base_cost = float(params.get('standard_base_cost', 29) or 29)
@@ -6127,7 +6312,7 @@ def _run_standard_cost_frontier_pass(scope_grid, fixed_sites, new_sites, current
         return current_actual_min_d, 0, 0.0
 
     radius = float(params.get('standard_ds_radius', 3.0) or 3.0)
-    rescue_spacing_km = float(params.get('standard_rescue_spacing_km', 0.0) or 0.0)
+    rescue_spacing_km = _normalized_standard_rescue_spacing_km(params)
     rescue_penalty_per_day = float(params.get('standard_rescue_open_penalty_per_day', 0.0) or 0.0)
     refinement_top_k = max(3, int(float(params.get('standard_cost_frontier_seed_top_k', 12) or 12)))
     min_daily_gain = float(params.get('standard_cost_frontier_min_daily_gain', 0.0) or 0.0)
@@ -6578,6 +6763,36 @@ def _complete_standard_branch_from_base(scope_grid, base_plan, params, branch_ty
         )
         rescue_count += int(frontier_added or 0)
         rescue_penalty_total += float(params.get('standard_rescue_open_penalty_per_day', 0.0) or 0.0) * int(frontier_added or 0)
+
+    pruned_new_sites, covered_after_prune, prune_summary = _prune_redundant_standard_sites(
+        scope_grid,
+        fixed_sites,
+        new_sites,
+        exception_sites,
+        params,
+        cached_context=cached_context,
+        progress_cb=(lambda msg: progress_cb(f"{'Rescue-first' if branch_type == 'rescue_first' else 'Exception-first'} cleanup: {msg}") if progress_cb else None),
+    )
+    if prune_summary.get('removed_total', 0):
+        new_sites = pruned_new_sites
+        covered = covered_after_prune
+    role_counts = _standard_site_role_counts(new_sites)
+    base_new_count = role_counts['base_new_count']
+    gap_fill_count = role_counts['gap_fill_count']
+    rescue_count = role_counts['rescue_count']
+    frontier_added = role_counts['frontier_count']
+    rescue_penalty_total = float(params.get('standard_rescue_open_penalty_per_day', 0.0) or 0.0) * float(
+        rescue_count + frontier_added
+    )
+
+    actual_min_d = _actual_min_distances_to_standard_sites(
+        scope_grid,
+        fixed_sites,
+        new_sites,
+        params,
+        cached_context=cached_context,
+        fixed_context=fixed_context,
+    )
 
     all_sites = fixed_sites + new_sites
     final_covered = covered if frontier_added <= 0 else (actual_min_d <= float(params.get('standard_ds_radius', 3.0) or 3.0) + 1e-5) | covered

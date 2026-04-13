@@ -874,8 +874,7 @@ function init(){
       <div class="leg-row"><div class="leg-dot" style="background:#2563eb"></div><span class="leg-label">Old Fixed Store</span></div>
       <div class="leg-row"><div class="leg-dot" style="background:#059669"></div><span class="leg-label">New Standard DS</span></div>
       <div class="leg-row"><div class="leg-dot" style="background:#0891b2"></div><span class="leg-label">Rescue Standard DS</span></div>
-      <div class="leg-row"><div class="leg-dot" style="background:#b45309"></div><span class="leg-label">Exception Standard DS</span></div>
-      <div class="leg-row"><div class="leg-dot" style="background:#e11d48"></div><span class="leg-label">Rescue + Exception Standard DS</span></div>
+      <div class="leg-row"><div class="leg-dot" style="background:#b45309"></div><span class="leg-label">Exception-lifted Standard DS</span></div>
       <div class="leg-row"><div class="leg-dot" style="background:#ea580c"></div><span class="leg-label">Mini DS (New)</span></div>
       <div class="leg-row"><div class="leg-dot" style="background:#7c3aed"></div><span class="leg-label">Super DS (30k)</span></div>
       <div class="leg-subhead">View-only overlays</div>
@@ -1518,13 +1517,13 @@ function renderOptimizationResult(data){
       markerStroke: '#ecfdf5',
       markerRadius: 11,
     };
-    if(siteClass.isRescue && siteClass.isException){
+    if(siteClass.isException){
       style = {
-        label: 'Rescue + Exception Standard DS',
-        ringColor: '#e11d48',
-        ringFill: '#fda4af',
-        markerFill: '#e11d48',
-        markerStroke: '#ffe4e6',
+        label: 'Exception-lifted Standard DS',
+        ringColor: '#b45309',
+        ringFill: '#fdba74',
+        markerFill: '#b45309',
+        markerStroke: '#fff7ed',
         markerRadius: 12,
       };
     }else if(siteClass.isRescue){
@@ -1565,11 +1564,11 @@ function renderOptimizationResult(data){
     if((data.standard_ds||[]).some(s=>s.id === h.id)) return;
     const siteClass = classifyStandardSite(h);
     const rescuedText = Number.isFinite(Number(h.rescued_orders_per_day)) ? Number(h.rescued_orders_per_day).toLocaleString() : '—';
-    const label = siteClass.isRescue ? 'Rescue + Exception Standard' : 'Exception Standard';
-    const stroke = siteClass.isRescue ? '#ffe4e6' : '#fff';
-    const markerFill = siteClass.isRescue ? '#e11d48' : '#b45309';
-    const ringColor = siteClass.isRescue ? '#e11d48' : '#b45309';
-    const ringFill = siteClass.isRescue ? '#fda4af' : '#fdba74';
+    const label = 'Exception-lifted Standard';
+    const stroke = '#fff7ed';
+    const markerFill = '#b45309';
+    const ringColor = '#b45309';
+    const ringFill = '#fdba74';
     if(showServiceRings){
       L.circle([h.lat,h.lon],{
         radius:h.radius_km*1000,color:ringColor,weight:1.6,opacity:.45,fill:true,fillColor:ringFill,fillOpacity:.08,
@@ -1591,7 +1590,7 @@ function renderOptimizationResult(data){
 
   layers.lowdensity.clearLayers();
   (data.analysis?.service_gap_polygons||[]).forEach(g=>{
-    const popup = `<b>Residual service gap</b><br>Orders/day: ${Number(g.orders_per_day||0).toLocaleString()}<br>Cells: ${Number(g.num_cells||0).toLocaleString()}<br>Stage: ${g.stage || data.analysis?.service_gap_source || 'base_network'}<br>Center: ${Number(g.lat||0).toFixed(4)}, ${Number(g.lon||0).toFixed(4)}`;
+    const popup = `<b>Residual service gap</b><br>Orders/day: ${Number(g.orders_per_day||0).toLocaleString()}<br>Cells: ${Number(g.num_cells||0).toLocaleString()}<br>Stage: ${g.stage || data.analysis?.service_gap_source || 'base_network'}<br>Representative uncovered cell: ${Number(g.lat||0).toFixed(4)}, ${Number(g.lon||0).toFixed(4)}${Number.isFinite(Number(g.pocket_radius_km)) ? `<br>Pocket radius from seed: ${Number(g.pocket_radius_km).toFixed(2)} km` : ''}${Number.isFinite(Number(g.centroid_lat)) && Number.isFinite(Number(g.centroid_lon)) ? `<br>Cluster centroid: ${Number(g.centroid_lat).toFixed(4)}, ${Number(g.centroid_lon).toFixed(4)}` : ''}`;
     L.polygon(g.polygon || [],{
       color:'#dc2626',weight:2,opacity:.8,fill:true,fillColor:'#fecaca',fillOpacity:.35,pane:'radiusPane'
     }).bindPopup(popup).addTo(layers.lowdensity);
@@ -2956,7 +2955,6 @@ function renderDecisionDashboard(data){
   const exceptionSites = Array.isArray(standard.exception_sites) && standard.exception_sites.length ? standard.exception_sites : proposedNew.filter(h => classifyStandardSite(h).category === 'exception');
   const newSites = proposedNew.filter(h => classifyStandardSite(h).category === 'new');
   const relaxedRescueSites = rescueSites.filter(h => classifyStandardSite(h).spacingRelaxed);
-  const rescueExceptionOverlap = rescueSites.filter(h => classifyStandardSite(h).isException).length;
   const fixedCount = Number(data?.decision_grade_result?.fixed_standard_count ?? standard.fixed_open_count ?? fixedSites.length ?? 0);
   const totalNewPhysical = Number(data?.decision_grade_result?.new_standard_count ?? standard.new_standard_count ?? proposedNew.length ?? (newSites.length + rescueSites.length) ?? 0);
   const baseNewCount = Number(data?.decision_grade_result?.base_new_standard_count ?? standard.new_store_count ?? newSites.length ?? 0);
@@ -2974,7 +2972,7 @@ function renderDecisionDashboard(data){
     const world = formatFixedStoreMode(data?.params?.fixed_store_mode);
     const coverage = Number(data?.decision_grade_result?.proposed_hard_coverage_pct ?? standard.coverage_pct ?? data?.metrics?.proposed_hard_coverage_pct ?? data?.metrics?.coverage_pct ?? 0).toFixed(2);
     const branch = data?._resolved_active_view_label || data?.decision_grade_result?.active_view_key || 'Active decision branch';
-    summaryEl.innerHTML = `<strong>${branch}</strong> · fixed-store world <strong>${world}</strong> · <strong>${Number.isFinite(totalCount) ? totalCount.toLocaleString() : '—'}</strong> physical Standard sites at <strong>${coverage}%</strong> hard coverage. New physical Standards: <strong>${Number.isFinite(totalNewPhysical) ? totalNewPhysical.toLocaleString() : '—'}</strong> (<strong>${Number.isFinite(baseNewCount) ? baseNewCount.toLocaleString() : '—'}</strong> base + <strong>${Number.isFinite(rescueCount) ? rescueCount.toLocaleString() : '—'}</strong> rescue). Spacing-relaxed rescue Standards: <strong>${Number.isFinite(relaxedCount) ? relaxedCount.toLocaleString() : '—'}</strong>.${rescueExceptionOverlap ? ` <strong>${Number(rescueExceptionOverlap).toLocaleString()}</strong> rescue sites also use exception radius lift and therefore appear in the exception table too.` : ''}`;
+    summaryEl.innerHTML = `<strong>${branch}</strong> · fixed-store world <strong>${world}</strong> · <strong>${Number.isFinite(totalCount) ? totalCount.toLocaleString() : '—'}</strong> physical Standard sites at <strong>${coverage}%</strong> hard coverage. New physical Standards: <strong>${Number.isFinite(totalNewPhysical) ? totalNewPhysical.toLocaleString() : '—'}</strong> (<strong>${Number.isFinite(baseNewCount) ? baseNewCount.toLocaleString() : '—'}</strong> base + <strong>${Number.isFinite(rescueCount) ? rescueCount.toLocaleString() : '—'}</strong> rescue). Spacing-relaxed rescue Standards: <strong>${Number.isFinite(relaxedCount) ? relaxedCount.toLocaleString() : '—'}</strong>.`;
   }
 }
 
@@ -2988,8 +2986,6 @@ function populateHubTable(data){
   const exceptionSites = Array.isArray(standard.exception_sites) && standard.exception_sites.length ? standard.exception_sites : proposedNew.filter(h => classifyStandardSite(h).category === 'exception');
   const newSites = proposedNew.filter(h => classifyStandardSite(h).category === 'new');
   const relaxedRescueSites = rescueSites.filter(h => classifyStandardSite(h).spacingRelaxed);
-  const rescueExceptionOverlap = rescueSites.filter(h => classifyStandardSite(h).isException).length;
-
   const sortByOrders = (a,b) => (numericValue(b?.orders_per_day) || 0) - (numericValue(a?.orders_per_day) || 0);
   const renderRows = (rows, renderer, emptyMsg, colSpan) => rows.length ? rows.slice().sort(sortByOrders).map(renderer).join('') : `<tr><td colspan="${colSpan}" class="table-empty">${emptyMsg}</td></tr>`;
   const siteLabel = (h) => String(h?.id || h?.site_id || h?.hub_id || h?.name || '—');
@@ -3052,7 +3048,6 @@ function populateHubTable(data){
     exceptionBody.innerHTML = renderRows(exceptionSites, h => {
       const c = classifyStandardSite(h);
       const extraBadges = [
-        c.isRescue ? badgeMarkup('Rescue overlap', 'rescue') : '',
         c.spacingRelaxed ? badgeMarkup('Spacing relaxed', 'relaxed') : '',
       ].filter(Boolean).join(' ');
       return `<tr style="cursor:pointer" onclick="map.setView([${Number(h.lat)},${Number(h.lon)}],15)">
@@ -3065,8 +3060,8 @@ function populateHubTable(data){
   const setBadges = (id, items) => { const el = document.getElementById(id); if(el) el.innerHTML = items.join(' '); };
   setMeta('fixedStandardMeta', `${Number(fixedSites.length).toLocaleString()} fixed Standard stores from ${formatFixedStoreMode(data?.params?.fixed_store_mode)}.`);
   setMeta('newStandardMeta', `${Number(proposedNew.length).toLocaleString()} total new physical Standard stores in the active branch: ${Number(newSites.length).toLocaleString()} base + ${Number(rescueSites.length).toLocaleString()} rescue.`);
-  setMeta('rescueStandardMeta', `${Number(rescueSites.length).toLocaleString()} rescue Standard stores patched uncovered pockets locally. ${Number(relaxedRescueSites.length).toLocaleString()} of them needed spacing relaxation.${rescueExceptionOverlap ? ` ${Number(rescueExceptionOverlap).toLocaleString()} rescue sites also appear in the exception table because they needed radius lift.` : ''}`);
-  setMeta('exceptionStandardMeta', `${Number(exceptionSites.length).toLocaleString()} exception overrides stretched Standard radius beyond the base setting.${rescueExceptionOverlap ? ` ${Number(rescueExceptionOverlap).toLocaleString()} of these are also rescue Standards.` : ''}`);
+  setMeta('rescueStandardMeta', `${Number(rescueSites.length).toLocaleString()} rescue Standard stores patched uncovered pockets locally. ${Number(relaxedRescueSites.length).toLocaleString()} of them needed spacing relaxation.`);
+  setMeta('exceptionStandardMeta', `${Number(exceptionSites.length).toLocaleString()} physical Standard sites use exception radius lift beyond the base setting.`);
   setBadges('fixedStandardBadges', [
     badgeMarkup(`${Number(fixedSites.length).toLocaleString()} fixed`, 'fixed'),
     badgeMarkup(`World ${formatFixedStoreMode(data?.params?.fixed_store_mode)}`, 'note'),
@@ -3082,7 +3077,6 @@ function populateHubTable(data){
   ]);
   setBadges('exceptionStandardBadges', [
     badgeMarkup(`${Number(exceptionSites.length).toLocaleString()} overrides`, 'exception'),
-    rescueExceptionOverlap ? badgeMarkup(`${Number(rescueExceptionOverlap).toLocaleString()} rescue overlap`, 'rescue') : '',
   ]);
 
   if(section) section.style.display = 'block';
