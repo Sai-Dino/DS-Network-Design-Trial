@@ -270,7 +270,7 @@ details.target-details .inner{padding-top:4px}
         </div>
       </div>
       <div id="uploadStatus" style="font-size:11px;color:var(--gray-500);text-align:center;margin-top:4px"></div>
-      <button class="btn-secondary" onclick="loadBangaloreBenchmarkPreset()">Load Bangalore Benchmark Files</button>
+      <button class="btn-secondary" onclick="loadBangaloreBenchmarkPreset()">Load Bangalore Inputs</button>
 
       <!-- LOCAL FILE PATH LOADER (for large files) -->
       <details style="margin-top:8px">
@@ -557,7 +557,7 @@ details.target-details .inner{padding-top:4px}
 
     <div class="sidebar-section workflow-hint">
       <div class="section-header"><span class="icon">ℹ️</span> First run</div>
-      <p class="target-hint" style="margin:0">Load the Bangalore benchmark files, choose the fixed-store source you want to analyze, then click <strong>Run Meeting Scenario (Fast)</strong>. This is the bounded live scenario path for the meeting. Anything still approximate will be labeled explicitly.</p>
+      <p class="target-hint" style="margin:0">Load the Bangalore inputs, choose the fixed-store source you want to analyze, then click <strong>Run Meeting Scenario (Fast)</strong>. This is the bounded live scenario path for the meeting. Anything still approximate will be labeled explicitly.</p>
     </div>
 
     <!-- TARGET LAST-MILE COST -->
@@ -1243,13 +1243,13 @@ async function restoreServerState(){
       await previewFixedStoreSelection();
       await triggerMeetingPrewarm();
 
-      if(statusEl) statusEl.textContent += ' · checking previous result...';
+      if(statusEl) statusEl.textContent += ' · checking previous Bangalore 103 result...';
       const resultResp = await fetch('/api/result');
       if(resultResp.ok){
         const result = await resultResp.json();
         displayResults(result);
       } else {
-        const restoreResp = await fetch('/api/load-latest-exact-benchmark');
+        const restoreResp = await fetch('/api/load-latest-decision-packet');
         if(restoreResp.ok){
           const restored = await restoreResp.json();
           if(restored?.loaded){
@@ -1257,7 +1257,7 @@ async function restoreServerState(){
             if(retryResp.ok){
               const retriedResult = await retryResp.json();
               displayResults(retriedResult);
-              if(statusEl) statusEl.textContent += ' · restored latest exact benchmark';
+              if(statusEl) statusEl.textContent += ' · restored latest Bangalore 103 decision packet';
             }
           }
         }
@@ -1449,7 +1449,7 @@ function markResultStale(reason){
   if(note){
     note.innerHTML = keepDisplayedBenchmark
       ? `<span style="color:#b91c1c"><strong>Current benchmark is frozen for presentation.</strong> Inputs changed after the last restored 103 benchmark, so the map and metrics on screen are still the previously restored result. Rerun only if you want fresh numbers for these settings.</span>`
-      : `<span style="color:#b91c1c"><strong>Current exact result is stale.</strong> Inputs were changed after the last run, so the previous exact map has been cleared. Rerun the exact benchmark for these settings.</span>`;
+      : `<span style="color:#b91c1c"><strong>Current result is stale.</strong> Inputs were changed after the last run, so the previous map has been cleared. Rerun the Bangalore planner for these settings.</span>`;
   }
 }
 

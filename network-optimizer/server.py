@@ -140,6 +140,10 @@ DEFAULT_MEETING_CORE_PUBLISH_COVERAGE_PCT = 99.6
 DEFAULT_OFFICE_EXACT_CANDIDATE_CAP = 3000
 DEFAULT_OFFICE_GRAPH_MAX_RADIUS_KM = 6.0
 DEFAULT_MEETING_FIXED_STORE_MODES = ('benchmark_103',)
+LATEST_DECISION_PACKET_JSON = os.path.join(
+    OPTIMIZATION_RESULTS_DIR,
+    'latest_bangalore_103_decision_packet.json',
+)
 
 
 def _json_safe_value(value):
@@ -152,6 +156,56 @@ def _json_safe_value(value):
     if isinstance(value, float):
         return value if math.isfinite(value) else None
     return value
+
+
+def _env_flag(name, default='0'):
+    return str(os.environ.get(name, default)).strip().lower() in {'1', 'true', 'yes', 'y', 'on'}
+
+
+def _office_fast_lane_only_enabled():
+    return _env_flag('OFFICE_FAST_LANE_ONLY', '0')
+
+
+def _latest_decision_packet_path():
+    return LATEST_DECISION_PACKET_JSON
+
+
+def _save_latest_decision_packet(result_obj):
+    if not isinstance(result_obj, dict) or not result_obj:
+        return None
+    fixed_mode = str(
+        result_obj.get('fixed_store_mode')
+        or ((result_obj.get('decision_grade_result') or {}).get('fixed_store_mode'))
+        or ''
+    ).strip().lower()
+    if fixed_mode and fixed_mode != 'benchmark_103':
+        return None
+    serializable = _json_safe_value(result_obj)
+    pipeline = dict(serializable.get('pipeline') or {})
+    pipeline['saved_artifact'] = 'latest_bangalore_103_decision_packet'
+    pipeline['saved_at_epoch_s'] = round(time.time(), 3)
+    serializable['pipeline'] = pipeline
+    serializable['saved_artifact'] = 'latest_bangalore_103_decision_packet'
+    serializable['saved_at_epoch_s'] = pipeline['saved_at_epoch_s']
+    out_path = _latest_decision_packet_path()
+    tmp_path = f"{out_path}.tmp"
+    with open(tmp_path, 'w', encoding='utf-8') as f:
+        json.dump(serializable, f, indent=2, allow_nan=False)
+    os.replace(tmp_path, out_path)
+    return out_path
+
+
+def _load_latest_decision_packet():
+    out_path = _latest_decision_packet_path()
+    if not os.path.isfile(out_path):
+        raise FileNotFoundError(
+            f"No saved Bangalore 103 decision packet found at {out_path}. Run the Bangalore planner first."
+        )
+    with open(out_path, 'r', encoding='utf-8') as f:
+        payload = json.load(f)
+    if not isinstance(payload, dict) or not payload:
+        raise ValueError("Latest Bangalore 103 decision packet is empty or invalid.")
+    return payload
 
 # ============================================================================
 # APPLICATION STATE
@@ -355,6 +409,29 @@ def _resolve_fixed_store_metadata_map(params=None):
         except Exception as exc:
             logger.warning("Could not load fixed-store metadata from %s: %s", path, exc)
     return merged
+
+
+def _find_fixed_store_metadata_path(params=None):
+    for path in _candidate_fixed_store_metadata_paths(params):
+        if os.path.isfile(path):
+            return os.path.abspath(path)
+    return None
+
+
+def _require_fixed_store_super_metadata(params=None):
+    params = params or {}
+    fixed_mode = str(params.get('fixed_store_mode') or '').strip().lower()
+    if fixed_mode not in {'', 'benchmark_103', 'benchmark', '103'}:
+        return None
+    metadata_path = _find_fixed_store_metadata_path(params=params)
+    if metadata_path:
+        params.setdefault('fixed_store_metadata_path', metadata_path)
+        return metadata_path
+    raise FileNotFoundError(
+        "Bangalore benchmark_103 requires fixed-store size metadata so the >4500 sq ft Super eligibility rule "
+        "can be enforced. Add benchmark_103_store_metadata.csv (or benchmark_103_store_sizes.csv) at the repo root "
+        "or in analysis/ before running the office-fast planner."
+    )
 
 
 def _apply_fixed_store_metadata(sites, params=None):
@@ -14280,7 +14357,26 @@ class Handler(SimpleHTTPRequestHandler):
                 self._json(state.optimization_result)
             else:
                 self._json({'error': 'No optimization result'}, 404)
+        elif path == '/api/load-latest-decision-packet':
+            try:
+                state.optimization_result = _load_latest_decision_packet()
+                self._json({
+                    'ok': True,
+                    'loaded': True,
+                    'pipeline_mode': ((state.optimization_result or {}).get('pipeline') or {}).get('mode'),
+                })
+            except Exception as e:
+                self._json({'ok': False, 'error': str(e)}, 400)
         elif path == '/api/load-latest-exact-benchmark':
+            if _office_fast_lane_only_enabled():
+                self._json({
+                    'ok': False,
+                    'error': (
+                        'Office fast lane is enabled. Exact benchmark restore is disabled here; '
+                        'restore the latest Bangalore 103 decision packet instead.'
+                    ),
+                }, 409)
+                return
             try:
                 state.optimization_result = _load_latest_exact_benchmark_app_result()
                 self._json({
@@ -14778,6 +14874,8 @@ class Handler(SimpleHTTPRequestHandler):
             try:
                 t0 = time.time()
                 normalized_params = normalize_placement_params(params)
+                if _office_fast_lane_only_enabled():
+                    _require_fixed_store_super_metadata(normalized_params)
                 def progress_setter(msg):
                     if _is_latest_run():
                         state.optimization_progress = msg
@@ -14819,6 +14917,10 @@ class Handler(SimpleHTTPRequestHandler):
                     if not _is_latest_run():
                         return
                     state.optimization_result = core_result_obj
+                    try:
+                        _save_latest_decision_packet(core_result_obj)
+                    except Exception as save_exc:
+                        logger.warning("Could not save latest Bangalore decision packet: %s", save_exc)
                     if progress_message:
                         state.optimization_progress = progress_message
                     state.optimization_running = False
@@ -14941,6 +15043,10 @@ class Handler(SimpleHTTPRequestHandler):
                             logger.info("Discarding deferred publish for superseded run %s", run_id)
                             return
                         state.optimization_result = full_result
+                        try:
+                            _save_latest_decision_packet(full_result)
+                        except Exception as save_exc:
+                            logger.warning("Could not save latest Bangalore decision packet: %s", save_exc)
                         state.optimization_progress = "Complete"
                     except Exception as deferred_error:
                         logger.error(f"Deferred constrained enrichment error: {traceback.format_exc()}")
@@ -14995,6 +15101,14 @@ class Handler(SimpleHTTPRequestHandler):
 
     def _handle_optimize_exact_benchmark(self):
         """Run the exact Bangalore benchmark deck used by the terminal workflow."""
+        if _office_fast_lane_only_enabled():
+            self._json({
+                'error': (
+                    'Office fast lane is enabled. Exact benchmark is disabled on this machine; '
+                    'use /api/optimize-constrained or /api/optimize-target for Bangalore benchmark_103.'
+                ),
+            }, 409)
+            return
         if state.grid_data is None:
             self._json({'error': 'No order data loaded. Upload orders CSV first.'}, 400)
             return
@@ -15230,6 +15344,8 @@ class Handler(SimpleHTTPRequestHandler):
         for k, v in defaults.items():
             base_params.setdefault(k, v)
         base_params = normalize_placement_params(base_params)
+        if _office_fast_lane_only_enabled():
+            _require_fixed_store_super_metadata(base_params)
 
         def run():
             try:
@@ -15474,6 +15590,10 @@ class Handler(SimpleHTTPRequestHandler):
                 state.optimization_result['target_search']['actual_total_physical_stores'] = int(
                     final_metrics.get('total_physical_stores', 0) or 0
                 )
+                try:
+                    _save_latest_decision_packet(state.optimization_result)
+                except Exception as save_exc:
+                    logger.warning("Could not save latest Bangalore decision packet: %s", save_exc)
                 state.optimization_progress = 'Complete'
                 logger.info(f"Target optimization ({mode}) complete in {elapsed:.1f}s")
             except Exception as e:
