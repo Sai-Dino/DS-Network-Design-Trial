@@ -103,7 +103,7 @@ SERVER_PORT = int(os.environ.get('OPTIMIZER_PORT', 5050))
 MAX_UPLOAD_MB = 3000  # Support up to 3GB files
 # Concurrent OSRM Table HTTP requests (I/O bound). Tune with OSRM_WORKERS=32 etc. Match or stay
 # below your osrm-routed thread capacity so requests queue instead of timing out.
-OSRM_WORKERS = max(1, int(os.environ.get('OSRM_WORKERS', '16')))
+OSRM_WORKERS = max(1, int(os.environ.get('OSRM_WORKERS', '6')))
 OSRM_BATCH_SIZE = int(os.environ.get('OSRM_BATCH_SIZE', '100'))  # coords per OSRM table call (OSRM default max ~100)
 OSRM_TABLE_DEST_BATCH = max(1, int(os.environ.get('OSRM_TABLE_DEST_BATCH', '25')))
 OSRM_TIMEOUT = 30
@@ -111,7 +111,7 @@ OSRM_TIMEOUT = 30
 OSRM_FUTURE_TIMEOUT = max(float(OSRM_TIMEOUT) + 5.0, 35.0)
 EXACT_GRAPH_BATCH_PARALLELISM = max(
     1,
-    int(os.environ.get('EXACT_GRAPH_BATCH_PARALLELISM', str(max(1, min(4, OSRM_WORKERS // 2 or 1))))),
+    int(os.environ.get('EXACT_GRAPH_BATCH_PARALLELISM', str(max(1, min(2, OSRM_WORKERS // 2 or 1))))),
 )
 
 # ── Connection pool: reuse TCP connections across all OSRM calls ──────────
@@ -132,6 +132,14 @@ os.makedirs(GRAPH_CACHE_DIR, exist_ok=True)
 OPTIMIZATION_RESULTS_DIR = os.path.join(os.path.dirname(BASE_DIR), 'optimization_results')
 os.makedirs(OPTIMIZATION_RESULTS_DIR, exist_ok=True)
 OLD_FIXED_STORE_OVERRIDE_CSV = os.path.join(WORKSPACE_DIR, 'Store details - 103 old stores.csv')
+DEFAULT_STANDARD_RADIUS_KM = 3.0
+DEFAULT_SUPER_RADIUS_KM = 5.5
+DEFAULT_FIXED_SUPER_MIN_SQFT = 4500.0
+DEFAULT_MEETING_TARGET_COVERAGE_PCT = 99.7
+DEFAULT_MEETING_CORE_PUBLISH_COVERAGE_PCT = 99.6
+DEFAULT_OFFICE_EXACT_CANDIDATE_CAP = 3000
+DEFAULT_OFFICE_GRAPH_MAX_RADIUS_KM = 6.0
+DEFAULT_MEETING_FIXED_STORE_MODES = ('benchmark_103',)
 
 
 def _json_safe_value(value):
@@ -182,6 +190,7 @@ class AppState:
         self.exact_benchmark_cache = {}
         self.site_edge_context_cache = {}
         self.fixed_store_override_cache = {}
+        self.fixed_store_metadata_cache = {}
         self.radius_override_recommendation_cache = {}
         self.meeting_prewarm_running = False
         self.meeting_prewarm_core_ready = False
@@ -212,6 +221,13 @@ def _find_col(columns, candidates):
     return None
 
 
+def _normalize_store_lookup_id(value):
+    text = str(value or '').strip().lower()
+    if not text:
+        return ''
+    return re.sub(r'[^a-z0-9]+', '', text)
+
+
 def _as_bool(value):
     if isinstance(value, bool):
         return value
@@ -219,6 +235,153 @@ def _as_bool(value):
         return False
     text = str(value).strip().lower()
     return text in {'1', 'true', 't', 'yes', 'y', 'open', 'existing', 'fixed', 'live', 'active'}
+
+
+def _active_meeting_fixed_store_modes(params=None):
+    raw = (params or {}).get('meeting_fixed_store_modes')
+    if raw in (None, ''):
+        raw = os.environ.get('MEETING_FIXED_STORE_MODES', '')
+    if isinstance(raw, str) and raw.strip():
+        modes = []
+        for token in raw.split(','):
+            token = str(token or '').strip().lower()
+            if token in {'103', 'benchmark_103', 'benchmark'}:
+                modes.append('benchmark_103')
+            elif token in {'144', 'uploaded_current', 'uploaded'}:
+                modes.append('uploaded_current')
+            elif token in {'0', 'clean_slate', 'clean'}:
+                modes.append('clean_slate')
+        deduped = []
+        seen = set()
+        for mode in modes:
+            if mode in seen:
+                continue
+            seen.add(mode)
+            deduped.append(mode)
+        if deduped:
+            return tuple(deduped)
+    return DEFAULT_MEETING_FIXED_STORE_MODES
+
+
+def _candidate_fixed_store_metadata_paths(params=None):
+    params = params or {}
+    candidates = []
+    for key in ('fixed_store_metadata_path', 'fixed_super_metadata_path', 'fixed_store_size_path'):
+        raw = str(params.get(key) or '').strip()
+        if raw:
+            candidates.append(raw)
+    env_path = str(os.environ.get('FIXED_STORE_METADATA_CSV', '') or '').strip()
+    if env_path:
+        candidates.append(env_path)
+    candidates.extend([
+        os.path.join(WORKSPACE_DIR, 'benchmark_103_store_metadata.csv'),
+        os.path.join(WORKSPACE_DIR, 'benchmark_103_store_sizes.csv'),
+        os.path.join(WORKSPACE_DIR, 'analysis', 'benchmark_103_store_metadata.csv'),
+        os.path.join(WORKSPACE_DIR, 'analysis', 'benchmark_103_store_sizes.csv'),
+    ])
+    deduped = []
+    seen = set()
+    for path in candidates:
+        abs_path = os.path.abspath(path)
+        if abs_path in seen:
+            continue
+        seen.add(abs_path)
+        deduped.append(abs_path)
+    return deduped
+
+
+def _load_fixed_store_metadata_map(filepath, params=None):
+    abs_path = os.path.abspath(filepath)
+    threshold = float((params or {}).get('fixed_super_min_sqft', DEFAULT_FIXED_SUPER_MIN_SQFT) or DEFAULT_FIXED_SUPER_MIN_SQFT)
+    cache_key = (abs_path, round(threshold, 3))
+    cached = state.fixed_store_metadata_cache.get(cache_key)
+    if cached is not None:
+        return copy.deepcopy(cached)
+    df = _load_store_dataframe(abs_path)
+    df.columns = [str(c).strip() for c in df.columns]
+    columns = list(df.columns)
+    id_col = _find_col(columns, ['site_id', 'site id', 'store_id', 'store id', 'id', 'name'])
+    store_code_col = _find_col(columns, ['store code', 'store_code', 'hub_code', 'hub code'])
+    sqft_col = _find_col(columns, [
+        'sq_ft', 'sqft', 'sq ft', 'square_feet', 'square feet',
+        'store_sqft', 'store sqft', 'area_sqft', 'area sqft',
+        'carpet_area_sqft', 'carpet area sqft',
+    ])
+    explicit_col = _find_col(columns, [
+        'super_eligible_fixed', 'super eligible', 'is_super_eligible',
+        'eligible_for_super', 'fixed_super_eligible',
+    ])
+    if id_col is None and store_code_col is None:
+        raise ValueError(f"Could not identify store id column in metadata file: {filepath}")
+    metadata = {}
+    for _, row in df.iterrows():
+        keys = []
+        for raw_id in (
+            row.get(id_col) if id_col else None,
+            row.get(store_code_col) if store_code_col else None,
+        ):
+            norm = _normalize_store_lookup_id(raw_id)
+            if norm and norm not in keys:
+                keys.append(norm)
+        if not keys:
+            continue
+        sqft = None
+        if sqft_col is not None:
+            try:
+                sqft = float(row.get(sqft_col))
+                if not math.isfinite(sqft):
+                    sqft = None
+            except (TypeError, ValueError):
+                sqft = None
+        eligible = _as_bool(row.get(explicit_col)) if explicit_col is not None else bool(sqft is not None and sqft > threshold)
+        record = {
+            'store_sqft': sqft,
+            'super_eligible_fixed': bool(eligible),
+            'metadata_path': abs_path,
+        }
+        for key in keys:
+            metadata[key] = record
+    state.fixed_store_metadata_cache[cache_key] = copy.deepcopy(metadata)
+    return metadata
+
+
+def _resolve_fixed_store_metadata_map(params=None):
+    merged = {}
+    for path in _candidate_fixed_store_metadata_paths(params):
+        if not os.path.isfile(path):
+            continue
+        try:
+            merged.update(_load_fixed_store_metadata_map(path, params=params))
+        except Exception as exc:
+            logger.warning("Could not load fixed-store metadata from %s: %s", path, exc)
+    return merged
+
+
+def _apply_fixed_store_metadata(sites, params=None):
+    metadata = _resolve_fixed_store_metadata_map(params=params)
+    threshold = float((params or {}).get('fixed_super_min_sqft', DEFAULT_FIXED_SUPER_MIN_SQFT) or DEFAULT_FIXED_SUPER_MIN_SQFT)
+    enriched = []
+    for site in (sites or []):
+        site_copy = dict(site)
+        site_copy.setdefault('store_sqft', None)
+        site_copy.setdefault('super_eligible_fixed', False)
+        keys = [
+            _normalize_store_lookup_id(site_copy.get('id')),
+            _normalize_store_lookup_id(site_copy.get('site_id')),
+            _normalize_store_lookup_id(site_copy.get('store_code')),
+        ]
+        record = next((metadata.get(key) for key in keys if key and metadata.get(key) is not None), None)
+        if record:
+            site_copy['store_sqft'] = record.get('store_sqft')
+            site_copy['super_eligible_fixed'] = bool(record.get('super_eligible_fixed', False))
+            site_copy['fixed_store_metadata_path'] = record.get('metadata_path')
+        elif site_copy.get('store_sqft') is not None:
+            try:
+                site_copy['super_eligible_fixed'] = float(site_copy['store_sqft']) > threshold
+            except (TypeError, ValueError):
+                site_copy['super_eligible_fixed'] = False
+        enriched.append(site_copy)
+    return enriched
 
 
 def _rows_to_polygon_coords(group, lat_col, lon_col, edge_col=None):
@@ -1251,9 +1414,13 @@ def _tier_service_radius(params, tier):
     if tier == 'mini':
         return float(params.get('mini_ds_radius', 1.0) or 1.0)
     if tier == 'standard':
-        return float(params.get('standard_ds_radius', 3.0) or 3.0)
+        return float(params.get('standard_ds_radius', DEFAULT_STANDARD_RADIUS_KM) or DEFAULT_STANDARD_RADIUS_KM)
     if tier == 'super':
-        return float(params.get('super_ds_radius', params.get('super_radius_km', 7.0)) or params.get('super_radius_km', 7.0) or 7.0)
+        return float(
+            params.get('super_ds_radius', params.get('super_radius_km', DEFAULT_SUPER_RADIUS_KM))
+            or params.get('super_radius_km', DEFAULT_SUPER_RADIUS_KM)
+            or DEFAULT_SUPER_RADIUS_KM
+        )
     raise ValueError(f"Unknown tier: {tier}")
 
 
@@ -1337,9 +1504,9 @@ def normalize_placement_params(params):
         base, 'standard_ds_min_orders_per_day', 500
     )
     try:
-        base['standard_ds_radius'] = max(0.0, float(base.get('standard_ds_radius', 3.0) or 3.0))
+        base['standard_ds_radius'] = max(0.0, float(base.get('standard_ds_radius', DEFAULT_STANDARD_RADIUS_KM) or DEFAULT_STANDARD_RADIUS_KM))
     except (TypeError, ValueError):
-        base['standard_ds_radius'] = 3.0
+        base['standard_ds_radius'] = DEFAULT_STANDARD_RADIUS_KM
     std_lo = base['standard_ds_min_orders_per_day']
     raw_sup = base.get('super_ds_min_orders_per_day')
     fallback = float(base.get('super_ds_min_standards', 3)) * std_lo
@@ -1379,9 +1546,9 @@ def normalize_placement_params(params):
     except (TypeError, ValueError):
         x_extra = 1.0
     base['exception_max_extra_distance_km'] = max(0.0, x_extra)
-    base['super_role'] = str(base.get('super_role') or 'overlay_core_only').strip().lower()
+    base['super_role'] = str(base.get('super_role') or 'full_competitor').strip().lower()
     if base['super_role'] not in {'backbone_tail', 'full_competitor', 'tail_only', 'overlay_core_only'}:
-        base['super_role'] = 'overlay_core_only'
+        base['super_role'] = 'full_competitor'
     try:
         mini_density_radius = float(base.get('mini_density_radius_km', 1.0) or 1.0)
     except (TypeError, ValueError):
@@ -1411,12 +1578,12 @@ def normalize_placement_params(params):
         std_override = float(base.get('standard_override_max_radius_km', 4.0) or 4.0)
     except (TypeError, ValueError):
         std_override = 4.0
-    base['standard_override_max_radius_km'] = max(float(base.get('standard_ds_radius', 3.0) or 3.0), std_override)
+    base['standard_override_max_radius_km'] = max(float(base.get('standard_ds_radius', DEFAULT_STANDARD_RADIUS_KM) or DEFAULT_STANDARD_RADIUS_KM), std_override)
     try:
         std_exc_radius = float(base.get('standard_exception_radius_km', 5.0) or 5.0)
     except (TypeError, ValueError):
         std_exc_radius = 5.0
-    base['standard_exception_radius_km'] = max(float(base.get('standard_ds_radius', 3.0) or 3.0), std_exc_radius)
+    base['standard_exception_radius_km'] = max(float(base.get('standard_ds_radius', DEFAULT_STANDARD_RADIUS_KM) or DEFAULT_STANDARD_RADIUS_KM), std_exc_radius)
     if base.get('standard_exception_max_hubs') in ('', None):
         base['standard_exception_max_hubs'] = None
     else:
@@ -1431,25 +1598,29 @@ def normalize_placement_params(params):
         std_exc_step = 0.5
     base['standard_exception_step_km'] = max(0.1, std_exc_step)
     try:
-        sup_override = float(base.get('super_override_max_radius_km', 5.0) or 5.0)
+        sup_override = float(base.get('super_override_max_radius_km', DEFAULT_SUPER_RADIUS_KM) or DEFAULT_SUPER_RADIUS_KM)
     except (TypeError, ValueError):
-        sup_override = 5.0
-    base['super_override_max_radius_km'] = max(float(base.get('super_ds_radius', 4.0) or 4.0), sup_override)
+        sup_override = DEFAULT_SUPER_RADIUS_KM
+    base['super_override_max_radius_km'] = max(float(base.get('super_ds_radius', DEFAULT_SUPER_RADIUS_KM) or DEFAULT_SUPER_RADIUS_KM), sup_override)
     try:
-        base['super_ds_radius'] = max(0.0, float(base.get('super_ds_radius', 4.0) or 4.0))
+        base['super_ds_radius'] = max(0.0, float(base.get('super_ds_radius', DEFAULT_SUPER_RADIUS_KM) or DEFAULT_SUPER_RADIUS_KM))
     except (TypeError, ValueError):
-        base['super_ds_radius'] = 4.0
+        base['super_ds_radius'] = DEFAULT_SUPER_RADIUS_KM
     try:
-        graph_max_radius = float(base.get('exact_graph_max_radius_km', 10.0) or 10.0)
+        graph_max_radius = float(base.get('exact_graph_max_radius_km', DEFAULT_OFFICE_GRAPH_MAX_RADIUS_KM) or DEFAULT_OFFICE_GRAPH_MAX_RADIUS_KM)
     except (TypeError, ValueError):
-        graph_max_radius = 10.0
+        graph_max_radius = DEFAULT_OFFICE_GRAPH_MAX_RADIUS_KM
     base['exact_graph_max_radius_km'] = max(
-        10.0,
+        DEFAULT_OFFICE_GRAPH_MAX_RADIUS_KM,
         graph_max_radius,
         float(base['mini_ds_radius']),
         float(base['standard_exception_radius_km']),
         float(base['super_ds_radius']),
     )
+    try:
+        base['fixed_super_min_sqft'] = max(0.0, float(base.get('fixed_super_min_sqft', DEFAULT_FIXED_SUPER_MIN_SQFT) or DEFAULT_FIXED_SUPER_MIN_SQFT))
+    except (TypeError, ValueError):
+        base['fixed_super_min_sqft'] = DEFAULT_FIXED_SUPER_MIN_SQFT
     base['reuse_tier_edge_cache'] = bool(base.get('reuse_tier_edge_cache', True))
     base['meeting_fast_mode'] = bool(base.get('meeting_fast_mode', True))
     if base['meeting_fast_mode']:
@@ -1459,9 +1630,9 @@ def normalize_placement_params(params):
             base.get('meeting_include_reference_fixed_candidates', False)
         )
         try:
-            business_target_hint = float(base.get('business_target_coverage_pct', 100.0) or 100.0)
+            business_target_hint = float(base.get('business_target_coverage_pct', DEFAULT_MEETING_TARGET_COVERAGE_PCT) or DEFAULT_MEETING_TARGET_COVERAGE_PCT)
         except (TypeError, ValueError):
-            business_target_hint = 100.0
+            business_target_hint = DEFAULT_MEETING_TARGET_COVERAGE_PCT
         base['exact_candidate_cap'] = _canonical_meeting_exact_candidate_cap(base)
         try:
             top_k = int(float(base.get('meeting_fast_override_top_k', 80) or 80))
@@ -1492,16 +1663,16 @@ def normalize_placement_params(params):
             core_publish_pct = float(
                 base.get(
                     'meeting_core_publish_coverage_pct',
-                    base.get('meeting_fast_publish_coverage_pct', 99.8),
-                ) or 99.8
+                    base.get('meeting_fast_publish_coverage_pct', DEFAULT_MEETING_CORE_PUBLISH_COVERAGE_PCT),
+                ) or DEFAULT_MEETING_CORE_PUBLISH_COVERAGE_PCT
             )
         except (TypeError, ValueError):
-            core_publish_pct = 99.8
+            core_publish_pct = DEFAULT_MEETING_CORE_PUBLISH_COVERAGE_PCT
         base['meeting_core_publish_coverage_pct'] = min(100.0, max(95.0, core_publish_pct))
         try:
-            gap_fill_cap = int(float(base.get('meeting_fast_max_standard_gap_fill_sites', 40) or 40))
+            gap_fill_cap = int(float(base.get('meeting_fast_max_standard_gap_fill_sites', 20) or 20))
         except (TypeError, ValueError):
-            gap_fill_cap = 40
+            gap_fill_cap = 20
         base['meeting_fast_max_standard_gap_fill_sites'] = max(0, gap_fill_cap)
         base['meeting_fast_allow_standard_gap_satellites'] = bool(base.get('meeting_fast_allow_standard_gap_satellites', False))
         base['standard_rescue_enable'] = bool(base.get('standard_rescue_enable', True))
@@ -1795,7 +1966,7 @@ def _canonical_meeting_exact_candidate_cap(params=None):
         business_target_hint = float(base.get('business_target_coverage_pct', 100.0) or 100.0)
     except (TypeError, ValueError):
         business_target_hint = 100.0
-    default_candidate_cap = 15000 if business_target_hint >= 99.8 else 5000
+    default_candidate_cap = DEFAULT_OFFICE_EXACT_CANDIDATE_CAP if business_target_hint >= 99.6 else 2000
     if raw_candidate_cap is None and allow_full_candidate_pool:
         return None
     try:
@@ -2379,7 +2550,7 @@ def find_super_ds(grid_data, params):
         return [], grid_data.copy()
 
     min_orders, max_orders = _tier_min_max_orders(params, 'super')
-    radius = params.get('super_ds_radius', 4.0)
+    radius = params.get('super_ds_radius', DEFAULT_SUPER_RADIUS_KM)
     spacing_km = _tier_spacing_radius(params, 'super')
     max_hubs = params.get('super_ds_max', 120)
     cached_context = (params or {}).get('_cached_demand_candidate_context')
@@ -2467,7 +2638,7 @@ def fill_super_core_coverage(grid_data, super_ds, params, progress_cb=None):
     if not core_polys:
         return super_ds
 
-    radius = float(params.get('super_ds_radius', 4.0))
+    radius = float(params.get('super_ds_radius', DEFAULT_SUPER_RADIUS_KM))
     spacing_km = _tier_spacing_radius(params, 'super')
     max_hubs = int(params.get('super_ds_max', 120))
     super_list = list(super_ds)
@@ -2590,7 +2761,7 @@ def ensure_full_network_coverage(grid_data, mini_ds, standard_ds, super_ds, para
 
     rmini = float(params.get('mini_ds_radius', 1.0))
     rstd = float(params.get('standard_ds_radius', 2.5))
-    rsup = float(params.get('super_ds_radius', 4.0))
+    rsup = float(params.get('super_ds_radius', DEFAULT_SUPER_RADIUS_KM))
     spmini = _tier_spacing_radius(params, 'mini')
     spstd = _tier_spacing_radius(params, 'standard')
     spsup = _tier_spacing_radius(params, 'super')
@@ -2943,7 +3114,7 @@ def _summarize_proposed_policy(weights, current_costs, proposed_costs, d_mini, d
     rmini = float(params.get('mini_ds_radius', 1.0))
     rstd = float(params.get('standard_ds_radius', 2.5))
     rstd_exception = float(params.get('standard_exception_radius_km', 5.0) or 5.0)
-    rsup = float(params.get('super_ds_radius', 4.0))
+    rsup = float(params.get('super_ds_radius', DEFAULT_SUPER_RADIUS_KM))
     overlay_super = _super_overlay_only(params)
     served_mini = np.isfinite(d_mini) & (d_mini <= rmini + 1e-5) if mini_ds else np.zeros(len(weights), dtype=bool)
     served_std_base = (~served_mini) & np.isfinite(d_std) & (d_std <= rstd + 1e-5) if standard_ds else np.zeros(len(weights), dtype=bool)
@@ -3048,7 +3219,7 @@ def evaluate_network(grid_data, existing_stores, mini_ds, standard_ds, super_ds,
     pvar = float(params.get('super_variable_rate', 9))
     rmini = float(params.get('mini_ds_radius', 1.0))
     rstd = float(params.get('standard_ds_radius', 2.5))
-    rsup = float(params.get('super_ds_radius', 4.0))
+    rsup = float(params.get('super_ds_radius', DEFAULT_SUPER_RADIUS_KM))
     overlay_super = _super_overlay_only(params)
     use_tiered = params.get('use_tiered_costs', True)
     has_proposed = bool(mini_ds or standard_ds or super_ds)
@@ -3061,7 +3232,7 @@ def evaluate_network(grid_data, existing_stores, mini_ds, standard_ds, super_ds,
         max(
             float(params.get('mini_ds_radius', 1.0) or 1.0),
             float(params.get('standard_exception_radius_km', params.get('standard_ds_radius', 2.5)) or params.get('standard_ds_radius', 2.5)),
-            float(params.get('super_ds_radius', 4.0) or 4.0),
+            float(params.get('super_ds_radius', DEFAULT_SUPER_RADIUS_KM) or DEFAULT_SUPER_RADIUS_KM),
         ),
     ) or 0.0)
 
@@ -3556,7 +3727,7 @@ def _simulate_fixed_tier_network(weights, current_costs, d_mini, d_std, d_sup, p
     """
     rmini = float(params.get('mini_ds_radius', 1.5) if mini_radius is None else mini_radius)
     rstd = float(params.get('standard_ds_radius', 3.0) if standard_radius is None else standard_radius)
-    rsup = float(params.get('super_ds_radius', 4.0) if super_radius is None else super_radius)
+    rsup = float(params.get('super_ds_radius', DEFAULT_SUPER_RADIUS_KM) if super_radius is None else super_radius)
 
     mb = float(params.get('mini_base_cost', 20))
     mvar = float(params.get('mini_variable_rate', 6))
@@ -3680,7 +3851,7 @@ def _build_radius_override_recommendations(grid_data, weights, proposed_costs, s
         'standard': (float(params.get('standard_base_cost', 29)), float(params.get('standard_variable_rate', 9)),
                      float(params.get('standard_ds_radius', 3.0)), float(params.get('standard_override_max_radius_km', 4.0))),
         'super': (_effective_super_base_cost(params), float(params.get('super_variable_rate', 9)),
-                  float(params.get('super_ds_radius', 4.0)), float(params.get('super_override_max_radius_km', 5.0))),
+                  float(params.get('super_ds_radius', DEFAULT_SUPER_RADIUS_KM)), float(params.get('super_override_max_radius_km', 5.0))),
     }
     step = float(params.get('radius_override_step_km', 0.2) or 0.2)
     cache_key = None
@@ -4160,7 +4331,7 @@ def _summarize_super_rationalization(weights, d_mini, d_std, d_sup, mini_ds, sta
         }
     rmini = float(params.get('mini_ds_radius', 1.5) or 1.5)
     rstd = float(params.get('standard_ds_radius', 3.0) or 3.0)
-    rsup = float(params.get('super_ds_radius', 4.0) or 4.0)
+    rsup = float(params.get('super_ds_radius', DEFAULT_SUPER_RADIUS_KM) or DEFAULT_SUPER_RADIUS_KM)
     min_standard = float(params.get('standard_ds_min_orders_per_day', 0) or 0)
     served_by_mini = np.isfinite(d_mini) & (d_mini <= rmini + 1e-5) if mini_ds is not None else np.zeros(len(weights), dtype=bool)
     served_by_std = (~served_by_mini) & np.isfinite(d_std) & (d_std <= rstd + 1e-5) if standard_ds is not None else np.zeros(len(weights), dtype=bool)
@@ -4271,7 +4442,7 @@ def _build_uncovered_analysis(uncovered_pockets, params, grid_data, weights, cur
 
     rmini = float(params.get('mini_ds_radius', 1.5))
     rstd = float(params.get('standard_ds_radius', 3.0))
-    rsup = float(params.get('super_ds_radius', 4.0))
+    rsup = float(params.get('super_ds_radius', DEFAULT_SUPER_RADIUS_KM))
     ref_mini_radius = min(5.0, round(max(rmini, 1.8), 2))
     ref_standard_radius = min(5.0, round(max(rstd, 5.0), 2))
     ref_super_radius = min(5.0, round(max(rsup, 5.0), 2))
@@ -4591,9 +4762,22 @@ def optimize_with_constraints(grid_data, existing_stores, params, progress_cb=No
     require_osrm()
     params = normalize_placement_params(params)
     requested_counts = _requested_tier_counts(params)
+    fixed_standard_sites = _build_fixed_standard_sites(params)
+    fixed_super_sites, fixed_standard_sites = _select_fixed_super_sites(
+        grid_data,
+        fixed_standard_sites,
+        params,
+        progress_cb=progress_cb,
+    )
+    fixed_count_summary = _physical_store_count_summary(fixed_standard_sites, fixed_super_sites, [], [], [])
 
     target_max_hubs = params.get('target_max_hubs')
     target_cost = params.get('target_last_mile_cost')
+    raw_total_physical_target = (
+        params.get('target_total_physical_stores')
+        if params.get('target_total_physical_stores') is not None else
+        params.get('target_total_physical_standard_stores')
+    )
 
     if target_max_hubs is None and target_cost is None:
         target_max_hubs = int(params.get('default_planner_max_hubs', 200) or 200)
@@ -4603,6 +4787,11 @@ def optimize_with_constraints(grid_data, existing_stores, params, progress_cb=No
     else:
         target_max_hubs = 9999  # effectively unlimited
 
+    target_total_physical_stores = None
+    if raw_total_physical_target not in (None, ''):
+        target_total_physical_stores = int(raw_total_physical_target)
+        target_max_hubs = max(0, target_total_physical_stores - fixed_count_summary['fixed_physical_store_count'])
+
     requested_total = sum(v for v in requested_counts.values() if v is not None)
     if requested_total and target_max_hubs != 9999 and requested_total > target_max_hubs:
         raise ValueError(
@@ -4611,7 +4800,7 @@ def optimize_with_constraints(grid_data, existing_stores, params, progress_cb=No
 
     rmini = float(params.get('mini_ds_radius', 1.5))
     rstd = float(params.get('standard_ds_radius', 3.0))
-    rsup = float(params.get('super_ds_radius', 4.0))
+    rsup = float(params.get('super_ds_radius', DEFAULT_SUPER_RADIUS_KM))
     m_lo, m_hi = _tier_min_max_orders(params, 'mini')
     s_lo, s_hi = _tier_min_max_orders(params, 'standard')
     p_lo, p_hi = _tier_min_max_orders(params, 'super')
@@ -4629,9 +4818,16 @@ def optimize_with_constraints(grid_data, existing_stores, params, progress_cb=No
     t_start = time.time()
     n_cells = len(grid_data) if grid_data is not None else 0
     logger.info(
-        "Constraint optimizer (unified greedy): %d grid cells, target_max_hubs=%s, "
-        "target_cost=%s, requested_counts=%s",
-        n_cells, target_max_hubs, target_cost, requested_counts,
+        "Constraint optimizer (unified greedy): %d grid cells, fixed=%d (%d fixed Std + %d fixed Super), "
+        "target_max_new_sites=%s, target_total_physical=%s, target_cost=%s, requested_counts=%s",
+        n_cells,
+        fixed_count_summary['fixed_physical_store_count'],
+        fixed_count_summary['fixed_standard_count'],
+        fixed_count_summary['fixed_super_count'],
+        target_max_hubs,
+        target_total_physical_stores,
+        target_cost,
+        requested_counts,
     )
 
     # ── Working arrays ──────────────────────────────────────────────────────
@@ -4640,7 +4836,7 @@ def optimize_with_constraints(grid_data, existing_stores, params, progress_cb=No
     wts  = grid_data['orders_per_day'].values.astype(np.float64)
     n = len(clat)
 
-    # Track which cells are already covered by a placed hub
+    # Track which cells are already covered by fixed and newly placed hubs.
     covered = np.zeros(n, dtype=bool)
 
     mini_ds = []
@@ -4669,6 +4865,18 @@ def optimize_with_constraints(grid_data, existing_stores, params, progress_cb=No
     if progress_cb:
         progress_cb("Unified greedy: placing Mini / Standard / Super hubs one at a time (best coverage first)...")
     super_role = str(params.get('super_role') or 'backbone_tail').lower()
+    if fixed_standard_sites:
+        d_fixed_std = _min_dist_to_hubs_for_grid(grid_data, fixed_standard_sites, progress_cb=None)
+        covered |= np.isfinite(d_fixed_std) & (d_fixed_std <= rstd + 1e-5)
+    if fixed_super_sites and not overlay_super:
+        d_fixed_sup = _min_dist_to_hubs_for_grid(grid_data, fixed_super_sites, progress_cb=None)
+        covered |= np.isfinite(d_fixed_sup) & (d_fixed_sup <= rsup + 1e-5)
+    if progress_cb and (fixed_standard_sites or fixed_super_sites):
+        initial_coverage_pct = 100.0 * float(wts[covered].sum()) / max(float(wts.sum()), 1e-9)
+        progress_cb(
+            f"Fixed-store baseline: {fixed_count_summary['fixed_standard_count']} Standard + "
+            f"{fixed_count_summary['fixed_super_count']} Super already cover {initial_coverage_pct:.2f}%."
+        )
 
     # ── Unified greedy loop ─────────────────────────────────────────────────
     hub_count = 0
@@ -4894,9 +5102,11 @@ def optimize_with_constraints(grid_data, existing_stores, params, progress_cb=No
     current_policy = _build_current_policy_breach_summary(grid_data, current_dists, wts, params)
 
     # Proposed network distances
+    standard_service_sites = list(fixed_standard_sites) + list(standard_ds)
+    super_service_sites = list(fixed_super_sites) + list(super_ds)
     d_mini_final = _min_d(mini_ds, "Mini") if mini_ds else np.full(n, np.inf)
-    d_std_final  = _min_d(standard_ds, "Std") if standard_ds else np.full(n, np.inf)
-    d_sup_final  = _min_d(super_ds, "Super") if super_ds else np.full(n, np.inf)
+    d_std_final  = _min_d(standard_service_sites, "Std") if standard_service_sites else np.full(n, np.inf)
+    d_sup_final  = _min_d(super_service_sites, "Super") if super_service_sites else np.full(n, np.inf)
 
     proposed_dists = np.full(n, np.nan)
     proposed_costs = np.zeros(n)
@@ -4905,10 +5115,10 @@ def optimize_with_constraints(grid_data, existing_stores, params, progress_cb=No
         if mini_ds and d_mini_final[i] <= rmini + 1e-5:
             proposed_dists[i] = d_mini_final[i]
             proposed_costs[i] = mb + mvar * d_mini_final[i]
-        elif standard_ds and d_std_final[i] <= rstd + 1e-5:
+        elif standard_service_sites and d_std_final[i] <= rstd + 1e-5:
             proposed_dists[i] = d_std_final[i]
             proposed_costs[i] = sb + svar * d_std_final[i]
-        elif super_ds and (not overlay_super) and d_sup_final[i] <= rsup + 1e-5:
+        elif super_service_sites and (not overlay_super) and d_sup_final[i] <= rsup + 1e-5:
             proposed_dists[i] = d_sup_final[i]
             proposed_costs[i] = pbb + pvar * d_sup_final[i]
         else:
@@ -4918,14 +5128,14 @@ def optimize_with_constraints(grid_data, existing_stores, params, progress_cb=No
     proposed_policy = _summarize_proposed_policy(
         wts, current_costs, proposed_costs,
         d_mini_final, d_std_final, d_sup_final,
-        mini_ds, standard_ds, super_ds, params,
+        mini_ds, standard_service_sites, super_service_sites, params,
     )
     served_final = proposed_policy['hard_served_mask']
     uncovered_final = ~served_final
     hybrid_mask = served_final | proposed_policy['exception_bucket_usage'].get('selected_mask', np.zeros(n, dtype=bool))
     modeled_cost = _modeled_cost_summary(wts, proposed_costs, params, len(super_ds))
     super_rationalization_summary = _summarize_super_rationalization(
-        wts, d_mini_final, d_std_final, d_sup_final, mini_ds, standard_ds, super_ds, params
+        wts, d_mini_final, d_std_final, d_sup_final, mini_ds, standard_service_sites, super_service_sites, params
     )
 
     # Cost constraint check
@@ -4988,7 +5198,7 @@ def optimize_with_constraints(grid_data, existing_stores, params, progress_cb=No
         uncovered_pockets, params, grid_data, wts, current_costs, proposed_costs, proposed_dists,
         served_final, proposed_policy['exception_bucket_usage'],
         d_mini_final, d_std_final, d_sup_final,
-        mini_ds, standard_ds, super_ds,
+        mini_ds, standard_service_sites, super_service_sites,
     )
     analysis['uncovered_pocket_radius_km'] = round(uncovered_pocket_radius_km, 2)
     analysis['super_rationalization_summary'] = super_rationalization_summary
@@ -5009,6 +5219,14 @@ def optimize_with_constraints(grid_data, existing_stores, params, progress_cb=No
             'excluded_zone_count': analysis.get('excluded_low_density_zone_count', 0),
         },
         params,
+    )
+
+    physical_counts = _physical_store_count_summary(
+        fixed_standard_sites,
+        fixed_super_sites,
+        mini_ds,
+        standard_ds,
+        super_ds,
     )
 
     metrics = {
@@ -5043,11 +5261,19 @@ def optimize_with_constraints(grid_data, existing_stores, params, progress_cb=No
         'coverage_pct': round(final_coverage_pct, 2),
         'covered_orders_per_day': round(final_covered_orders, 0),
         'uncovered_orders_per_day': round(final_uncovered_orders, 0),
+        'fixed_physical_store_count': physical_counts['fixed_physical_store_count'],
+        'fixed_standard_count': physical_counts['fixed_standard_count'],
+        'fixed_super_count': physical_counts['fixed_super_count'],
+        'new_standard_count': physical_counts['new_standard_count'],
+        'new_super_count': physical_counts['new_super_count'],
+        'mini_count': physical_counts['mini_count'],
+        'total_physical_stores': physical_counts['total_physical_stores'],
         'distance_source': 'OSRM road distance (Table API)',
         'distance_histogram': hist_map,
         'total_grid_cells': n,
         'constraints_used': {
             'target_max_hubs': target_max_hubs if target_max_hubs != 9999 else None,
+            'target_total_physical_stores': target_total_physical_stores,
             'target_last_mile_cost': params.get('target_last_mile_cost'),
             'mini_ds_target_count': requested_counts['mini'],
             'standard_ds_target_count': requested_counts['standard'],
@@ -5075,11 +5301,15 @@ def optimize_with_constraints(grid_data, existing_stores, params, progress_cb=No
         'mini_ds': mini_ds,
         'standard_ds': standard_ds,
         'super_ds': super_ds,
+        'fixed_standard_ds': fixed_standard_sites,
+        'fixed_super_ds': fixed_super_sites,
         'metrics': metrics,
         'analysis': analysis,
         'coverage_trace': coverage_trace,
         'uncovered_pockets': public_uncovered_pockets,
-        'total_hubs': len(mini_ds) + len(standard_ds) + len(super_ds),
+        'total_hubs': physical_counts['total_physical_stores'],
+        'total_new_hubs': len(mini_ds) + len(standard_ds) + len(super_ds),
+        'physical_store_counts': physical_counts,
         'placement_time_seconds': round(total_elapsed, 1),
         'coverage_complete': bool(coverage_fill_meta.get('coverage_complete', True)),
         'coverage_satellites_added': int(coverage_fill_meta.get('coverage_satellites', 0)),
@@ -5525,10 +5755,23 @@ def _normalize_target_mode(params):
     raw = str((params or {}).get('target_mode') or '').strip().lower()
     if raw in {'avg_cost', 'avg_last_mile_cost', 'avg_last_mile', 'last_mile_cost', 'cost'}:
         return 'avg_last_mile_cost'
-    if raw in {'physical_standard_count', 'standard_count', 'total_physical_standard_stores', 'total_physical_standard_count', 'physical_count'}:
-        return 'physical_standard_count'
-    if any((params or {}).get(k) is not None for k in ('target_total_physical_standard_stores', 'target_standard_count', 'standard_ds_target_count')):
-        return 'physical_standard_count'
+    if raw in {
+        'physical_standard_count',
+        'physical_store_count',
+        'standard_count',
+        'total_physical_standard_stores',
+        'total_physical_standard_count',
+        'total_physical_stores',
+        'physical_count',
+    }:
+        return 'physical_store_count'
+    if any((params or {}).get(k) is not None for k in (
+        'target_total_physical_stores',
+        'target_total_physical_standard_stores',
+        'target_standard_count',
+        'standard_ds_target_count',
+    )):
+        return 'physical_store_count'
     return 'avg_last_mile_cost'
 
 
@@ -5553,6 +5796,7 @@ def _load_fixed_store_override_sites(filepath, source_mode='fixed_store_override
     columns = list(df.columns)
 
     store_id_col = _find_col(columns, ['site_id', 'site id', 'store code', 'hub_code', 'store_id', 'id', 'name'])
+    store_code_col = _find_col(columns, ['store code', 'store_code', 'hub_code', 'hub code'])
     store_lat_col = _find_col(columns, ['store latitude', 'store_latitude', 'store_lat', 'latitude', 'lat'])
     store_lon_col = _find_col(columns, ['store longitude', 'store_longitude', 'store_lon', 'longitude', 'lon'])
     point_lat_col = _find_col(columns, ['point latitude', 'point_latitude', 'point_lat', 'polygon_lat', 'vertex_lat'])
@@ -5579,6 +5823,8 @@ def _load_fixed_store_override_sites(filepath, source_mode='fixed_store_override
         poly_coords = _rows_to_polygon_coords(group, point_lat_col, point_lon_col, edge_col=edge_col)
         override_sites.append({
             'id': raw_id,
+            'site_id': raw_id,
+            'store_code': str(row0.get(store_code_col) or '').strip() if store_code_col else '',
             'lat': lat,
             'lon': lon,
             'polygon_coords': _normalize_polygon_coords(poly_coords),
@@ -5610,7 +5856,7 @@ def _load_fixed_store_override_sites(filepath, source_mode='fixed_store_override
 
 
 def _build_fixed_standard_sites(params):
-    radius = float(params.get('standard_ds_radius', 3.0) or 3.0)
+    radius = float(params.get('standard_ds_radius', DEFAULT_STANDARD_RADIUS_KM) or DEFAULT_STANDARD_RADIUS_KM)
     fixed_store_mode = _effective_fixed_store_mode(params)
     if fixed_store_mode == 'clean_slate':
         source_sites = []
@@ -5637,10 +5883,13 @@ def _build_fixed_standard_sites(params):
     else:
         source_sites = list(state.existing_stores)
 
+    source_sites = _apply_fixed_store_metadata(source_sites, params=params)
     fixed_sites = []
     for i, store in enumerate(source_sites, start=1):
         fixed_sites.append({
             'id': store.get('id') or f'FIXED-STD-{i}',
+            'site_id': store.get('site_id') or store.get('id') or f'FIXED-STD-{i}',
+            'store_code': store.get('store_code') or '',
             'lat': float(store['lat']),
             'lon': float(store['lon']),
             'orders_per_day': float(store.get('orders_per_day', 0) or 0),
@@ -5649,8 +5898,104 @@ def _build_fixed_standard_sites(params):
             'selection': 'fixed_existing',
             'fixed_open': True,
             'polygon_coords': store.get('polygon_coords', []),
+            'store_sqft': store.get('store_sqft'),
+            'super_eligible_fixed': bool(store.get('super_eligible_fixed', False)),
         })
     return fixed_sites
+
+
+def _select_fixed_super_sites(scope_grid, fixed_sites, params, progress_cb=None):
+    if not fixed_sites:
+        return [], []
+    super_radius = float(params.get('super_ds_radius', params.get('super_radius_km', DEFAULT_SUPER_RADIUS_KM)) or DEFAULT_SUPER_RADIUS_KM)
+    standard_radius = float(params.get('standard_ds_radius', DEFAULT_STANDARD_RADIUS_KM) or DEFAULT_STANDARD_RADIUS_KM)
+    if super_radius <= standard_radius + 1e-5:
+        return [], list(fixed_sites)
+    eligible_sites = [dict(site) for site in fixed_sites if bool(site.get('super_eligible_fixed', False))]
+    if not eligible_sites:
+        return [], list(fixed_sites)
+    try:
+        max_promotions = params.get('fixed_super_max_sites')
+        max_promotions = None if max_promotions in (None, '', 0, '0') else max(0, int(float(max_promotions)))
+    except (TypeError, ValueError):
+        max_promotions = None
+    try:
+        min_incremental_orders = float(params.get('fixed_super_min_incremental_orders_per_day', 25.0) or 25.0)
+    except (TypeError, ValueError):
+        min_incremental_orders = 25.0
+    weights = scope_grid['orders_per_day'].values.astype(np.float64)
+    n = len(scope_grid)
+    baseline_standard = _min_dist_to_hubs_for_grid(scope_grid, fixed_sites, progress_cb=None)
+    extra_covered = np.zeros(n, dtype=bool)
+    promoted_ids = set()
+    promoted_sites = []
+    while eligible_sites and (max_promotions is None or len(promoted_sites) < max_promotions):
+        best = None
+        for site in eligible_sites:
+            site_id = str(site.get('id') or '')
+            if site_id in promoted_ids:
+                continue
+            super_dist = osrm_one_to_many(
+                float(site['lat']),
+                float(site['lon']),
+                scope_grid['avg_cust_lat'].values,
+                scope_grid['avg_cust_lon'].values,
+            )
+            extra_mask = (
+                np.isfinite(super_dist) &
+                (super_dist <= super_radius + 1e-5) &
+                (
+                    ~np.isfinite(baseline_standard) |
+                    (baseline_standard > standard_radius + 1e-5)
+                ) &
+                (~extra_covered)
+            )
+            incremental_orders = float(np.sum(weights[extra_mask]))
+            if incremental_orders <= min_incremental_orders:
+                continue
+            candidate = (incremental_orders, site, extra_mask)
+            if best is None or candidate[0] > best[0]:
+                best = candidate
+        if best is None:
+            break
+        incremental_orders, site, extra_mask = best
+        promoted_ids.add(str(site.get('id') or ''))
+        extra_covered |= extra_mask
+        promoted_sites.append({
+            **dict(site),
+            'type': 'super',
+            'radius_km': super_radius,
+            'selection': 'fixed_super_promotion',
+            'promoted_from_fixed': True,
+            'orders_per_day': round(float(np.sum(weights[extra_mask])), 2),
+        })
+        if progress_cb:
+            progress_cb(
+                f"Fixed Super promotion: selected {len(promoted_sites)} eligible fixed store(s); "
+                f"latest adds ~{incremental_orders:.0f} orders/day of extra 5.5 km reach."
+            )
+    remaining_standard = [dict(site) for site in fixed_sites if str(site.get('id') or '') not in promoted_ids]
+    return promoted_sites, remaining_standard
+
+
+def _count_nonfixed_sites(sites):
+    return sum(1 for site in (sites or []) if not bool(site.get('fixed_open', False)))
+
+
+def _physical_store_count_summary(fixed_standard_sites, fixed_super_sites, mini_ds, standard_ds, super_ds):
+    fixed_total = int(len(fixed_standard_sites) + len(fixed_super_sites))
+    new_standard = int(_count_nonfixed_sites(standard_ds))
+    new_super = int(_count_nonfixed_sites(super_ds))
+    mini_count = int(_count_nonfixed_sites(mini_ds))
+    return {
+        'fixed_physical_store_count': fixed_total,
+        'fixed_standard_count': int(len(fixed_standard_sites)),
+        'fixed_super_count': int(len(fixed_super_sites)),
+        'new_standard_count': new_standard,
+        'new_super_count': new_super,
+        'mini_count': mini_count,
+        'total_physical_stores': fixed_total + new_standard + new_super + mini_count,
+    }
 
 
 def _meeting_reference_candidate_sites(params):
@@ -6161,14 +6506,15 @@ def _strict_standard_base_params(params):
     except (TypeError, ValueError):
         business_target_pct = 100.0
     try:
+        default_core_publish = min(100.0, max(DEFAULT_MEETING_CORE_PUBLISH_COVERAGE_PCT, business_target_pct))
         core_publish_pct = float(
             strict_params.get(
                 'meeting_core_publish_coverage_pct',
-                max(99.8, min(100.0, business_target_pct)),
-            ) or max(99.8, min(100.0, business_target_pct))
+                default_core_publish,
+            ) or default_core_publish
         )
     except (TypeError, ValueError):
-        core_publish_pct = max(99.8, min(100.0, business_target_pct))
+        core_publish_pct = min(100.0, max(DEFAULT_MEETING_CORE_PUBLISH_COVERAGE_PCT, business_target_pct))
     default_strict_base_target = min(98.5, max(95.0, core_publish_pct - 2.0))
     try:
         strict_base_target = float(
@@ -6559,10 +6905,10 @@ def _complete_standard_branch_from_base(scope_grid, base_plan, params, branch_ty
     if branch_type == 'rescue_first':
         try:
             live_publish_threshold_pct = float(
-                params.get('meeting_core_publish_coverage_pct', params.get('meeting_fast_publish_coverage_pct', 99.0)) or 99.0
+                params.get('meeting_core_publish_coverage_pct', params.get('meeting_fast_publish_coverage_pct', DEFAULT_MEETING_CORE_PUBLISH_COVERAGE_PCT)) or DEFAULT_MEETING_CORE_PUBLISH_COVERAGE_PCT
             )
         except (TypeError, ValueError):
-            live_publish_threshold_pct = 99.0
+            live_publish_threshold_pct = DEFAULT_MEETING_CORE_PUBLISH_COVERAGE_PCT
         live_publish_threshold_pct = min(
             branch_target_coverage_pct,
             max(90.0, live_publish_threshold_pct),
@@ -8951,7 +9297,7 @@ def _candidate_pool_cache_alias_paths(scope_grid, fixed_sites, params):
     paths = [current_path]
     if fixed_sites:
         return paths
-    for fixed_mode in ('benchmark_103', 'uploaded_current', 'clean_slate'):
+    for fixed_mode in _active_meeting_fixed_store_modes(params):
         alt_params = dict(params or {})
         alt_params['fixed_store_mode'] = fixed_mode
         paths.append(
@@ -8984,7 +9330,7 @@ def _candidate_graph_superset_alias_paths(scope_grid, candidate_sites, params):
             allow_exceptions=True,
         )
     )
-    for fixed_mode in ('benchmark_103', 'uploaded_current', 'clean_slate'):
+    for fixed_mode in _active_meeting_fixed_store_modes(params):
         alt_params = dict(base_params)
         alt_params['fixed_store_mode'] = fixed_mode
         paths.append(
@@ -9148,7 +9494,7 @@ def _get_all_demand_candidate_context(grid_data, params, progress_cb=None):
         max(
             float(params.get('mini_ds_radius', 1.0) or 1.0),
             float(params.get('standard_exception_radius_km', params.get('standard_ds_radius', 3.0)) or params.get('standard_ds_radius', 3.0)),
-            float(params.get('super_ds_radius', 4.0) or 4.0),
+            float(params.get('super_ds_radius', DEFAULT_SUPER_RADIUS_KM) or DEFAULT_SUPER_RADIUS_KM),
         ),
     ) or 0.0)
     demand_frame = grid_data[['avg_cust_lat', 'avg_cust_lon', 'orders_per_day']].copy()
@@ -9465,24 +9811,27 @@ def _cached_min_distances_for_hubs(grid_data, hubs, params, radius_km, cache_lab
 def _meeting_prewarm_default_params():
     canonical_candidate_cap = _canonical_meeting_exact_candidate_cap({
         'meeting_fast_mode': True,
-        'business_target_coverage_pct': 100.0,
+        'business_target_coverage_pct': DEFAULT_MEETING_TARGET_COVERAGE_PCT,
     })
     return normalize_placement_params({
         'meeting_fast_mode': True,
         'fixed_store_mode': 'benchmark_103',
         'mini_ds_radius': 1.0,
-        'standard_ds_radius': 3.0,
+        'standard_ds_radius': DEFAULT_STANDARD_RADIUS_KM,
         'standard_exception_radius_km': 5.0,
-        'super_ds_radius': 7.0,
-        'exact_graph_max_radius_km': 10.0,
-        'business_target_coverage_pct': 100.0,
-        'benchmark_near_full_coverage_pct': 100.0,
-        'meeting_fast_target_coverage_pct': 100.0,
-        'meeting_core_publish_coverage_pct': 99.9,
+        'super_ds_radius': DEFAULT_SUPER_RADIUS_KM,
+        'exact_graph_max_radius_km': DEFAULT_OFFICE_GRAPH_MAX_RADIUS_KM,
+        'business_target_coverage_pct': DEFAULT_MEETING_TARGET_COVERAGE_PCT,
+        'benchmark_near_full_coverage_pct': DEFAULT_MEETING_TARGET_COVERAGE_PCT,
+        'meeting_fast_target_coverage_pct': DEFAULT_MEETING_TARGET_COVERAGE_PCT,
+        'meeting_core_publish_coverage_pct': DEFAULT_MEETING_CORE_PUBLISH_COVERAGE_PCT,
         'exact_candidate_cap': canonical_candidate_cap,
         'mini_ds_min_orders_per_day': 400,
         'mini_density_min_orders_per_day': 400,
         'reuse_tier_edge_cache': True,
+        'meeting_fixed_store_modes': list(DEFAULT_MEETING_FIXED_STORE_MODES),
+        'meeting_fast_max_standard_gap_fill_sites': 20,
+        'meeting_skip_shared_prewarm_wait': True,
     })
 
 
@@ -9512,7 +9861,8 @@ def _start_meeting_prewarm_async(force=False):
                 raise ValueError('No in-scope demand available for meeting cache prewarm')
 
             state.meeting_prewarm_progress = 'Meeting cache prewarm: priming fixed-store worlds...'
-            for fixed_mode in ('clean_slate', 'benchmark_103', 'uploaded_current'):
+            active_fixed_modes = _active_meeting_fixed_store_modes(params)
+            for fixed_mode in active_fixed_modes:
                 mode_params = dict(params)
                 mode_params['fixed_store_mode'] = fixed_mode
                 _build_fixed_standard_sites(mode_params)
@@ -9527,7 +9877,7 @@ def _start_meeting_prewarm_async(force=False):
                 f'Meeting cache prewarm: demand-candidate cache ready ({candidate_count} candidate sites).'
             )
 
-            for fixed_mode in ('clean_slate', 'benchmark_103', 'uploaded_current'):
+            for fixed_mode in active_fixed_modes:
                 mode_params = dict(params)
                 mode_params['fixed_store_mode'] = fixed_mode
                 fixed_sites = _build_fixed_standard_sites(mode_params)
@@ -9554,10 +9904,7 @@ def _start_meeting_prewarm_async(force=False):
                 )
                 if fixed_mode == 'benchmark_103':
                     state.meeting_prewarm_core_ready = True
-                    state.meeting_prewarm_progress = (
-                        'Meeting cache core ready (benchmark_103 + clean_slate). '
-                        'Warming uploaded_current overlay...'
-                    )
+                    state.meeting_prewarm_progress = 'Meeting cache core ready (benchmark_103).'
 
             state.meeting_prewarm_ready = True
             state.meeting_prewarm_completed_at = time.time()
@@ -12726,7 +13073,7 @@ def _sample_super_geometry(scope_grid, business_regions, excluded_regions, param
 
 
 def _plan_super_blanket(scope_grid, business_regions, excluded_regions, standard_sites, params, progress_cb=None):
-    radius = float(params.get('super_radius_km', params.get('super_ds_radius', 7.0)) or 7.0)
+    radius = float(params.get('super_radius_km', params.get('super_ds_radius', DEFAULT_SUPER_RADIUS_KM)) or DEFAULT_SUPER_RADIUS_KM)
     max_sites = _safe_optional_count(params, 'super_ds_target_count')
     if max_sites is None:
         max_sites = int(params.get('super_ds_max', 200) or 200)
@@ -12880,7 +13227,7 @@ def _build_meeting_quality_summary(params, standard_plan, mini_summary, super_pl
     verification_pending_layers = []
     notes = []
     overall_label = 'Decision-grade'
-    if coverage_pct < 99.0:
+    if coverage_pct < DEFAULT_MEETING_CORE_PUBLISH_COVERAGE_PCT:
         overall_label = 'Review carefully'
         notes.append(
             f"Standard hard coverage is only {coverage_pct:.2f}% under the current settings, so this should be treated as exploratory."
@@ -12981,7 +13328,7 @@ def _summarize_super_blanket_order_cost(scope_grid, super_sites, params):
         }
     weights = scope_grid['orders_per_day'].values.astype(np.float64)
     d_sup = _min_dist_to_hubs_for_grid(scope_grid, super_sites)
-    radius = float(params.get('super_radius_km', params.get('super_ds_radius', 7.0)) or 7.0)
+    radius = float(params.get('super_radius_km', params.get('super_ds_radius', DEFAULT_SUPER_RADIUS_KM)) or DEFAULT_SUPER_RADIUS_KM)
     served = np.isfinite(d_sup) & (d_sup <= radius + 1e-5)
     if not np.any(served):
         return {
@@ -13273,7 +13620,7 @@ def _build_meeting_core_quality_summary(params, scenario_views, active_view_key,
     active_view = dict((scenario_views or {}).get(active_view_key) or {})
     coverage_pct = float(active_view.get('proposed_hard_coverage_pct', 0.0) or 0.0)
     fixed_mode = _effective_fixed_store_source_mode(params)
-    overall_label = 'Decision-grade' if coverage_pct >= 99.0 else 'Review carefully'
+    overall_label = 'Decision-grade' if coverage_pct >= DEFAULT_MEETING_CORE_PUBLISH_COVERAGE_PCT else 'Review carefully'
     decision_layers = []
     if 'strict_standard_base' in (scenario_views or {}):
         decision_layers.append('Strict Standard Base')
@@ -14787,40 +15134,51 @@ class Handler(SimpleHTTPRequestHandler):
             params = {}
 
         target_mode = _normalize_target_mode(params)
-        if target_mode == 'physical_standard_count':
-            raw_target = (
-                params.get('target_total_physical_standard_stores')
-                if params.get('target_total_physical_standard_stores') is not None else
-                params.get('target_standard_count')
-                if params.get('target_standard_count') is not None else
-                params.get('standard_ds_target_count')
-            )
-            if raw_target is None:
-                self._json({'error': 'target_total_physical_standard_stores is required for count mode'}, 400)
-                return
+        raw_target_count = (
+            params.get('target_total_physical_stores')
+            if params.get('target_total_physical_stores') is not None else
+            params.get('target_total_physical_standard_stores')
+            if params.get('target_total_physical_standard_stores') is not None else
+            params.get('target_standard_count')
+            if params.get('target_standard_count') is not None else
+            params.get('standard_ds_target_count')
+        )
+        target_total_physical_stores = None
+        if raw_target_count not in (None, ''):
             try:
-                target = int(round(float(raw_target)))
+                target_total_physical_stores = int(round(float(raw_target_count)))
             except (TypeError, ValueError):
-                self._json({'error': 'target_total_physical_standard_stores must be a number'}, 400)
+                self._json({'error': 'target_total_physical_stores must be a number'}, 400)
                 return
-            if target <= 0:
-                self._json({'error': 'target_total_physical_standard_stores must be positive'}, 400)
+            if target_total_physical_stores <= 0:
+                self._json({'error': 'target_total_physical_stores must be positive'}, 400)
                 return
-            target_avg_cost = None
-        else:
-            target = params.get('target_avg_cost')
-            if target is None:
-                self._json({'error': 'target_avg_cost is required'}, 400)
-                return
+
+        raw_target_cost = params.get('target_avg_cost')
+        target_avg_cost = None
+        if raw_target_cost not in (None, ''):
             try:
-                target = float(target)
+                target_avg_cost = float(raw_target_cost)
             except (TypeError, ValueError):
                 self._json({'error': 'target_avg_cost must be a number'}, 400)
                 return
-            if target <= 0:
+            if target_avg_cost <= 0:
                 self._json({'error': 'target_avg_cost must be positive'}, 400)
                 return
-            target_avg_cost = target
+
+        if target_total_physical_stores is None and target_avg_cost is None:
+            self._json({'error': 'Provide target_total_physical_stores and/or target_avg_cost'}, 400)
+            return
+
+        if target_total_physical_stores is not None and target_avg_cost is not None:
+            target_mode = 'count_and_cost'
+            target = target_total_physical_stores
+        elif target_total_physical_stores is not None:
+            target_mode = 'physical_store_count'
+            target = target_total_physical_stores
+        else:
+            target_mode = 'avg_last_mile_cost'
+            target = target_avg_cost
 
         tolerance_pct = float(params.get('tolerance_pct', 2))
         tolerance_abs = max(float(target) * tolerance_pct / 100.0, 0.05)
@@ -14842,6 +15200,7 @@ class Handler(SimpleHTTPRequestHandler):
             'use_tiered_costs',
             'fixed_store_world', 'fixed_store_mode',
             'fixed_store_override_path', 'fixed_store_override_source_mode',
+            'fixed_store_metadata_path', 'fixed_super_metadata_path', 'fixed_store_size_path', 'fixed_super_min_sqft',
             'mini_ds_radius', 'mini_ds_min_orders_per_day', 'mini_ds_max_orders_per_day',
             'standard_ds_radius', 'standard_ds_min_orders_per_day', 'standard_ds_max_orders_per_day',
             'super_ds_radius', 'super_ds_min_orders_per_day', 'super_ds_max_orders_per_day',
@@ -14859,13 +15218,14 @@ class Handler(SimpleHTTPRequestHandler):
             'use_tiered_costs': True,
             'mini_ds_radius': 1.0, 'mini_ds_min_orders_per_day': 300,
             'mini_ds_max_orders_per_day': 8000,
-            'standard_ds_radius': 2.5, 'standard_ds_min_orders_per_day': 500,
+            'standard_ds_radius': DEFAULT_STANDARD_RADIUS_KM, 'standard_ds_min_orders_per_day': 500,
             'standard_ds_max_orders_per_day': 12000,
-            'super_ds_radius': 10.0, 'super_ds_min_orders_per_day': 0,
+            'super_ds_radius': DEFAULT_SUPER_RADIUS_KM, 'super_ds_min_orders_per_day': 0,
             'super_ds_max_orders_per_day': 50000,
             'mini_coverage_fill': False,
             'require_full_tier_coverage': True,
-            'super_role': 'overlay_core_only',
+            'super_role': 'full_competitor',
+            'fixed_super_min_sqft': DEFAULT_FIXED_SUPER_MIN_SQFT,
         }
         for k, v in defaults.items():
             base_params.setdefault(k, v)
@@ -14878,7 +15238,7 @@ class Handler(SimpleHTTPRequestHandler):
                 target_meta = {
                     'target_mode': target_mode,
                     'target_avg_cost': target_avg_cost,
-                    'target_total_physical_standard_stores': int(target) if target_mode == 'physical_standard_count' else None,
+                    'target_total_physical_stores': int(target_total_physical_stores) if target_total_physical_stores is not None else None,
                     'tolerance_pct': tolerance_pct,
                     'tolerance_abs': round(tolerance_abs, 4),
                     'mode': mode,
@@ -14894,47 +15254,42 @@ class Handler(SimpleHTTPRequestHandler):
                 final_params = {}
                 pipeline_extra = {}
 
-                if target_mode == 'physical_standard_count':
-                    state.optimization_progress = "Target count: placing Standard-only network..."
+                if target_mode in {'physical_store_count', 'count_and_cost'}:
+                    state.optimization_progress = "Target count: placing physical-store-constrained network..."
                     count_params = dict(base_params)
-                    count_params['mini_ds_target_count'] = 0
-                    count_params['mini_ds_max'] = 0
-                    count_params['mini_ds_min_orders_per_day'] = 10**18
-                    count_params['super_ds_target_count'] = 0
-                    count_params['super_ds_max'] = 0
-                    count_params['super_ds_min_orders_per_day'] = 10**18
-                    count_params['standard_ds_target_count'] = int(target)
-                    count_params['standard_ds_max'] = int(target)
-                    count_params['target_max_hubs'] = int(target)
+                    count_params['target_total_physical_stores'] = int(target_total_physical_stores)
+                    count_params['target_max_hubs'] = int(target_total_physical_stores)
+                    if target_avg_cost is not None:
+                        count_params['target_last_mile_cost'] = float(target_avg_cost)
+                    count_params['super_role'] = str(count_params.get('super_role') or 'full_competitor')
                     count_params = normalize_placement_params(count_params)
-                    layout_cb = place_overlapping_tier_hubs(
-                        state.grid_data, count_params,
+                    constrained = optimize_with_constraints(
+                        state.grid_data,
+                        state.existing_stores,
+                        count_params,
                         progress_cb=lambda msg: setattr(state, 'optimization_progress', msg)
                     )
-                    mini_ds = layout_cb['mini_ds']
-                    standard_ds = layout_cb['standard_ds']
-                    super_ds = layout_cb['super_ds']
-                    remaining = layout_cb['remaining_after_mini_greedy']
-                    coverage_minis_added_cb = layout_cb['coverage_minis_added']
-                    state.optimization_progress = "Target count: evaluating Standard-only result via OSRM..."
-                    final_metrics = evaluate_network(
-                        state.grid_data, state.existing_stores,
-                        mini_ds, standard_ds, super_ds, count_params,
-                        progress_cb=lambda msg: setattr(state, 'optimization_progress', msg)
-                    )
-                    target_meta['feasible'] = len(standard_ds) == int(target)
-                    target_meta['actual_total_physical_standard_stores'] = len(standard_ds)
-                    target_meta['gap_to_target'] = int(target) - len(standard_ds)
+                    mini_ds = constrained['mini_ds']
+                    standard_ds = constrained['standard_ds']
+                    super_ds = constrained['super_ds']
+                    final_metrics = constrained['metrics']
+                    actual_total_physical = int(final_metrics.get('total_physical_stores', 0) or 0)
+                    target_meta['feasible'] = actual_total_physical <= int(target_total_physical_stores)
+                    if target_avg_cost is not None:
+                        target_meta['feasible'] = bool(
+                            target_meta['feasible'] and
+                            float(final_metrics.get('avg_modeled_cost_per_order', np.inf) or np.inf) <= float(target_avg_cost) + tolerance_abs
+                        )
+                    target_meta['actual_total_physical_stores'] = actual_total_physical
+                    target_meta['gap_to_target'] = int(target_total_physical_stores) - actual_total_physical
                     target_meta['message'] = (
-                        f"Standard-only placement returned {len(standard_ds)} physical Standard stores "
-                        f"against target {int(target)}."
+                        f"Physical-store constrained run returned {actual_total_physical} total physical stores "
+                        f"against target {int(target_total_physical_stores)}."
                     )
                     pipeline_extra = {
-                        'coverage_minis_added': coverage_minis_added_cb,
-                        'remaining_grid_cells_after_mini_greedy': len(remaining),
-                        'placement_mode': layout_cb.get('placement_mode', 'overlapping'),
-                        'coverage_complete': layout_cb.get('coverage_complete', True),
-                        'coverage_satellites_added': layout_cb.get('coverage_satellites_added', 0),
+                        'placement_mode': 'constraint_optimizer',
+                        'coverage_complete': constrained.get('coverage_complete', True),
+                        'coverage_satellites_added': constrained.get('coverage_satellites_added', 0),
                         'target_mode': target_mode,
                     }
                     final_params = count_params
@@ -15051,6 +15406,12 @@ class Handler(SimpleHTTPRequestHandler):
                 )
                 pipeline_warnings.extend(count_warnings)
                 fixed_standard_sites = _build_fixed_standard_sites(final_params)
+                fixed_super_sites, fixed_standard_sites = _select_fixed_super_sites(
+                    state.grid_data,
+                    fixed_standard_sites,
+                    final_params,
+                    progress_cb=None,
+                )
                 new_standard_sites = _copy_site_records(standard_ds)
                 for site in new_standard_sites:
                     site['standard_role'] = str(site.get('standard_role') or 'new')
@@ -15087,13 +15448,19 @@ class Handler(SimpleHTTPRequestHandler):
                     'fixed_store_mode': _effective_fixed_store_mode(final_params),
                     'fixed_store_source_mode': _effective_fixed_store_source_mode(final_params),
                     'standard_ds_radius': float(final_params.get('standard_ds_radius', 3.0) or 3.0),
-                    'fixed_standard_count': len(fixed_standard_sites),
-                    'new_standard_count': len(new_standard_sites),
+                    'fixed_standard_count': int(final_metrics.get('fixed_standard_count', len(fixed_standard_sites)) or len(fixed_standard_sites)),
+                    'fixed_super_count': int(final_metrics.get('fixed_super_count', len(fixed_super_sites)) or len(fixed_super_sites)),
+                    'fixed_physical_store_count': int(final_metrics.get('fixed_physical_store_count', len(fixed_standard_sites) + len(fixed_super_sites)) or (len(fixed_standard_sites) + len(fixed_super_sites))),
+                    'new_standard_count': int(final_metrics.get('new_standard_count', len(new_standard_sites)) or len(new_standard_sites)),
+                    'new_super_count': int(final_metrics.get('new_super_count', len(super_ds)) or len(super_ds)),
+                    'mini_count': int(final_metrics.get('mini_count', len(mini_ds)) or len(mini_ds)),
+                    'total_physical_stores': int(final_metrics.get('total_physical_stores', len(fixed_standard_sites) + len(fixed_super_sites) + len(new_standard_sites) + len(super_ds) + len(mini_ds)) or (len(fixed_standard_sites) + len(fixed_super_sites) + len(new_standard_sites) + len(super_ds) + len(mini_ds))),
                     'rescue_standard_count': len(rescue_standard_sites),
                     'gap_fill_standard_count': len(gap_fill_standard_sites),
                     'spacing_relaxed_standard_count': len(spacing_relaxed_standard_sites),
                     'exception_override_count': len(exception_override_sites),
                     'fixed_standard_sites': fixed_standard_sites,
+                    'fixed_super_sites': fixed_super_sites,
                     'new_standard_sites': new_standard_sites,
                     'rescue_standard_sites': rescue_standard_sites,
                     'spacing_relaxed_standard_sites': spacing_relaxed_standard_sites,
@@ -15101,11 +15468,11 @@ class Handler(SimpleHTTPRequestHandler):
                 }
                 state.optimization_result['pipeline']['requested_counts'] = requested_counts
                 state.optimization_result['pipeline']['actual_counts'] = actual_counts
-                state.optimization_result['target_search']['requested_total_physical_standard_stores'] = (
-                    int(target) if target_mode == 'physical_standard_count' else None
+                state.optimization_result['target_search']['requested_total_physical_stores'] = (
+                    int(target_total_physical_stores) if target_total_physical_stores is not None else None
                 )
-                state.optimization_result['target_search']['actual_total_physical_standard_stores'] = (
-                    len(standard_ds) if target_mode == 'physical_standard_count' else None
+                state.optimization_result['target_search']['actual_total_physical_stores'] = int(
+                    final_metrics.get('total_physical_stores', 0) or 0
                 )
                 state.optimization_progress = 'Complete'
                 logger.info(f"Target optimization ({mode}) complete in {elapsed:.1f}s")
