@@ -1,28 +1,43 @@
 {
-  "bundle_root": "/Users/thota/Downloads/DS-Network-Design-Trial-main",
-  "bundle_root_total": {
-    "path": "/Users/thota/Downloads/DS-Network-Design-Trial-main",
-    "file_count": 3237,
-    "total_bytes": 22085601869
+  "profile": "bangalore-benchmark-103",
+  "bundle_strategy": "git-for-code, runtime-bundle-for-cache-and-osrm",
+  "repo_root": "/Users/thota/Downloads/DS-Network-Design-Trial-main",
+  "repo_root_total": {
+    "path": ".",
+    "file_count": 4371,
+    "total_bytes": 41224718292
   },
-  "cache": {
-    "path": "/Users/thota/Downloads/DS-Network-Design-Trial-main/network-optimizer/cache",
-    "file_count": 121,
-    "total_bytes": 7549506564
+  "repo_runtime": {
+    "cache": {
+      "path": "network-optimizer/cache",
+      "file_count": 199,
+      "total_bytes": 10041497595
+    },
+    "osrm_data": {
+      "path": "osrm-data",
+      "file_count": 27,
+      "total_bytes": 6653282734
+    }
   },
-  "osrm_data": {
-    "path": "/Users/thota/Downloads/DS-Network-Design-Trial-main/osrm-data",
-    "file_count": 27,
-    "total_bytes": 6653282734
+  "runtime_bundle_default": "office-runtime-bundle/bangalore-benchmark-103",
+  "runtime_bundle_manifest": "office-runtime-bundle/bangalore-benchmark-103/office-runtime-manifest.json",
+  "expected_settings": {
+    "fixed_store_mode": "benchmark_103",
+    "business_target_coverage_pct": 99.7,
+    "standard_radius_km": 3.0,
+    "super_radius_km": 5.5,
+    "fixed_super_min_sqft": 4500,
+    "exact_candidate_cap": 3000,
+    "exact_graph_max_radius_km": 6.0
   },
   "required_files": {
-    "office_demo_start": "/Users/thota/Downloads/DS-Network-Design-Trial-main/office_demo_start.sh",
-    "office_demo_verify": "/Users/thota/Downloads/DS-Network-Design-Trial-main/office_demo_verify.sh",
-    "optimizer_start": "/Users/thota/Downloads/DS-Network-Design-Trial-main/network-optimizer/start.sh",
-    "osrm_start": "/Users/thota/Downloads/DS-Network-Design-Trial-main/network-optimizer/start_osrm.sh",
-    "stores_103": "/Users/thota/Downloads/DS-Network-Design-Trial-main/Store details - 103 old stores.csv",
-    "stores_151": "/Users/thota/Downloads/DS-Network-Design-Trial-main/Store details - 151 polygons with stores.csv",
-    "orders_csv": "/Users/thota/Downloads/DS-Network-Design-Trial-main/feb_2026_distance_input.csv",
-    "orders_zip": "/Users/thota/Downloads/DS-Network-Design-Trial-main/feb_2026_distance_input.csv.zip"
+    "office_demo_start": "office_demo_start.sh",
+    "office_demo_verify": "office_demo_verify.sh",
+    "office_demo_restore": "restore_office_demo_runtime.sh",
+    "optimizer_start": "network-optimizer/start.sh",
+    "osrm_start": "network-optimizer/start_osrm.sh",
+    "stores_103": "Store details - 103 old stores.csv",
+    "stores_151": "Store details - 151 polygons with stores.csv",
+    "orders_daily_aggregated": "daily_demand_aggregated.csv"
   }
 }

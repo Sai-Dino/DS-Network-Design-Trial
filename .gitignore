@@ -38,3 +38,12 @@ feb_2026_dashboard.html
 
 # Local test / package artifacts not needed for office demo
 ui-test-harness/node_modules/
+
+# Office runtime artifacts are copied/restored separately from git.
+office-runtime-bundle/
+.office-runtime-bundle/
+office-runtime-*.tar.gz
+
+# Fresh runtime caches are restored/copied, not committed.
+network-optimizer/cache/*
+osrm-data/*
