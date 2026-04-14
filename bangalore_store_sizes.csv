@@ -1,0 +1,93 @@
+City,Town,site,SiteID,Store code,Store size (in Sq.ft)
+Bangalore,Bangalore,RR Nagar,Ben_102,ben_102_wh_hl_01,3020
+Bangalore,Bangalore,Indiranagar ( Ambedkar College ),Ben_103,ben_103_wh_hl_01,2698
+Bangalore,Bangalore,Gottigere,Ben_104,ben_104_wh_hl_01,3600
+Bangalore,Bangalore,Sanjay Nagar,Ben_105,ben_105_wh_hl_01,3002
+Bangalore,Bangalore,J P Nagar 9th Phase,Ben_106,ben_106_wh_hl_01,3553
+Bangalore,Bangalore,E-city 2,Ben_107,ben_107_wh_hl_01,4000
+Bangalore,Bangalore,Doddakannelli,Ben_108,ben_108_wh_hl_01,3043
+Bangalore,Bangalore,Singasandra DSU (Dayananda Sagar University) Hosur Road,Ben_110,ben_110_wh_hl_01,5482
+Bangalore,Bangalore,Budigere,ben_112,ben_112_wh_hl_01,3491
+Bangalore,Bangalore,Kalkere,ben_113,ben_113_wh_hl_01,4411
+Bangalore,Bangalore,"Gopalan Mall, Mahadevapura",Ben_114,ben_114_wh_hl_01,3758
+Bangalore,Bangalore,Chikkabanavara,Ben_115,ben_115_wh_hl_01,2740
+Bangalore,Bangalore,Kalyan Nagar 2,Ben_116,ben_116_wh_hl_01,3624
+Bangalore,Bangalore,HSR Layout Extension,ben_117,ben_117_wh_hl_01,3312
+Bangalore,Bangalore,Hosa road,Ben_118,ben_118_wh_hl_01,4656
+Bangalore,Bangalore,Bommasandra,Ben_119,ben_119_wh_hl_01,3368
+Bangalore,Bangalore,BTM Layout,Ben_120,ben_120_wh_hl_01,3821
+Bangalore,Bangalore,Padmanabhanagar,ben_121,ben_121_wh_hl_01,3243
+Bangalore,Bangalore,Belathur,ben_123,ben_123_wh_hl_01,3753
+Bangalore,Bangalore,Nagasandra,ben_125,ben_125_wh_hl_01,3474
+Bangalore,Bangalore,Nagarbhavi,ben_127,ben_127_wh_hl_01,2851
+Bangalore,Bangalore,kattigenahallli (Bagalur),ben_128,ben_128_wh_hl_01,7293
+Bangalore,Bangalore,JC Road,ben_133,ben_133_wh_hl_01,3570
+Bangalore,Bangalore,Kodigehalli road,Ben_135,ben_135_wh_hl_01,3482
+Bangalore,Bangalore,BEL Road Option 2,Ben_136,ben_136_wh_hl_01,3394
+Bangalore,Bangalore,Vidyaranyapura,ben_137,ben_137_wh_hl_01,3693
+Bangalore,Bangalore,Thalagattpura,ben_138,ben_138_wh_hl_01,3228
+Bangalore,Bangalore,Jayanagar 1,Ben_140,ben_140_wh_hl_01,2459
+Bangalore,Bangalore,Mailsandra,Ben_141,ben_141_wh_hl_01,5206
+Bangalore,Bangalore,Marathalli Option 2,Ben_143,ben_143_wh_hl_01,3680
+Bangalore,Bangalore,Doddanekkundi 1,Ben_144,ben_144_wh_hl_01,3290
+Bangalore,Bangalore,Maragondanahalli,ben_145,ben_145_wh_hl_01,3392
+Bangalore,Bangalore,Heganahalli,Ben_147,ben_147_wh_hl_01,3200
+Bangalore,Bangalore,Manipal County Road,ben_150,ben_150_wh_hl_01,3253
+Bangalore,Bangalore,Bommasandra 2 (Jigani),Ben_152,ben_152_wh_hl_01,5053
+Bangalore,Bangalore,Devanahalli,Ben_153,ben_153_wh_hl_01,3987
+Bangalore,Bangalore,Haralur,Ben_158,ben_158_wh_hl_01,3090
+Bangalore,Bangalore,Yemlur,Ben_160,ben_160_wh_hl_01,5093
+Bangalore,Bangalore,Malleshpalaya (Basavanagara) Kaggadasapura,Ben_163,ben_163_wh_hl_01,4870
+Bangalore,Bangalore,Royasandra Opti 2,Ben_167,ben_167_wh_hl_01,2914
+Bangalore,Bangalore,Frazer Town,Ben_172,ben_172_wh_hl_01,4123
+Bangalore,Bangalore,Iggalur,Ben_174,ben_174_wh_hl_01,3720
+Bangalore,Bangalore,Yeshwanthpur,ben_176,ben_176_wh_hl_01,4454
+Bangalore,Bangalore,Abbigere,Ben_178,ben_178_wh_hl_01,4968
+Bangalore,Bangalore,Thanisandra,Ben_180,ben_180_wh_hl_01,4559
+Bangalore,Bangalore,Shivaji Nagar,Ben_184,ben_184_wh_hl_01,3436
+Bangalore,Bangalore,Mallathalli,Ben_185,ben_185_wh_hl_01,5545
+Bangalore,Bangalore,APR Site 2,Ben_186,ben_186_wh_hl_01,3686
+Bangalore,Bangalore,Richmond Town,Ben_194,ben_194_wh_hl_01,3331
+Bangalore,Bangalore,Varthur,Ben_195,ben_195_wh_hl_01,3037
+Bangalore,Bangalore,Azad Nagar,Ben_196,ben_196_wh_hl_01,3434
+Bangalore,Bangalore,Kurudusonnenahalli,Ben_198,ben_198_wh_hl_01,3801
+Bangalore,Bangalore,Adugodi,Ben_201,ben_201_wh_hl_01,3170
+Bangalore,Bangalore,Nagavara HRB Layout,Ben_205,ben_205_wh_hl_01,4641
+Bangalore,Bangalore,AGS Layout,Ben_206,ben_206_wh_hl_01,3854
+Bangalore,Bangalore,Chikkabellandur,Ben_209,ben_209_wh_hl_01,2738
+Bangalore,Bangalore,Rampura,Ben_210,ben_210_wh_hl_01,3123
+Bangalore,Bangalore,Jayanagar Option 5,Ben_214,ben_214_wh_hl_01,4930
+Bangalore,Bangalore,Immadihalli,Ben_218,ben_218_wh_hl_01,4368
+Bangalore,Bangalore,Begur,Ben_223,ben_223_wh_hl_01,4296
+Bangalore,Bangalore,Basaveshwar Nagar,Ben_227,ben_227_wh_hl_01,3938
+Bangalore,Bangalore,Attibele,Ben_234,ben_234_wh_hl_01,3731
+Bangalore,Bangalore,Hoskote,Ben_238,ben_238_wh_hl_01,4687
+Bangalore,Bangalore,Electronics City,Site_003_B,ben_003_wh_hl_01,2750
+Bangalore,Bangalore,Bommanahalli,Site_007_B,ben_007_wh_hl_01,4395
+Bangalore,Bangalore,JP nagar,Site_010_B,ben_010_wh_hl_01,2700
+Bangalore,Bangalore,HSR,Site_013_B,ben_013_wh_hl_01,2888
+Bangalore,Bangalore,Gunjur Balagere,Site_016_B,ben_016_wh_hl_01,4062
+Bangalore,Bangalore,Koramangala,Site_017_B,ben_017_wh_hl_01,2851
+Bangalore,Bangalore,Banashankari,Site_018_B,ben_018_wh_hl_01,2800
+Bangalore,Bangalore,Kundanahalli Gate,Site_024_B,ben_024_wh_hl_01,"3,651"
+Bangalore,Bangalore,Kadugodi Kannamangala,Site_026_B,ben_026_wh_hl_01,3610
+Bangalore,Bangalore,Rajajinagar/Vijaynagar,Site_027_B,ben_027_wh_hl_01,3905
+Bangalore,Bangalore,Whitefield,Site_029_B,ben_029_wh_hl_01,3303
+Bangalore,Bangalore,Indiranagar,Site_031_B,ben_031_wh_hl_01,3640
+Bangalore,Bangalore,Hoodi,Site_034_B,ben_034_wh_hl_01,4750
+Bangalore,Bangalore,Seshadripuram,Site_036_B,ben_036_wh_hl_01,2879
+Bangalore,Bangalore,KR Puram,Site_039_B,ben_039_wh_hl_01,4091
+Bangalore,Bangalore,Peenya,Site_040_B,ben_040_wh_hl_01,3574
+Bangalore,Bangalore,R T Nagar,Site_042_B,ben_042_wh_hl_01,2994
+Bangalore,Bangalore,Banaswadi,Site_043_B,ben_043_wh_hl_01,3514
+Bangalore,Bangalore,Hennur Bagalur,Site_050_B,ben_050_wh_hl_01,3475
+Bangalore,Bangalore,Yelahanka,Site_054_B,ben_054_wh_hl_01,3488
+Bangalore,Bangalore,Bannerghata,Site_055_B,ben_055_wh_hl_01,3414
+Bangalore,Bangalore,"Sarjapura, Bellandur",Site_056_B,ben_056_wh_hl_01,3840
+Bangalore,Bangalore,APR,Site_057_B,ben_057_wh_hl_01,3600
+Bangalore,Bangalore,Maruthi Layout Thanisandra,Site_058_B,ben_058_wh_hl_01,3379
+Bangalore,Bangalore,Kanakapura / BTM/MICO A,Site_060_B,ben_060_wh_hl_01,"3,200"
+Bangalore,Bangalore,Whitefield 2,site_061_B,ben_061_wh_hl_01,"3,215"
+Bangalore,Bangalore,Cox Town,Site_062_B,ben_062_wh_hl_01,4000
+Bangalore,Bangalore,Bhartiya City,Site_063_B,ben_063_wh_hl_01,3525
+Bangalore,Bangalore,Uttarahalli,Site_064_B,ben_064_wh_hl_01,"2,850"
