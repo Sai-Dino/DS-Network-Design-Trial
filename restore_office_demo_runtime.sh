@@ -6,6 +6,7 @@ BUNDLE_DIR="${OFFICE_RUNTIME_BUNDLE_DIR:-$ROOT_DIR/office-runtime-bundle/bangalo
 OSRM_DEST_DIR="${OSRM_DATA_DIR:-$ROOT_DIR/osrm-data}"
 CACHE_DEST_DIR="${CACHE_DIR:-$ROOT_DIR/network-optimizer/cache}"
 FORCE_REFRESH="${FORCE_REFRESH:-0}"
+ACTIVE_MANIFEST_PATH="${ACTIVE_RUNTIME_MANIFEST_PATH:-$ROOT_DIR/.office-runtime-active-manifest.json}"
 
 copy_tree() {
   local src="$1"
@@ -72,6 +73,15 @@ fi
 if [[ -d "$BUNDLE_DIR/inputs" ]]; then
   echo "Restoring bundled inputs..."
   copy_tree "$BUNDLE_DIR/inputs" "$ROOT_DIR"
+fi
+
+if [[ -d "$BUNDLE_DIR/optimization_results" ]]; then
+  echo "Restoring bundled optimization results..."
+  copy_tree "$BUNDLE_DIR/optimization_results" "$ROOT_DIR/optimization_results"
+fi
+
+if [[ -f "$BUNDLE_DIR/office-runtime-manifest.json" ]]; then
+  cp "$BUNDLE_DIR/office-runtime-manifest.json" "$ACTIVE_MANIFEST_PATH"
 fi
 
 echo ""

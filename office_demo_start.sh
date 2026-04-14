@@ -8,6 +8,8 @@ export OPTIMIZER_PORT="${OPTIMIZER_PORT:-5050}"
 export OSRM_URL="${OSRM_URL:-http://127.0.0.1:${OSRM_PORT}}"
 export OFFICE_RUNTIME_BUNDLE_DIR="${OFFICE_RUNTIME_BUNDLE_DIR:-$ROOT_DIR/office-runtime-bundle/bangalore-benchmark-103}"
 export PYTHONPYCACHEPREFIX="${PYTHONPYCACHEPREFIX:-/tmp/pycache}"
+export OFFICE_FAST_LANE_ONLY="${OFFICE_FAST_LANE_ONLY:-1}"
+export MEETING_FIXED_STORE_MODES="${MEETING_FIXED_STORE_MODES:-benchmark_103}"
 
 runtime_ready() {
   local osrm_dir="$1"
@@ -31,6 +33,8 @@ if ! runtime_ready "$OSRM_DATA_DIR" "$ROOT_DIR/network-optimizer/cache"; then
   echo "  Run ./office_demo_verify.sh for details."
   exit 1
 fi
+
+"$ROOT_DIR/office_demo_verify.sh"
 
 echo "Repo root: $ROOT_DIR"
 echo "OSRM data dir: $OSRM_DATA_DIR"
