@@ -65,8 +65,6 @@ runtime_manifest_valid() {
   manifest_path="$(active_runtime_manifest_path)"
   python3 - <<'PY' "$manifest_path" "$ROOT_DIR"
 import json
-import os
-import subprocess
 import sys
 from pathlib import Path
 
@@ -89,27 +87,13 @@ required = {
     'exact_candidate_cap': 3000,
     'exact_graph_max_radius_km': 6.0,
     'fixed_super_min_sqft': 4500,
+    'native_osrm_required': True,
 }
 for key, value in required.items():
     if expected.get(key) != value:
         raise SystemExit(1)
-
-allow_mismatch = False
-if str(os.environ.get('OFFICE_RUNTIME_ALLOW_COMMIT_MISMATCH', '0')).strip().lower() in {'1', 'true', 'yes', 'y', 'on'}:
-    allow_mismatch = True
-
-if not allow_mismatch:
-    try:
-        current_commit = subprocess.check_output(
-            ['git', '-C', str(root), 'rev-parse', '--short', 'HEAD'],
-            stderr=subprocess.DEVNULL,
-            text=True,
-        ).strip()
-    except Exception:
-        current_commit = ''
-    source_commit = str(payload.get('source_commit') or '').strip()
-    if current_commit and source_commit and current_commit != source_commit:
-        raise SystemExit(1)
+if not bool(payload.get('decision_packet_present', False)):
+    raise SystemExit(1)
 PY
 }
 
@@ -124,13 +108,23 @@ fixed_store_metadata_ready() {
   test -f "$ROOT_DIR/analysis/benchmark_103_store_sizes.csv"
 }
 
+decision_packet_ready() {
+  test -f "$ROOT_DIR/optimization_results/latest_bangalore_103_decision_packet.json" ||
+  test -f "$RUNTIME_BUNDLE_DIR/optimization_results/latest_bangalore_103_decision_packet.json"
+}
+
+native_osrm_ready() {
+  command -v osrm-routed >/dev/null 2>&1
+}
+
 check "python3 available" command -v python3
 check "repo-local cache ready or restorable bundle present" cache_or_bundle_ready
 check "repo-local osrm-data ready or restorable bundle present" osrm_or_bundle_ready
 check "repo-local OSRM graph present when osrm-data exists" osrm_graph_consistent_if_present
 check "runtime manifest present" runtime_manifest_present
 check "runtime manifest matches Bangalore benchmark_103 office profile" runtime_manifest_valid
-check "either docker or native osrm-routed available" bash -c "command -v docker >/dev/null 2>&1 || command -v osrm-routed >/dev/null 2>&1"
+check "latest Bangalore 103 decision packet present" decision_packet_ready
+check "native osrm-routed available" native_osrm_ready
 check "required Python packages import" python3 -c "import pandas, numpy, openpyxl, scipy, urllib3"
 check "server.py compiles" env PYTHONPYCACHEPREFIX=/tmp/pycache python3 -m py_compile "$ROOT_DIR/network-optimizer/server.py"
 check "daily demand file present" test -f "$ROOT_DIR/daily_demand_aggregated.csv"
