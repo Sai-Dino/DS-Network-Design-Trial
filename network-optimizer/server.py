@@ -10747,6 +10747,145 @@ def _reduce_exact_candidates_by_spacing_conflicts(candidate_sites, coverage_sets
     return reduced_candidate_sites, reduced_coverage_sets, reduced_spacing_conflicts
 
 
+def _filter_exact_candidate_subset(candidate_sites, coverage_sets, spacing_conflicts, keep_idx):
+    if not candidate_sites:
+        return candidate_sites, coverage_sets, spacing_conflicts
+    keep_idx = np.asarray(keep_idx, dtype=np.int32)
+    if keep_idx.size == 0:
+        empty_sets = {
+            'fixed_base': coverage_sets.get('fixed_base', []),
+            'fixed_extra': coverage_sets.get('fixed_extra', []),
+            'cand_base': [[] for _ in coverage_sets.get('cand_base', [])],
+            'cand_extra': [[] for _ in coverage_sets.get('cand_extra', [])],
+        }
+        empty_conflicts = {
+            'spacing_km': (spacing_conflicts or {}).get('spacing_km'),
+            'distance_rule': (spacing_conflicts or {}).get('distance_rule', 'unknown'),
+            'blocked_candidate_mask': np.zeros(0, dtype=bool),
+            'blocked_candidate_count': 0,
+            'candidate_conflict_pairs': np.empty((0, 2), dtype=np.int32),
+            'candidate_conflict_count': 0,
+        }
+        empty_conflicts['fingerprint'] = _exact_spacing_conflict_fingerprint(empty_conflicts)
+        return [], empty_sets, empty_conflicts
+
+    keep_idx = np.unique(keep_idx)
+    old_to_new = np.full(len(candidate_sites), -1, dtype=np.int32)
+    old_to_new[keep_idx] = np.arange(len(keep_idx), dtype=np.int32)
+    reduced_candidate_sites = [candidate_sites[int(idx)] for idx in keep_idx]
+
+    def remap_candidate_edges(edge_lists):
+        remapped = []
+        for demand_edges in edge_lists:
+            new_edges = []
+            for cand_idx, dist in demand_edges:
+                mapped = int(old_to_new[int(cand_idx)])
+                if mapped >= 0:
+                    new_edges.append((mapped, dist))
+            remapped.append(new_edges)
+        return remapped
+
+    reduced_coverage_sets = {
+        'fixed_base': coverage_sets.get('fixed_base', []),
+        'fixed_extra': coverage_sets.get('fixed_extra', []),
+        'cand_base': remap_candidate_edges(coverage_sets.get('cand_base', [])),
+        'cand_extra': remap_candidate_edges(coverage_sets.get('cand_extra', [])),
+    }
+
+    old_pairs = np.asarray(
+        (spacing_conflicts or {}).get('candidate_conflict_pairs', np.empty((0, 2), dtype=np.int32)),
+        dtype=np.int32,
+    )
+    remapped_pairs = []
+    for cand_i, cand_j in old_pairs:
+        new_i = int(old_to_new[int(cand_i)])
+        new_j = int(old_to_new[int(cand_j)])
+        if new_i >= 0 and new_j >= 0:
+            remapped_pairs.append((new_i, new_j))
+
+    reduced_spacing_conflicts = {
+        'spacing_km': (spacing_conflicts or {}).get('spacing_km'),
+        'distance_rule': (spacing_conflicts or {}).get('distance_rule', 'unknown'),
+        'blocked_candidate_mask': np.zeros(len(reduced_candidate_sites), dtype=bool),
+        'blocked_candidate_count': 0,
+        'candidate_conflict_pairs': np.asarray(remapped_pairs, dtype=np.int32),
+        'candidate_conflict_count': int(len(remapped_pairs)),
+        'source_spacing_fingerprint': (spacing_conflicts or {}).get('fingerprint'),
+    }
+    reduced_spacing_conflicts['fingerprint'] = _exact_spacing_conflict_fingerprint(reduced_spacing_conflicts)
+    return reduced_candidate_sites, reduced_coverage_sets, reduced_spacing_conflicts
+
+
+def _cap_exact_candidates_for_solver(scope_grid, candidate_sites, coverage_sets, spacing_conflicts, params, progress_cb=None):
+    if scope_grid is None or len(scope_grid) == 0 or not candidate_sites:
+        return candidate_sites, coverage_sets, spacing_conflicts
+    raw_cap = params.get('exact_model_candidate_cap')
+    if raw_cap in (None, '', 0, '0', 'all', 'ALL'):
+        return candidate_sites, coverage_sets, spacing_conflicts
+    try:
+        candidate_cap = max(50, int(float(raw_cap)))
+    except (TypeError, ValueError):
+        return candidate_sites, coverage_sets, spacing_conflicts
+    if len(candidate_sites) <= candidate_cap:
+        return candidate_sites, coverage_sets, spacing_conflicts
+
+    weights = np.asarray(scope_grid['orders_per_day'].values, dtype=np.float64)
+    fixed_base = coverage_sets.get('fixed_base', [])
+    cand_base = coverage_sets.get('cand_base', [])
+    cand_extra = coverage_sets.get('cand_extra', [])
+    fixed_covered_mask = np.array([len(edges) > 0 for edges in fixed_base], dtype=bool)
+    strict_gain = np.zeros(len(candidate_sites), dtype=np.float64)
+    extra_gain = np.zeros(len(candidate_sites), dtype=np.float64)
+    total_gain = np.zeros(len(candidate_sites), dtype=np.float64)
+    unique_strict_gain = np.zeros(len(candidate_sites), dtype=np.float64)
+
+    for demand_idx, demand_edges in enumerate(cand_base):
+        if not demand_edges:
+            continue
+        weight = float(weights[demand_idx])
+        for cand_idx, _dist in demand_edges:
+            total_gain[int(cand_idx)] += weight
+            if not fixed_covered_mask[demand_idx]:
+                strict_gain[int(cand_idx)] += weight
+        if not fixed_covered_mask[demand_idx] and len(demand_edges) == 1:
+            unique_strict_gain[int(demand_edges[0][0])] += weight
+
+    for demand_idx, demand_edges in enumerate(cand_extra):
+        if not demand_edges:
+            continue
+        weight = float(weights[demand_idx])
+        for cand_idx, _dist in demand_edges:
+            extra_gain[int(cand_idx)] += weight
+
+    forced_keep = np.flatnonzero(unique_strict_gain > 1e-9).astype(np.int32)
+    if forced_keep.size > candidate_cap:
+        candidate_cap = int(forced_keep.size)
+
+    remaining = np.setdiff1d(np.arange(len(candidate_sites), dtype=np.int32), forced_keep, assume_unique=False)
+    scored_remaining = sorted(
+        remaining.tolist(),
+        key=lambda idx: (
+            float(strict_gain[idx]),
+            float(unique_strict_gain[idx]),
+            float(total_gain[idx]),
+            float(extra_gain[idx]),
+            float(candidate_sites[idx].get('orders_per_day', 0.0) or 0.0),
+        ),
+        reverse=True,
+    )
+    room = max(0, candidate_cap - int(forced_keep.size))
+    keep_idx = np.sort(np.concatenate([forced_keep, np.asarray(scored_remaining[:room], dtype=np.int32)]))
+
+    if progress_cb:
+        progress_cb(
+            "Exact Standard: solver shortlist cap retained "
+            f"{len(keep_idx)}/{len(candidate_sites)} active candidates "
+            f"(forced_unique={len(forced_keep)})"
+        )
+
+    return _filter_exact_candidate_subset(candidate_sites, coverage_sets, spacing_conflicts, keep_idx)
+
+
 def _build_exact_stage2_components(coverage_sets, candidate_count, fixed_count, allow_exception_vars, spacing_conflicts=None):
     candidate_conflict_pairs = np.asarray(
         (spacing_conflicts or {}).get('candidate_conflict_pairs', np.empty((0, 2), dtype=np.int32)),
@@ -12520,6 +12659,7 @@ def optimize_exact_standard_scenario_deck(params, progress_cb=None):
         # Fast interactive profile: keep the shared graph exact, but reduce the
         # solve footprint to a capped shortlist and a single near-full scenario.
         params.setdefault('exact_candidate_cap', 1200)
+        params.setdefault('exact_model_candidate_cap', 600)
         params.setdefault('allow_full_exact_candidate_pool', False)
         params.setdefault('exact_include_near_full_scenario', True)
         params.setdefault('exact_solve_strict_100_scenario', False)
@@ -12649,6 +12789,14 @@ def optimize_exact_standard_scenario_deck(params, progress_cb=None):
     candidate_sites = reduced_candidate_sites
     expanded_sets = reduced_expanded_sets
     spacing_conflicts = reduced_spacing_conflicts
+    candidate_sites, expanded_sets, spacing_conflicts = _cap_exact_candidates_for_solver(
+        in_scope_grid,
+        candidate_sites,
+        expanded_sets,
+        spacing_conflicts,
+        params,
+        progress_cb=progress_cb,
+    )
     spacing_fingerprint = _exact_spacing_conflict_fingerprint(spacing_conflicts)
     prepared_models = prepared.setdefault('prepared_models', {})
 
@@ -15224,6 +15372,8 @@ class Handler(SimpleHTTPRequestHandler):
                 if params.get('exact_benchmark_profile') == 'demo_fast':
                     if ui_params.get('exact_candidate_cap') in (None, ''):
                         params['exact_candidate_cap'] = 1200
+                    if ui_params.get('exact_model_candidate_cap') in (None, ''):
+                        params['exact_model_candidate_cap'] = 600
                     if ui_params.get('allow_full_exact_candidate_pool') in (None, ''):
                         params['allow_full_exact_candidate_pool'] = False
                     if ui_params.get('exact_include_near_full_scenario') in (None, ''):
@@ -15242,6 +15392,8 @@ class Handler(SimpleHTTPRequestHandler):
                         params['exact_enable_tiebreak_milps'] = False
                 if ui_params.get('exact_candidate_cap') not in (None, ''):
                     params['exact_candidate_cap'] = ui_params.get('exact_candidate_cap')
+                if ui_params.get('exact_model_candidate_cap') not in (None, ''):
+                    params['exact_model_candidate_cap'] = ui_params.get('exact_model_candidate_cap')
                 if ui_params.get('allow_full_exact_candidate_pool') not in (None, ''):
                     params['allow_full_exact_candidate_pool'] = bool(ui_params.get('allow_full_exact_candidate_pool'))
                 if ui_params.get('exact_include_near_full_scenario') not in (None, ''):

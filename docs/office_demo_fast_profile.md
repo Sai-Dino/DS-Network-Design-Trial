@@ -6,7 +6,8 @@ shared `10 km` graph while reducing the live solve size.
 ## What It Changes
 
 - Reuses the shared `exact_graph_max_radius_km=10.0` graph
-- Caps the exact candidate shortlist to `1200` by default
+- Caps the raw exact candidate shortlist to `1200` by default
+- Caps the modeled solver shortlist to `600` by default after spacing reduction
 - Solves only the near-full strict scenario (`99.7%`)
 - Skips Mini overlay during the benchmark run
 - Skips local refinement / extra diagnostics during the benchmark run
@@ -69,6 +70,25 @@ curl -s http://127.0.0.1:5050/api/optimize-exact-benchmark \
     "fixed_store_mode":"benchmark_103",
     "exact_graph_max_radius_km":10.0,
     "exact_candidate_cap":800,
+    "mini_ds_radius":1.0,
+    "standard_ds_radius":3.0,
+    "standard_exception_radius_km":5.0,
+    "super_ds_radius":5.5,
+    "benchmark_near_full_coverage_pct":99.7
+  }'
+```
+
+Optional: keep a larger solver shortlist if you need a little more quality room:
+
+```bash
+curl -s http://127.0.0.1:5050/api/optimize-exact-benchmark \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "exact_benchmark_profile":"demo_fast",
+    "fixed_store_mode":"benchmark_103",
+    "exact_graph_max_radius_km":10.0,
+    "exact_candidate_cap":1000,
+    "exact_model_candidate_cap":750,
     "mini_ds_radius":1.0,
     "standard_ds_radius":3.0,
     "standard_exception_radius_km":5.0,
