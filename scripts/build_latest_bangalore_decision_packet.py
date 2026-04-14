@@ -134,12 +134,167 @@ def main():
     scope_summary = deck.get('scope_summary') or {}
     mini_overlay = deck.get('mini_overlay') or {}
 
-    # ---- Build scenario_views dict (keyed by name) ----
-    scenario_views = {}
+    # ---- Resolve params used for view labels (mirror server.py logic) ----
+    standard_radius = sfloat(params.get('standard_ds_radius', 3.0), 3.0)
+    exception_radius = sfloat(params.get('standard_exception_radius_km', 5.0), 5.0)
+    near_full_pct = sfloat(params.get('benchmark_near_full_coverage_pct', 99.7), 99.7)
+    strict_100 = scenario_by_name.get('strict_3km_100') or active_scenario
+    mini_base_scenario_name = str(mini_overlay.get('base_scenario') or '')
+    mini_base_scenario = scenario_by_name.get(mini_base_scenario_name) or strict_100
+
+    # ==================================================================
+    # Helper: build one exact_view (mirrors _build_exact_ui_view in server.py)
+    # ==================================================================
+    def _build_view(view_key, label, scenario, base_result=None, mini_ov=None):
+        """Produce a view dict matching the server's _build_exact_ui_view shape."""
+        base_result = base_result or {}
+        mini_ov = mini_ov or {}
+        is_mini = (view_key == 'mini_overlay')
+        scenario_for_std = base_result if is_mini else scenario
+
+        # standard_ds for this view: new_sites from scenario
+        new_sites = list((scenario_for_std or {}).get('new_sites') or [])
+        mini_sites = [dict(s) for s in ((mini_ov or {}).get('sites') or [])] if is_mini else []
+        metrics_src = dict((mini_ov or {}).get('metrics') or {}) if is_mini else dict((scenario or {}).get('metrics') or {})
+        all_sites = (scenario_for_std or {}).get('all_sites') or []
+        exception_sites = [dict(s) for s in all_sites if s.get('exception_standard')]
+        fixed_sites = (scenario_for_std or {}).get('fixed_sites') or []
+        new_store_count = sint((scenario_for_std or {}).get('new_store_count'), len(new_sites))
+        exc_hub_count = sint((scenario_for_std or {}).get('exception_hub_count'))
+        total_std = len(fixed_sites) + new_store_count
+
+        demand_serving = [s for s in new_sites if sfloat(s.get('orders_per_day')) > 1e-6]
+        support_only = [s for s in new_sites if sfloat(s.get('orders_per_day')) <= 1e-6]
+
+        std_only_cost = sfloat((base_result.get('metrics') or {}).get('proposed_avg_cost'))
+        std_only_dist = sfloat((base_result.get('metrics') or {}).get('proposed_avg_dist'))
+        mini_cost_v = sfloat((mini_ov.get('metrics') or {}).get('proposed_avg_cost'))
+        mini_dist_v = sfloat((mini_ov.get('metrics') or {}).get('proposed_avg_dist'))
+
+        planning_layers = {
+            'standard': {
+                'fixed_open_count': len(fixed_sites),
+                'new_store_count': new_store_count,
+                'total_standard_sites': total_std,
+                'demand_serving_site_count': len(demand_serving),
+                'support_only_site_count': len(support_only),
+                'coverage_pct': sfloat((scenario_for_std or {}).get('coverage_pct')),
+                'exception_hub_count': exc_hub_count,
+                'exception_sites': exception_sites,
+            },
+            'mini': {
+                'site_count': len(mini_sites),
+                'orders_shifted_from_standard_per_day': (
+                    sfloat(metrics_src.get('total_orders_per_day')) *
+                    sfloat(metrics_src.get('pct_orders_within_mini_service_km')) / 100.0
+                ) if is_mini else 0.0,
+                'avg_cost_reduction_per_order': max(
+                    0.0, std_only_cost - mini_cost_v
+                ) if is_mini else 0.0,
+            },
+            'super': {},
+            'comparison': {
+                'standard_only': {
+                    'avg_cost': std_only_cost if std_only_cost else None,
+                    'avg_dist': std_only_dist if std_only_dist else None,
+                },
+                'standard_plus_mini': ({
+                    'avg_cost': mini_cost_v if mini_cost_v else None,
+                    'avg_dist': mini_dist_v if mini_dist_v else None,
+                }) if mini_ov else {},
+            },
+        }
+        analysis_view = {
+            'recommendations': list((base_result or {}).get('analysis', {}).get('recommendations') or []),
+            'service_gap_polygons': list((scenario_for_std or {}).get('gap_polygons') or []),
+            'service_gap_source': str((scenario_for_std or {}).get('scenario_name') or ''),
+        }
+        return {
+            'view_key': view_key,
+            'label': label,
+            'scenario_name': str((scenario_for_std or {}).get('scenario_name') or view_key),
+            'mini_ds': mini_sites,
+            'standard_ds': new_sites,
+            'super_ds': [],
+            'metrics': metrics_src,
+            'planning_layers': planning_layers,
+            'analysis': analysis_view,
+            'pipeline': {
+                'mode': 'exact_standard_benchmark',
+                'selected_view': view_key,
+                'base_scenario': mini_base_scenario_name if is_mini else None,
+            },
+            'pipeline_warnings': [],
+        }
+
+    # ==================================================================
+    # Build exact_views and exact_summaries (mirrors _build_exact_benchmark_app_result)
+    # ==================================================================
+    view_specs = [
+        ('strict_3km_100',
+         f'Strict {standard_radius:.1f} km / 100%',
+         scenario_by_name.get('strict_3km_100')),
+        ('exceptions_up_to_5km_100',
+         f'{standard_radius:.1f} km + Exceptions to {exception_radius:.1f} km / 100%',
+         scenario_by_name.get('exceptions_up_to_5km_100')),
+        ('strict_3km_99_7',
+         f'Strict {standard_radius:.1f} km / {near_full_pct:.1f}%',
+         scenario_by_name.get('strict_3km_99_7')),
+    ]
+
+    exact_views = {}
+    exact_summaries = []
     scenario_order = []
+
+    for view_key, label, scenario in view_specs:
+        if not scenario:
+            continue
+        scenario_order.append(view_key)
+        exact_views[view_key] = _build_view(
+            view_key, label, scenario,
+            base_result=strict_100, mini_ov=mini_overlay,
+        )
+        exact_summaries.append({
+            'view_key': view_key,
+            'label': label,
+            'target_feasible': bool(scenario.get('target_feasible')),
+            'coverage_pct': sfloat(scenario.get('coverage_pct')),
+            'new_standard_stores': sint(scenario.get('new_store_count')),
+            'exception_hubs': sint(scenario.get('exception_hub_count')),
+            'proposed_avg_cost': sfloat((scenario.get('metrics') or {}).get('proposed_avg_cost')),
+            'proposed_avg_dist': sfloat((scenario.get('metrics') or {}).get('proposed_avg_dist')),
+        })
+
+    # Mini overlay view (if present and not skipped)
+    if mini_overlay and not mini_overlay.get('skipped'):
+        mini_label = f"Mini Overlay on {mini_overlay.get('base_scenario', 'strict_3km_100')}"
+        exact_views['mini_overlay'] = _build_view(
+            'mini_overlay', mini_label, mini_base_scenario,
+            base_result=mini_base_scenario, mini_ov=mini_overlay,
+        )
+        exact_summaries.append({
+            'view_key': 'mini_overlay',
+            'label': mini_label,
+            'target_feasible': None,
+            'coverage_pct': sfloat((mini_overlay.get('metrics') or {}).get('proposed_hard_coverage_pct')),
+            'new_standard_stores': sint((mini_base_scenario or {}).get('new_store_count')),
+            'exception_hubs': sint((mini_base_scenario or {}).get('exception_hub_count')),
+            'mini_sites': sint(mini_overlay.get('site_count')),
+            'proposed_avg_cost': sfloat((mini_overlay.get('metrics') or {}).get('proposed_avg_cost')),
+            'proposed_avg_dist': sfloat((mini_overlay.get('metrics') or {}).get('proposed_avg_dist')),
+        })
+        scenario_order.append('mini_overlay')
+
+    # ---- Selected view (spread onto root, matching server.py line 13035) ----
+    selected_view_key = (recommended if recommended in exact_views
+                         else ('mini_overlay' if 'mini_overlay' in exact_views
+                               else next(iter(exact_views.keys()), '')))
+    selected_view = exact_views.get(selected_view_key, {})
+
+    # ---- Build backward-compat scenario_views (keyed by name) ----
+    scenario_views = {}
     for s in scenarios:
         name = s['scenario_name']
-        scenario_order.append(name)
         m = s.get('metrics') or {}
         scenario_views[name] = {
             'scenario_name': name,
@@ -157,45 +312,6 @@ def main():
             'new_sites_count': len(s.get('new_sites') or []),
         }
 
-    # ---- Build scenario_summaries from CSV ----
-    scenario_summaries = []
-    for row in summary:
-        scenario_summaries.append({
-            'scenario_name': row.get('scenario_name', ''),
-            'target_feasible': row.get('target_feasible', ''),
-            'coverage_pct': sfloat(row.get('coverage_pct')),
-            'uncovered_orders_per_day': sfloat(row.get('uncovered_orders_per_day')),
-            'new_standard_stores': sint(row.get('new_standard_stores')),
-            'exception_hubs': sint(row.get('exception_hubs')),
-            'proposed_avg_cost': sfloat(row.get('proposed_avg_cost')),
-            'proposed_avg_dist': sfloat(row.get('proposed_avg_dist')),
-        })
-
-    # ---- Build standard_ds from hubs CSV (recommended scenario) ----
-    standard_ds = []
-    for row in hub_rows:
-        if row.get('scenario_name') == recommended:
-            standard_ds.append({
-                'id': row.get('hub_id', ''),
-                'lat': sfloat(row.get('lat')),
-                'lon': sfloat(row.get('lon')),
-                'fixed_open': row.get('fixed_open', '').strip().lower() == 'true',
-                'exception_standard': row.get('exception_standard', '').strip().lower() == 'true',
-                'radius_km': sfloat(row.get('radius_km')),
-                'selection': row.get('selection', ''),
-            })
-
-    # ---- Build mini_ds from mini overlay CSV ----
-    mini_ds = []
-    for row in mini_rows:
-        mini_ds.append({
-            'lat': sfloat(row.get('lat')),
-            'lon': sfloat(row.get('lon')),
-            'orders_per_day': sfloat(row.get('orders_per_day')),
-            'radius_km': sfloat(row.get('radius_km')),
-            'type': row.get('type', ''),
-        })
-
     # ---- Build existing_stores from fixed_sites in active scenario ----
     existing_stores = []
     for s in (active_scenario.get('fixed_sites') or []):
@@ -207,9 +323,9 @@ def main():
             'polygon_coords': s.get('polygon_coords', []),
         })
 
-    # ---- decision_grade_result from real metrics ----
+    # ---- decision_grade_result (kept for backward compat) ----
     decision_grade_result = {
-        'active_view_key': recommended,
+        'active_view_key': selected_view_key,
         'fixed_store_mode': 'benchmark_103',
         'fixed_standard_count': len(active_scenario.get('fixed_sites') or []),
         'new_standard_count': sint(active_scenario.get('new_store_count')),
@@ -226,21 +342,36 @@ def main():
 
     now_epoch = round(time.time(), 3)
 
+    # ==================================================================
+    # Assemble packet — exact benchmark format (mirrors _build_exact_benchmark_app_result)
+    # ==================================================================
     packet = {
+        # ---- Core exact benchmark contract ----
         'success': True,
+        'exact_benchmark': True,
+        'exact_metadata': {
+            'recommended_scenario': recommended,
+            'selected_view': selected_view_key,
+            'scenario_summaries': exact_summaries,
+        },
+        'exact_views': exact_views,
+
+        # ---- Root-level fields the UI reads ----
+        'existing_stores': existing_stores,
+        'compute_time_s': sfloat(deck.get('timing', {}).get('total_seconds')),
+        'params': params,
+        'scope_summary': scope_summary,
+        'candidate_pool_summary': deck.get('candidate_pool_summary') or {},
+
+        # ---- Backward-compat fields ----
         'response_version': 2,
-        'result_contract': 'benchmark_derived_canonical',
+        'result_contract': 'exact_benchmark_derived',
         'fixed_store_mode': 'benchmark_103',
         'decision_grade_result': decision_grade_result,
-        'standard_ds': standard_ds,
-        'mini_ds': mini_ds,
-        'super_ds': [],
-        'metrics': dict(active_metrics),
         'scenario_views': scenario_views,
         'scenario_order': scenario_order,
-        'scenario_summaries': scenario_summaries,
-        'scope_summary': scope_summary,
-        'existing_stores': existing_stores,
+
+        # ---- Analysis & readiness ----
         'analysis': {
             'recommendations': (deck.get('analysis') or {}).get('recommendations', []),
             'readiness': readiness,
@@ -251,11 +382,10 @@ def main():
             'skipped': mini_overlay.get('skipped'),
             'metrics': mini_overlay.get('metrics'),
         },
-        'candidate_pool_summary': deck.get('candidate_pool_summary') or {},
-        'compute_time_s': sfloat(deck.get('timing', {}).get('total_seconds')),
-        'params': params,
+
+        # ---- Provenance ----
         'pipeline': {
-            'mode': 'benchmark_derived',
+            'mode': 'exact_standard_benchmark',
             'phase': 'core_decision_packet',
             'saved_artifact': 'latest_bangalore_103_decision_packet',
             'saved_at_epoch_s': now_epoch,
@@ -268,10 +398,14 @@ def main():
             ],
             'transform_script': 'scripts/build_latest_bangalore_decision_packet.py',
             'recommended_scenario': recommended,
+            'selected_view': selected_view_key,
         },
         'saved_artifact': 'latest_bangalore_103_decision_packet',
         'saved_at_epoch_s': now_epoch,
     }
+
+    # Spread selected view onto root (mirrors server.py line 13035: result.update(selected_view))
+    packet.update(selected_view)
 
     packet = sanitize_for_json(packet)
 
@@ -281,15 +415,19 @@ def main():
         json.dump(packet, f, indent=2, allow_nan=False)
     os.replace(tmp, args.output)
 
+    sv = exact_views.get(selected_view_key, {})
+    sv_pl = sv.get('planning_layers', {}).get('standard', {})
     print(f"\nWrote: {args.output} ({os.path.getsize(args.output)} bytes)")
+    print(f"  exact_benchmark: True")
+    print(f"  exact_views: {list(exact_views.keys())}")
+    print(f"  selected_view: {selected_view_key}")
     print(f"  Recommended scenario: {recommended}")
-    print(f"  Standard hubs: {len(standard_ds)}")
-    print(f"  Mini overlay sites: {len(mini_ds)}")
-    print(f"  Fixed stores: {decision_grade_result['fixed_standard_count']}")
-    print(f"  New stores: {decision_grade_result['new_standard_count']}")
-    print(f"  Coverage: {decision_grade_result['proposed_hard_coverage_pct']:.1f}%")
-    print(f"  Avg cost: ₹{decision_grade_result['proposed_avg_cost']:.2f}/order")
-    print(f"  Daily savings: ₹{decision_grade_result['daily_savings']:.2f}")
+    print(f"  exact_summaries: {len(exact_summaries)} entries")
+    print(f"  Fixed stores: {sv_pl.get('fixed_open_count', '?')}")
+    print(f"  New stores: {sv_pl.get('new_store_count', '?')}")
+    print(f"  Coverage: {sv_pl.get('coverage_pct', 0):.1f}%")
+    print(f"  Avg cost: ₹{sfloat(sv.get('metrics', {}).get('proposed_avg_cost')):.2f}/order")
+    print(f"  pipeline_warnings (from spread): {packet.get('pipeline_warnings')}")
 
 
 if __name__ == '__main__':
