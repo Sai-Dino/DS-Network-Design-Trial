@@ -60,6 +60,13 @@ curl -s http://127.0.0.1:5050/api/optimize-exact-benchmark \
   }'
 ```
 
+Or use the helper script from the repo root:
+
+```bash
+cd ~/Downloads/DS_Network_Design_Trial_clean
+./network-optimizer/run_office_demo_fast.sh
+```
+
 Optional: override the candidate shortlist cap:
 
 ```bash
