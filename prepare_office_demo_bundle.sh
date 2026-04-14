@@ -93,6 +93,10 @@ fi
 if [[ -f "$ROOT_DIR/optimization_results/latest_bangalore_103_decision_packet.json" ]]; then
   mkdir -p "$BUNDLE_ROOT/optimization_results"
   cp "$ROOT_DIR/optimization_results/latest_bangalore_103_decision_packet.json" "$BUNDLE_ROOT/optimization_results/"
+else
+  echo "ERROR: latest_bangalore_103_decision_packet.json is required before preparing the office bundle."
+  echo "       Run the Bangalore 103 planner once and save the canonical decision packet first."
+  exit 1
 fi
 
 if [[ "$CREATE_ARCHIVES" == "1" ]]; then
@@ -144,6 +148,7 @@ optimizer_profile = {
     "exact_candidate_cap": 3000,
     "exact_graph_max_radius_km": 6.0,
     "fixed_super_min_sqft": 4500,
+    "native_osrm_required": True,
 }
 profile_fingerprint = hashlib.sha256(
     json.dumps(optimizer_profile, sort_keys=True, separators=(',', ':')).encode('utf-8')
@@ -196,13 +201,9 @@ manifest = {
         "stores_103": rel(root / "Store details - 103 old stores.csv"),
         "stores_151": rel(root / "Store details - 151 polygons with stores.csv"),
         "orders_daily_aggregated": rel(root / "daily_demand_aggregated.csv"),
+        "latest_decision_packet": rel(root / "optimization_results" / "latest_bangalore_103_decision_packet.json"),
     },
 }
-decision_packet_path = root / "optimization_results" / "latest_bangalore_103_decision_packet.json"
-if decision_packet_path.exists():
-    manifest["optional_files"] = {
-        "latest_decision_packet": rel(decision_packet_path),
-    }
 
 manifest_path.write_text(json.dumps(manifest, indent=2))
 print(f"Wrote manifest to {manifest_path}")

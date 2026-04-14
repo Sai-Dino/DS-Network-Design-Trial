@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Start OSRM on localhost for the network-optimizer (Table API / route checks).
-# Prerequisites: Docker Desktop running, and prepared data under OSRM_DATA_DIR
-# (run ../setup_osrm.sh once from the repo root to download & build India tiles).
+# Office-fast-lane default is native `osrm-routed` (for example via Homebrew `osrm-backend`)
+# against prepared graph files under OSRM_DATA_DIR. Docker is only a fallback.
 #
 # Usage:
 #   ./start_osrm.sh
@@ -71,6 +71,7 @@ CONTAINER="${OSRM_CONTAINER_NAME:-osrm-india}"
 PORT="${OSRM_PORT:-5000}"
 IMAGE="${OSRM_IMAGE:-osrm/osrm-backend}"
 OSRM_FILE="$(detect_osrm_file "$OSRM_DIR")"
+PREFER_NATIVE_OSRM="${PREFER_NATIVE_OSRM:-0}"
 
 start_native_osrm() {
   local native_file="${OSRM_FILE#/data/}"
@@ -89,7 +90,24 @@ start_native_osrm() {
   return 0
 }
 
-if ! command -v docker >/dev/null 2>&1; then
+if [[ "$PREFER_NATIVE_OSRM" == "1" || "$PREFER_NATIVE_OSRM" == "true" || "$PREFER_NATIVE_OSRM" == "yes" ]]; then
+  if start_native_osrm; then
+    :
+  elif ! command -v docker >/dev/null 2>&1; then
+    echo "Native OSRM preferred but osrm-routed is unavailable, and Docker is not installed."
+    exit 1
+  elif ! docker info >/dev/null 2>&1; then
+    echo "Native OSRM preferred but osrm-routed is unavailable, and Docker is not running."
+    exit 1
+  else
+    echo "Native OSRM preferred but unavailable; falling back to Docker."
+    PREFER_NATIVE_OSRM=0
+  fi
+fi
+
+if [[ "$PREFER_NATIVE_OSRM" == "1" || "$PREFER_NATIVE_OSRM" == "true" || "$PREFER_NATIVE_OSRM" == "yes" ]]; then
+  :
+elif ! command -v docker >/dev/null 2>&1; then
   echo "Docker not found."
   if ! start_native_osrm; then
     echo "Install Docker Desktop or native osrm-routed, or clone a bundle that already includes the runtime."
