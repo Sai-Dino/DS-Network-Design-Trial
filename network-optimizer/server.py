@@ -12515,6 +12515,19 @@ def optimize_exact_standard_scenario_deck(params, progress_cb=None):
     params.setdefault('meeting_fast_mode', False)
     params.setdefault('meeting_include_reference_fixed_candidates', False)
     params.setdefault('meeting_use_compact_frontier', False)
+    profile = str(params.get('exact_benchmark_profile', 'full_deck') or 'full_deck').strip().lower()
+    if profile == 'demo_fast':
+        # Fast interactive profile: keep the shared graph exact, but reduce the
+        # solve footprint to a capped shortlist and a single near-full scenario.
+        params.setdefault('exact_candidate_cap', 1200)
+        params.setdefault('allow_full_exact_candidate_pool', False)
+        params.setdefault('exact_include_near_full_scenario', True)
+        params.setdefault('exact_solve_strict_100_scenario', False)
+        params.setdefault('exact_solve_strict_near_full_scenario', True)
+        params.setdefault('exact_solve_exception_scenario', False)
+        params.setdefault('exact_skip_mini_overlay', True)
+        params.setdefault('exact_skip_recommended_diagnostics', True)
+        params.setdefault('exact_enable_tiebreak_milps', False)
     params = normalize_placement_params(params)
     in_scope_grid, out_scope_grid, business_regions, excluded_islands, scope_summary = _resolve_scope_grid_and_regions(params)
     if in_scope_grid is None or len(in_scope_grid) == 0:
@@ -12526,6 +12539,13 @@ def optimize_exact_standard_scenario_deck(params, progress_cb=None):
 
     prepared = None
     graph_cache_path = None
+    if progress_cb and profile == 'demo_fast':
+        candidate_cap = params.get('exact_candidate_cap')
+        progress_cb(
+            "Exact Standard benchmark: demo_fast profile using the shared "
+            f"{round(float(params.get('exact_graph_max_radius_km', 10.0) or 10.0), 2)} km graph "
+            f"with a capped shortlist of {candidate_cap if candidate_cap not in (None, '', 0, '0') else 'all'} candidates..."
+        )
     if os.path.exists(candidate_pool_cache_path):
         try:
             with open(candidate_pool_cache_path, 'rb') as f:
@@ -12632,7 +12652,16 @@ def optimize_exact_standard_scenario_deck(params, progress_cb=None):
     spacing_fingerprint = _exact_spacing_conflict_fingerprint(spacing_conflicts)
     prepared_models = prepared.setdefault('prepared_models', {})
 
-    if False not in prepared_models:
+    solve_strict_100 = bool(params.get('exact_solve_strict_100_scenario', True))
+    solve_strict_near_full = bool(
+        params.get(
+            'exact_solve_strict_near_full_scenario',
+            bool(params.get('exact_include_near_full_scenario', True)),
+        )
+    )
+    solve_exception_100 = bool(params.get('exact_solve_exception_scenario', True))
+
+    if (solve_strict_100 or solve_strict_near_full) and False not in prepared_models:
         prepared_models[False] = _load_or_build_prepared_exact_scenario_model(
             in_scope_grid,
             fixed_sites,
@@ -12644,7 +12673,7 @@ def optimize_exact_standard_scenario_deck(params, progress_cb=None):
             progress_cb=progress_cb,
             benchmark_fingerprint=benchmark_fingerprint,
         )
-    if True not in prepared_models:
+    if solve_exception_100 and True not in prepared_models:
         prepared_models[True] = _load_or_build_prepared_exact_scenario_model(
             in_scope_grid,
             fixed_sites,
@@ -12694,18 +12723,22 @@ def optimize_exact_standard_scenario_deck(params, progress_cb=None):
         )
         return solved
 
-    strict_100 = _solve_or_load_checkpoint('strict_3km_100', 100.0, False)
+    strict_100 = None
+    if solve_strict_100:
+        strict_100 = _solve_or_load_checkpoint('strict_3km_100', 100.0, False)
     include_near_full = bool(params.get('exact_include_near_full_scenario', True))
     strict_997 = None
-    if include_near_full:
+    if include_near_full and solve_strict_near_full:
         strict_997 = _solve_or_load_checkpoint(
             'strict_3km_99_7',
             float(params.get('benchmark_near_full_coverage_pct', 99.7) or 99.7),
             False,
             warm_solution=np.asarray(strict_100.get('stage_solution_vector'), dtype=np.float64)
-            if strict_100.get('stage_solution_vector') is not None else None,
+            if strict_100 is not None and strict_100.get('stage_solution_vector') is not None else None,
         )
-    exception_100 = _solve_or_load_checkpoint('exceptions_up_to_5km_100', 100.0, True)
+    exception_100 = None
+    if solve_exception_100:
+        exception_100 = _solve_or_load_checkpoint('exceptions_up_to_5km_100', 100.0, True)
 
     eval_params = dict(params)
     eval_params['super_role'] = 'overlay_core_only'
@@ -12739,7 +12772,9 @@ def optimize_exact_standard_scenario_deck(params, progress_cb=None):
         }
         scenarios.append(scenario)
 
-    preferred_base = exception_100 if exception_100['target_feasible'] else strict_100
+    preferred_base = exception_100 if exception_100 and exception_100['target_feasible'] else (strict_100 or strict_997 or exception_100)
+    if preferred_base is None:
+        raise RuntimeError("Exact benchmark scenario plan produced no solved scenarios.")
     mini_sites = []
     mini_metrics = {}
     if not skip_mini_overlay:
@@ -12804,6 +12839,7 @@ def optimize_exact_standard_scenario_deck(params, progress_cb=None):
 
     return {
         'mode': 'exact_standard_benchmark',
+        'profile': profile,
         'scope_summary': scope_summary,
         'candidate_pool_summary': candidate_pool['summary'],
         'scenarios': scenarios,
@@ -15140,6 +15176,7 @@ class Handler(SimpleHTTPRequestHandler):
                     'variable_rate': float(ui_params.get('variable_rate', 9) or 9),
                     'mini_base_cost': float(ui_params.get('mini_base_cost', 21) or 21),
                     'mini_variable_rate': float(ui_params.get('mini_variable_rate', 9) or 9),
+                    'exact_benchmark_profile': str(ui_params.get('exact_benchmark_profile', 'full_deck') or 'full_deck'),
                     'meeting_fast_mode': False,
                     'meeting_include_reference_fixed_candidates': False,
                     'meeting_use_compact_frontier': False,
@@ -15184,6 +15221,39 @@ class Handler(SimpleHTTPRequestHandler):
                     params['fixed_store_override_path'] = str(ui_params.get('fixed_store_override_path')).strip()
                 if ui_params.get('fixed_store_override_source_mode'):
                     params['fixed_store_override_source_mode'] = str(ui_params.get('fixed_store_override_source_mode')).strip()
+                if params.get('exact_benchmark_profile') == 'demo_fast':
+                    if ui_params.get('exact_candidate_cap') in (None, ''):
+                        params['exact_candidate_cap'] = 1200
+                    if ui_params.get('allow_full_exact_candidate_pool') in (None, ''):
+                        params['allow_full_exact_candidate_pool'] = False
+                    if ui_params.get('exact_include_near_full_scenario') in (None, ''):
+                        params['exact_include_near_full_scenario'] = True
+                    if ui_params.get('exact_solve_strict_100_scenario') in (None, ''):
+                        params['exact_solve_strict_100_scenario'] = False
+                    if ui_params.get('exact_solve_strict_near_full_scenario') in (None, ''):
+                        params['exact_solve_strict_near_full_scenario'] = True
+                    if ui_params.get('exact_solve_exception_scenario') in (None, ''):
+                        params['exact_solve_exception_scenario'] = False
+                    if ui_params.get('exact_skip_mini_overlay') in (None, ''):
+                        params['exact_skip_mini_overlay'] = True
+                    if ui_params.get('exact_skip_recommended_diagnostics') in (None, ''):
+                        params['exact_skip_recommended_diagnostics'] = True
+                    if ui_params.get('exact_enable_tiebreak_milps') in (None, ''):
+                        params['exact_enable_tiebreak_milps'] = False
+                if ui_params.get('exact_candidate_cap') not in (None, ''):
+                    params['exact_candidate_cap'] = ui_params.get('exact_candidate_cap')
+                if ui_params.get('allow_full_exact_candidate_pool') not in (None, ''):
+                    params['allow_full_exact_candidate_pool'] = bool(ui_params.get('allow_full_exact_candidate_pool'))
+                if ui_params.get('exact_include_near_full_scenario') not in (None, ''):
+                    params['exact_include_near_full_scenario'] = bool(ui_params.get('exact_include_near_full_scenario'))
+                if ui_params.get('exact_solve_strict_100_scenario') not in (None, ''):
+                    params['exact_solve_strict_100_scenario'] = bool(ui_params.get('exact_solve_strict_100_scenario'))
+                if ui_params.get('exact_solve_strict_near_full_scenario') not in (None, ''):
+                    params['exact_solve_strict_near_full_scenario'] = bool(ui_params.get('exact_solve_strict_near_full_scenario'))
+                if ui_params.get('exact_solve_exception_scenario') not in (None, ''):
+                    params['exact_solve_exception_scenario'] = bool(ui_params.get('exact_solve_exception_scenario'))
+                if ui_params.get('exact_enable_tiebreak_milps') not in (None, ''):
+                    params['exact_enable_tiebreak_milps'] = bool(ui_params.get('exact_enable_tiebreak_milps'))
                 if ui_params.get('exact_skip_mini_overlay') not in (None, ''):
                     params['exact_skip_mini_overlay'] = bool(ui_params.get('exact_skip_mini_overlay'))
                 if ui_params.get('exact_skip_recommended_diagnostics') not in (None, ''):
