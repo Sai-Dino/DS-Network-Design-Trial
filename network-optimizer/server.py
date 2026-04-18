@@ -23,6 +23,7 @@ Usage:
 """
 
 import os
+import glob
 import copy
 import io
 import re
@@ -58,7 +59,6 @@ try:
     import highspy
 except Exception:
     highspy = None
-
 from geometry_core import (
     parse_geojson_string,
     polygons_from_geojson,
@@ -131,6 +131,8 @@ GRAPH_CACHE_DIR = os.path.join(BASE_DIR, 'cache')
 os.makedirs(GRAPH_CACHE_DIR, exist_ok=True)
 OPTIMIZATION_RESULTS_DIR = os.path.join(os.path.dirname(BASE_DIR), 'optimization_results')
 os.makedirs(OPTIMIZATION_RESULTS_DIR, exist_ok=True)
+SOLVER_WORKBENCH_RESULTS_DIR = os.path.join(OPTIMIZATION_RESULTS_DIR, 'solver_workbench')
+os.makedirs(SOLVER_WORKBENCH_RESULTS_DIR, exist_ok=True)
 OLD_FIXED_STORE_OVERRIDE_CSV = os.path.join(WORKSPACE_DIR, 'Store details - 103 old stores.csv')
 DEFAULT_STANDARD_RADIUS_KM = 3.0
 DEFAULT_SUPER_RADIUS_KM = 5.5
@@ -138,11 +140,19 @@ DEFAULT_FIXED_SUPER_MIN_SQFT = 4500.0
 DEFAULT_MEETING_TARGET_COVERAGE_PCT = 99.7
 DEFAULT_MEETING_CORE_PUBLISH_COVERAGE_PCT = 99.6
 DEFAULT_OFFICE_EXACT_CANDIDATE_CAP = 3000
-DEFAULT_OFFICE_GRAPH_MAX_RADIUS_KM = 6.0
+DEFAULT_OFFICE_GRAPH_MAX_RADIUS_KM = 10.0
 DEFAULT_MEETING_FIXED_STORE_MODES = ('benchmark_103',)
 LATEST_DECISION_PACKET_JSON = os.path.join(
     OPTIMIZATION_RESULTS_DIR,
     'latest_bangalore_103_decision_packet.json',
+)
+LATEST_BANGALORE_SOLVER_RESULT_JSON = os.path.join(
+    OPTIMIZATION_RESULTS_DIR,
+    'latest_bangalore_solver_v1.json',
+)
+LATEST_BANGALORE_SOLVER_WORKBENCH_JSON = os.path.join(
+    SOLVER_WORKBENCH_RESULTS_DIR,
+    'latest_bangalore_solver_workbench.json',
 )
 
 
@@ -170,8 +180,26 @@ def _latest_decision_packet_path():
     return LATEST_DECISION_PACKET_JSON
 
 
+def _result_is_final_decision_packet(result_obj):
+    if not isinstance(result_obj, dict) or not result_obj:
+        return False
+    result_state = dict(result_obj.get('result_state') or {})
+    if result_state:
+        return bool(result_state.get('is_final', False))
+    deferred = dict(result_obj.get('deferred_result') or {})
+    budget = dict(result_obj.get('budget') or {})
+    phase = str((result_obj.get('pipeline') or {}).get('phase') or '').strip().lower()
+    return bool(
+        deferred.get('ready', False)
+        and budget.get('deferred_ready', deferred.get('ready', False))
+        and phase == 'complete'
+    )
+
+
 def _save_latest_decision_packet(result_obj):
     if not isinstance(result_obj, dict) or not result_obj:
+        return None
+    if not _result_is_final_decision_packet(result_obj):
         return None
     fixed_mode = str(
         result_obj.get('fixed_store_mode')
@@ -207,6 +235,635 @@ def _load_latest_decision_packet():
         raise ValueError("Latest Bangalore 103 decision packet is empty or invalid.")
     return payload
 
+
+def _load_latest_bangalore_solver_result():
+    out_path = LATEST_BANGALORE_SOLVER_RESULT_JSON
+    if not os.path.isfile(out_path):
+        raise FileNotFoundError(
+            f"No saved Bangalore solver result found at {out_path}. Run the Bangalore solver first."
+        )
+    with open(out_path, 'r', encoding='utf-8') as f:
+        payload = json.load(f)
+    if not isinstance(payload, dict) or not payload:
+        raise ValueError("Latest Bangalore solver result is empty or invalid.")
+    return payload
+
+
+def _load_latest_bangalore_solver_workbench_result():
+    out_path = LATEST_BANGALORE_SOLVER_WORKBENCH_JSON
+    if not os.path.isfile(out_path):
+        raise FileNotFoundError(
+            f"No saved Bangalore solver workbench result found at {out_path}. Run the solver workbench first."
+        )
+    with open(out_path, 'r', encoding='utf-8') as f:
+        payload = json.load(f)
+    if not isinstance(payload, dict) or not payload:
+        raise ValueError("Latest Bangalore solver workbench result is empty or invalid.")
+    return payload
+
+
+def _set_solver_workbench_progress(message):
+    state.solver_workbench_progress = str(message or '').strip()
+    state.solver_workbench_progress_updated_at = time.time()
+
+
+def _solver_workbench_result_source():
+    if isinstance(state.solver_workbench_result, dict) and state.solver_workbench_result:
+        return 'live_workbench'
+    if os.path.isfile(LATEST_BANGALORE_SOLVER_WORKBENCH_JSON):
+        return 'saved_workbench'
+    return 'saved_anchor'
+
+
+def _solver_workbench_result_payload():
+    if isinstance(state.solver_workbench_result, dict) and state.solver_workbench_result:
+        payload = copy.deepcopy(state.solver_workbench_result)
+        payload.setdefault('solver_workbench_request', _solver_workbench_request_from_payload(payload))
+        return payload
+    try:
+        payload = _enrich_bangalore_solver_result(_load_latest_bangalore_solver_workbench_result())
+    except Exception:
+        payload = _enrich_bangalore_solver_result(_load_latest_bangalore_solver_result())
+    payload.setdefault('solver_workbench_request', _solver_workbench_request_from_payload(payload))
+    return payload
+
+
+def _solver_workbench_request_from_payload(payload):
+    if not isinstance(payload, dict):
+        return {}
+    existing = payload.get('solver_workbench_request')
+    if isinstance(existing, dict) and existing:
+        return dict(existing)
+
+    snapshot = dict(payload.get('config_snapshot') or {})
+
+    def first_value(*keys):
+        for key in keys:
+            value = snapshot.get(key)
+            if value not in (None, ''):
+                return value
+        return None
+
+    target_total = first_value('effective_target_total_physical_sites_exact', 'target_total_physical_sites_exact')
+    min_total = first_value('effective_min_total_physical_sites', 'min_total_physical_sites')
+    max_total = first_value('effective_max_total_physical_sites', 'max_total_physical_sites')
+    avg_cost_cap = first_value('effective_avg_last_mile_cost_cap', 'avg_last_mile_cost_cap')
+
+    constraint_parts = []
+    if target_total is not None:
+        constraint_parts.append(f"exact total {int(target_total)}")
+    elif min_total is not None and max_total is not None:
+        constraint_parts.append(f"store band {int(min_total)}-{int(max_total)}")
+    if avg_cost_cap is not None:
+        constraint_parts.append(f"cost cap ₹{float(avg_cost_cap):.1f}")
+
+    return {
+        'solver_mode': 'constrained' if constraint_parts else 'exploratory',
+        'constraint_summary': ", ".join(constraint_parts) if constraint_parts else 'published Bangalore free-play envelope',
+        'require_super_core_city_coverage': bool(
+            first_value('effective_require_super_core_city_coverage', 'require_super_core_city_coverage')
+        ),
+        'prefer_eligible_fixed_store_upgrades_to_super': bool(
+            first_value(
+                'effective_prefer_eligible_fixed_store_upgrades_to_super',
+                'prefer_eligible_fixed_store_upgrades_to_super',
+            )
+        ),
+        'standard_service_radius_km': first_value('standard_radius_km'),
+        'standard_min_orders_per_day': first_value(
+            'effective_standard_min_orders_per_day',
+            'standard_min_orders_per_day',
+        ),
+        'super_service_radius_km': first_value('super_radius_km'),
+        'super_min_orders_per_day': first_value(
+            'effective_super_min_orders_per_day',
+            'super_min_orders_per_day',
+        ),
+        'mini_service_radius_km': first_value('mini_service_radius_km'),
+        'mini_min_orders_per_day': first_value(
+            'effective_mini_min_orders_per_day',
+            'mini_min_orders_per_day',
+        ),
+        'mini_prefer_existing_physical_site_radius_km': first_value(
+            'effective_mini_prefer_existing_physical_site_radius_km',
+            'mini_prefer_existing_physical_site_radius_km',
+        ),
+        'target_total_physical_sites_exact': None if target_total is None else int(target_total),
+        'min_total_physical_sites': None if min_total is None else int(min_total),
+        'max_total_physical_sites': None if max_total is None else int(max_total),
+        'target_last_mile_cost': None if avg_cost_cap is None else float(avg_cost_cap),
+        'avg_last_mile_cost_cap': None if avg_cost_cap is None else float(avg_cost_cap),
+    }
+
+
+def _persist_solver_workbench_artifacts(payload):
+    if not isinstance(payload, dict) or not payload:
+        return
+    text = json.dumps(payload, indent=2, allow_nan=False)
+    targets = []
+    config_snapshot = dict(payload.get('config_snapshot') or {})
+    if config_snapshot.get('output_path'):
+        targets.append(config_snapshot.get('output_path'))
+    artifact_paths = dict(payload.get('artifact_paths') or {})
+    for key in ('latest', 'timestamped'):
+        if artifact_paths.get(key):
+            targets.append(artifact_paths.get(key))
+    seen = set()
+    for target in targets:
+        if not target:
+            continue
+        path = Path(str(target))
+        if str(path) in seen:
+            continue
+        seen.add(str(path))
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text)
+
+
+def _solver_workbench_summary(payload):
+    if not isinstance(payload, dict) or not payload:
+        return {}
+    store_counts = dict(payload.get('store_counts') or {})
+    request = _solver_workbench_request_from_payload(payload)
+    return {
+        'hard_coverage_pct': payload.get('hard_coverage_pct'),
+        'avg_last_mile_cost': payload.get('avg_last_mile_cost'),
+        'fixed_standard_count': store_counts.get('fixed_standard_count'),
+        'new_standard_count': store_counts.get('new_standard_count'),
+        'upgraded_super_count': store_counts.get('upgraded_super_count'),
+        'new_super_count': store_counts.get('new_super_count'),
+        'mini_count': store_counts.get('mini_count'),
+        'total_unique_physical_store_count': store_counts.get('total_unique_physical_store_count'),
+        'feasible': payload.get('feasible'),
+        'status': payload.get('status'),
+        'solver_mode': request.get('solver_mode'),
+        'constraint_summary': request.get('constraint_summary'),
+    }
+
+
+def _parse_optional_int(value):
+    if value in (None, ''):
+        return None
+    if isinstance(value, bool):
+        raise ValueError("Boolean value is not a valid integer input.")
+    return int(float(value))
+
+
+def _parse_optional_float(value):
+    if value in (None, ''):
+        return None
+    if isinstance(value, bool):
+        raise ValueError("Boolean value is not a valid numeric input.")
+    return float(value)
+
+
+def _solver_workbench_base_overrides():
+    from bangalore_solver.config import BangaloreSolverConfig
+
+    allowed = set(BangaloreSolverConfig.__dataclass_fields__.keys())
+    defaults = BangaloreSolverConfig().to_dict()
+    try:
+        snapshot = dict((_solver_workbench_result_payload().get('config_snapshot') or {}))
+    except Exception:
+        try:
+            snapshot = dict((_load_latest_bangalore_solver_result().get('config_snapshot') or {}))
+        except Exception:
+            snapshot = defaults
+    base = {
+        key: copy.deepcopy(value)
+        for key, value in defaults.items()
+        if key in allowed
+    }
+    for key, value in snapshot.items():
+        if key not in allowed:
+            continue
+        if key == 'city_policy_overrides' and isinstance(value, dict):
+            merged = copy.deepcopy(base.get(key) or {})
+            for city_name, city_payload in value.items():
+                if isinstance(city_payload, dict):
+                    merged_city = copy.deepcopy(merged.get(city_name) or {})
+                    merged_city.update(city_payload)
+                    merged[city_name] = merged_city
+                else:
+                    merged[city_name] = copy.deepcopy(city_payload)
+            base[key] = merged
+            continue
+        base[key] = value
+    base.update(
+        {
+            'city': 'Bangalore',
+            'fixed_store_mode': 'benchmark_103',
+            'output_path': LATEST_BANGALORE_SOLVER_WORKBENCH_JSON,
+            'output_history_dir': SOLVER_WORKBENCH_RESULTS_DIR,
+        }
+    )
+    return base
+
+
+def _build_solver_workbench_request(ui_params):
+    from bangalore_solver.config import BangaloreSolverConfig
+
+    ui_params = dict(ui_params or {})
+    errors = []
+
+    solver_mode = str(ui_params.get('solver_mode') or 'exploratory').strip().lower()
+    if solver_mode not in {'exploratory', 'constrained'}:
+        errors.append("solver_mode must be exploratory or constrained.")
+
+    try:
+        standard_radius_km = _parse_optional_float(
+            ui_params.get('standard_service_radius_km', ui_params.get('standard_radius_km'))
+        )
+        standard_min_orders_per_day = _parse_optional_float(ui_params.get('standard_min_orders_per_day'))
+        super_radius_km = _parse_optional_float(
+            ui_params.get('super_service_radius_km', ui_params.get('super_radius_km'))
+        )
+        super_min_orders_per_day = _parse_optional_float(ui_params.get('super_min_orders_per_day'))
+        mini_service_radius_km = _parse_optional_float(ui_params.get('mini_service_radius_km'))
+        mini_min_orders_per_day = _parse_optional_float(ui_params.get('mini_min_orders_per_day'))
+        target_total_physical_sites_exact = _parse_optional_int(ui_params.get('target_total_physical_sites_exact'))
+        min_total_physical_sites = _parse_optional_int(ui_params.get('min_total_physical_sites'))
+        max_total_physical_sites = _parse_optional_int(ui_params.get('max_total_physical_sites'))
+        avg_last_mile_cost_cap = _parse_optional_float(
+            ui_params.get('target_last_mile_cost', ui_params.get('avg_last_mile_cost_cap'))
+        )
+    except ValueError as exc:
+        errors.append(str(exc))
+        standard_radius_km = None
+        standard_min_orders_per_day = None
+        super_radius_km = None
+        super_min_orders_per_day = None
+        mini_service_radius_km = None
+        mini_min_orders_per_day = None
+        target_total_physical_sites_exact = None
+        min_total_physical_sites = None
+        max_total_physical_sites = None
+        avg_last_mile_cost_cap = None
+
+    unsupported_fields = []
+    for field_name in (
+        'mini_density_radius_km',
+        'mini_density_min_orders_per_day',
+        'mini_prefer_existing_physical_site_radius_km',
+    ):
+        value = ui_params.get(field_name)
+        if value not in (None, ''):
+            unsupported_fields.append(field_name)
+    for field_name in (
+        'standard_ds_min_orders_per_day',
+        'standard_ds_max_orders_per_day',
+        'super_ds_min_orders_per_day',
+        'super_ds_max_orders_per_day',
+        'exact_total_standard_stores',
+        'super_ds_target_count',
+        'mini_ds_target_count',
+        'standard_base_cost',
+        'standard_variable_rate',
+        'super_base_cost',
+        'super_variable_rate',
+        'mini_base_cost',
+        'mini_variable_rate',
+    ):
+        value = ui_params.get(field_name)
+        if value not in (None, ''):
+            unsupported_fields.append(field_name)
+    if unsupported_fields:
+        errors.append(
+            "These controls are not solver-wired and cannot be submitted in solver mode: "
+            + ", ".join(sorted(unsupported_fields))
+        )
+
+    for value, label in (
+        (standard_radius_km, 'standard_radius_km'),
+        (standard_min_orders_per_day, 'standard_min_orders_per_day'),
+        (super_radius_km, 'super_radius_km'),
+        (super_min_orders_per_day, 'super_min_orders_per_day'),
+        (mini_service_radius_km, 'mini_service_radius_km'),
+        (mini_min_orders_per_day, 'mini_min_orders_per_day'),
+        (avg_last_mile_cost_cap, 'avg_last_mile_cost_cap'),
+    ):
+        if value is not None and value <= 0:
+            errors.append(f"{label} must be greater than zero.")
+
+    if target_total_physical_sites_exact is not None and target_total_physical_sites_exact <= 0:
+        errors.append("target_total_physical_sites_exact must be greater than zero.")
+    if min_total_physical_sites is not None and min_total_physical_sites <= 0:
+        errors.append("min_total_physical_sites must be greater than zero.")
+    if max_total_physical_sites is not None and max_total_physical_sites <= 0:
+        errors.append("max_total_physical_sites must be greater than zero.")
+    if (
+        min_total_physical_sites is not None
+        and max_total_physical_sites is not None
+        and min_total_physical_sites > max_total_physical_sites
+    ):
+        errors.append("min_total_physical_sites cannot be greater than max_total_physical_sites.")
+    if target_total_physical_sites_exact is not None and (
+        min_total_physical_sites is not None or max_total_physical_sites is not None
+    ):
+        errors.append("Use either exact total physical sites or a min/max band, not both.")
+    if (min_total_physical_sites is None) != (max_total_physical_sites is None):
+        errors.append("Provide both min_total_physical_sites and max_total_physical_sites for a store band.")
+
+    if solver_mode == 'constrained':
+        if (
+            target_total_physical_sites_exact is None
+            and min_total_physical_sites is None
+            and avg_last_mile_cost_cap is None
+        ):
+            errors.append("Constrained mode requires an exact total, a store band, or a cost cap.")
+    else:
+        target_total_physical_sites_exact = None
+        min_total_physical_sites = None
+        max_total_physical_sites = None
+        avg_last_mile_cost_cap = None
+
+    if errors:
+        raise ValueError(" ".join(errors))
+
+    constraint_parts = []
+    if target_total_physical_sites_exact is not None:
+        constraint_parts.append(f"exact total {target_total_physical_sites_exact}")
+    elif min_total_physical_sites is not None and max_total_physical_sites is not None:
+        constraint_parts.append(f"store band {min_total_physical_sites}-{max_total_physical_sites}")
+    if avg_last_mile_cost_cap is not None:
+        constraint_parts.append(f"cost cap ₹{avg_last_mile_cost_cap:.1f}")
+    if not constraint_parts:
+        constraint_parts.append("published Bangalore free-play envelope")
+
+    overrides = _solver_workbench_base_overrides()
+    overrides.update(
+        {
+            'standard_radius_km': standard_radius_km if standard_radius_km is not None else overrides.get('standard_radius_km'),
+            'standard_min_orders_per_day': (
+                standard_min_orders_per_day
+                if standard_min_orders_per_day is not None
+                else overrides.get('standard_min_orders_per_day')
+            ),
+            'super_radius_km': super_radius_km if super_radius_km is not None else overrides.get('super_radius_km'),
+            'super_min_orders_per_day': (
+                super_min_orders_per_day
+                if super_min_orders_per_day is not None
+                else overrides.get('super_min_orders_per_day')
+            ),
+            'mini_service_radius_km': (
+                mini_service_radius_km
+                if mini_service_radius_km is not None
+                else overrides.get('mini_service_radius_km')
+            ),
+            'mini_density_radius_km': (
+                mini_service_radius_km
+                if mini_service_radius_km is not None
+                else overrides.get('mini_density_radius_km')
+            ),
+            'mini_min_orders_per_day': (
+                mini_min_orders_per_day
+                if mini_min_orders_per_day is not None
+                else overrides.get('mini_min_orders_per_day')
+            ),
+            'mini_density_min_orders_per_day': (
+                mini_min_orders_per_day
+                if mini_min_orders_per_day is not None
+                else overrides.get('mini_density_min_orders_per_day')
+            ),
+            'mini_prefer_existing_physical_site_radius_km': (
+                overrides.get('mini_prefer_existing_physical_site_radius_km')
+            ),
+            'target_total_physical_sites_exact': target_total_physical_sites_exact,
+            'min_total_physical_sites': (
+                target_total_physical_sites_exact
+                if target_total_physical_sites_exact is not None
+                else min_total_physical_sites
+            ),
+            'max_total_physical_sites': (
+                target_total_physical_sites_exact
+                if target_total_physical_sites_exact is not None
+                else max_total_physical_sites
+            ),
+            'avg_last_mile_cost_cap': avg_last_mile_cost_cap,
+            'require_super_core_city_coverage': bool(ui_params.get('require_super_core_city_coverage')),
+            'prefer_eligible_fixed_store_upgrades_to_super': bool(
+                ui_params.get('prefer_eligible_fixed_store_upgrades_to_super')
+            ),
+        }
+    )
+    request = {
+        'solver_mode': solver_mode,
+        'constraint_summary': ", ".join(constraint_parts),
+        'require_super_core_city_coverage': bool(ui_params.get('require_super_core_city_coverage')),
+        'prefer_eligible_fixed_store_upgrades_to_super': bool(
+            ui_params.get('prefer_eligible_fixed_store_upgrades_to_super')
+        ),
+        'standard_service_radius_km': overrides.get('standard_radius_km'),
+        'standard_min_orders_per_day': overrides.get('standard_min_orders_per_day'),
+        'super_service_radius_km': overrides.get('super_radius_km'),
+        'super_min_orders_per_day': overrides.get('super_min_orders_per_day'),
+        'mini_service_radius_km': overrides.get('mini_service_radius_km'),
+        'mini_min_orders_per_day': overrides.get('mini_min_orders_per_day'),
+        'mini_prefer_existing_physical_site_radius_km': overrides.get('mini_prefer_existing_physical_site_radius_km'),
+        'target_total_physical_sites_exact': target_total_physical_sites_exact,
+        'min_total_physical_sites': min_total_physical_sites,
+        'max_total_physical_sites': max_total_physical_sites,
+        'target_last_mile_cost': avg_last_mile_cost_cap,
+        'avg_last_mile_cost_cap': avg_last_mile_cost_cap,
+    }
+    return overrides, request
+
+
+def _start_solver_workbench_run(ui_params):
+    from bangalore_solver.config import BangaloreSolverConfig
+    from bangalore_solver.runner import run_bangalore_solver
+
+    if state.solver_workbench_running:
+        raise RuntimeError("A solver workbench run is already in progress.")
+
+    overrides, request = _build_solver_workbench_request(ui_params)
+    config = BangaloreSolverConfig.from_overrides(overrides)
+    run_id = _next_solver_workbench_run_id()
+
+    state.solver_workbench_running = True
+    state.solver_workbench_run_id = run_id
+    _set_solver_workbench_progress(f"Starting Bangalore solver workbench run ({request['constraint_summary']})...")
+
+    def worker():
+        try:
+            _set_solver_workbench_progress("Running bangalore_first_milp for the solver workbench...")
+            result = run_bangalore_solver(config)
+            enriched = _enrich_bangalore_solver_result(result)
+            enriched['solver_workbench_request'] = request
+            enriched['result_state'] = {
+                'label': 'Solver workbench run',
+                'is_final': True,
+            }
+            _persist_solver_workbench_artifacts(enriched)
+            state.solver_workbench_result = enriched
+            feasibility_label = 'feasible' if enriched.get('feasible') else str(enriched.get('status') or 'blocked')
+            _set_solver_workbench_progress(
+                f"Solver workbench run complete: {request['constraint_summary']} ({feasibility_label})."
+            )
+        except Exception as exc:
+            state.solver_workbench_result = {
+                'error': str(exc),
+                'solver_workbench_request': request,
+                'result_state': {
+                    'label': 'Solver workbench error',
+                    'is_final': False,
+                },
+            }
+            _set_solver_workbench_progress(f"Solver workbench error: {exc}")
+        finally:
+            state.solver_workbench_running = False
+
+    thread = threading.Thread(target=worker, daemon=True)
+    thread.start()
+    return run_id, request
+
+
+def _load_bangalore_solver_scope_regions(filepath):
+    df = _load_store_dataframe(str(filepath))
+    df.columns = [str(col).strip() for col in df.columns]
+    site_id_col = _find_col(df.columns, ["site id", "site_id", "id"])
+    store_code_col = _find_col(df.columns, ["store_code", "store code"])
+    store_lat_col = _find_col(df.columns, ["store latitude", "store_latitude", "latitude", "lat"])
+    store_lon_col = _find_col(df.columns, ["store longitude", "store_longitude", "longitude", "lon"])
+    point_lat_col = _find_col(df.columns, ["point latitude", "point_latitude"])
+    point_lon_col = _find_col(df.columns, ["point longitude", "point_longitude"])
+    edge_col = _find_col(df.columns, ["polygon_edge", "polygon edge", "edge"])
+    group_col = site_id_col or store_code_col
+    if group_col is None:
+        return []
+
+    business_regions = []
+    for group_id, group in df.groupby(group_col, dropna=True, sort=False):
+        row0 = group.iloc[0]
+        poly_coords = _rows_to_polygon_coords(group, point_lat_col, point_lon_col, edge_col=edge_col)
+        if not poly_coords:
+            continue
+        business_regions.append(
+            {
+                "id": str(group_id).strip(),
+                "store_code": str(row0.get(store_code_col) or "").strip() if store_code_col else "",
+                "lat": float(row0[store_lat_col]) if store_lat_col else float(poly_coords[0][0]),
+                "lon": float(row0[store_lon_col]) if store_lon_col else float(poly_coords[0][1]),
+                "polygon_coords": _normalize_polygon_coords(poly_coords),
+                "excluded": False,
+            }
+        )
+    return business_regions
+
+
+def _bangalore_solver_city_bounds(payload):
+    latitudes = []
+    longitudes = []
+    for region in payload.get('business_regions') or []:
+        if region.get('lat') is not None and region.get('lon') is not None:
+            latitudes.append(float(region['lat']))
+            longitudes.append(float(region['lon']))
+        for point in region.get('polygon_coords') or []:
+            if len(point) < 2:
+                continue
+            latitudes.append(float(point[0]))
+            longitudes.append(float(point[1]))
+    for key in ('fixed_open_sites', 'selected_new_standard_sites', 'selected_super_sites', 'mini_sites'):
+        for site in payload.get(key) or []:
+            if site.get('lat') is None or site.get('lon') is None:
+                continue
+            latitudes.append(float(site['lat']))
+            longitudes.append(float(site['lon']))
+    if not latitudes or not longitudes:
+        return None
+    return {
+        'north': max(latitudes),
+        'south': min(latitudes),
+        'east': max(longitudes),
+        'west': min(longitudes),
+    }
+
+
+def _solver_proposed_site_mix_summary(payload):
+    store_counts = dict(payload.get('store_counts') or {})
+    return {
+        'fixed_standard_remaining_open_count': int(store_counts.get('fixed_standard_count', 0) or 0),
+        'net_new_standard_count': int(store_counts.get('new_standard_count', 0) or 0),
+        'fixed_store_upgrades_to_super_count': int(store_counts.get('upgraded_super_count', 0) or 0),
+        'net_new_super_count': int(store_counts.get('new_super_count', 0) or 0),
+        'net_new_mini_count': int(store_counts.get('mini_count', 0) or 0),
+        'total_unique_physical_store_count': int(store_counts.get('total_unique_physical_store_count', 0) or 0),
+    }
+
+
+def _solver_downloadable_proposed_site_rows(payload):
+    if isinstance(payload.get('downloadable_proposed_site_rows'), list) and payload.get('downloadable_proposed_site_rows'):
+        return copy.deepcopy(payload['downloadable_proposed_site_rows'])
+
+    rows = []
+
+    def append_rows(items, site_type, tier, action):
+        for item in items or []:
+            rows.append(
+                {
+                    'site_type': site_type,
+                    'tier': tier,
+                    'action': action,
+                    'site_id': item.get('site_id') or item.get('id'),
+                    'lat': item.get('lat'),
+                    'lon': item.get('lon'),
+                    'orders_per_day': item.get('orders_per_day'),
+                    'radius_km': item.get('radius_km'),
+                    'counts_as_unique_physical_site': bool(item.get('counts_as_unique_physical_site', True)),
+                    'site_semantics': item.get('site_semantics'),
+                }
+            )
+
+    append_rows(payload.get('selected_new_standard_sites'), 'net_new_standard', 'Standard', 'Open net-new Standard site')
+
+    fixed_super_upgrade_sites = payload.get('fixed_super_upgrade_sites')
+    if fixed_super_upgrade_sites is None:
+        fixed_super_upgrade_sites = [
+            site
+            for site in (payload.get('selected_super_sites') or [])
+            if bool(site.get('fixed_open'))
+            or str(site.get('site_semantics') or '').strip().lower() == 'fixed_super_upgrade'
+        ]
+    append_rows(fixed_super_upgrade_sites, 'fixed_store_upgrade_to_super', 'Super', 'Upgrade fixed Standard site to Super')
+
+    new_super_sites = payload.get('new_super_sites')
+    if new_super_sites is None:
+        new_super_sites = [
+            site
+            for site in (payload.get('selected_super_sites') or [])
+            if not bool(site.get('fixed_open'))
+            and str(site.get('site_semantics') or '').strip().lower() != 'fixed_super_upgrade'
+        ]
+    append_rows(new_super_sites, 'net_new_super', 'Super', 'Open net-new Super site')
+    append_rows(payload.get('mini_sites'), 'net_new_mini', 'Mini', 'Open net-new Mini site')
+    return rows
+
+
+def _enrich_bangalore_solver_result(payload):
+    enriched = copy.deepcopy(payload)
+    config_snapshot = enriched.get('config_snapshot') or {}
+    scope_csv_path = str(config_snapshot.get('scope_csv_path') or '').strip()
+    if not enriched.get('business_regions') and scope_csv_path and os.path.isfile(scope_csv_path):
+        enriched['business_regions'] = _load_bangalore_solver_scope_regions(scope_csv_path)
+    enriched.setdefault('excluded_islands', [])
+    if not enriched.get('scope_summary'):
+        enriched['scope_summary'] = {
+            'business_polygon_count': len(enriched.get('business_regions') or []),
+            'excluded_island_count': len(enriched.get('excluded_islands') or []),
+            'scope_source_path': scope_csv_path or None,
+            'fixed_store_source_path': config_snapshot.get('fixed_store_csv_path'),
+        }
+    if not enriched.get('city_bounds'):
+        enriched['city_bounds'] = _bangalore_solver_city_bounds(enriched)
+    enriched['proposed_site_mix_summary'] = _solver_proposed_site_mix_summary(enriched)
+    enriched['downloadable_proposed_site_rows'] = _solver_downloadable_proposed_site_rows(enriched)
+    return enriched
+
+
+def _set_optimization_progress(message):
+    state.optimization_progress = str(message or '')
+    state.optimization_progress_updated_at = time.time()
+
 # ============================================================================
 # APPLICATION STATE
 # ============================================================================
@@ -238,14 +895,26 @@ class AppState:
         self.optimization_running = False
         self.optimization_deferred_running = False
         self.optimization_progress = ''
+        self.optimization_progress_updated_at = None
         self.optimization_run_id = None
         self.optimization_run_seq = 0
+        self.solver_workbench_result = None
+        self.solver_workbench_running = False
+        self.solver_workbench_progress = ''
+        self.solver_workbench_progress_updated_at = None
+        self.solver_workbench_run_id = None
+        self.solver_workbench_run_seq = 0
         self.local_load_result = None
         self.exact_benchmark_cache = {}
         self.site_edge_context_cache = {}
         self.fixed_store_override_cache = {}
         self.fixed_store_metadata_cache = {}
         self.radius_override_recommendation_cache = {}
+        self.service_area_payload_cache = {}
+        self.service_area_prewarm_running = False
+        self.service_area_prewarm_error = ''
+        self.service_area_prewarm_started_at = None
+        self.service_area_prewarm_completed_at = None
         self.meeting_prewarm_running = False
         self.meeting_prewarm_core_ready = False
         self.meeting_prewarm_ready = False
@@ -260,6 +929,11 @@ state = AppState()
 def _next_optimization_run_id():
     state.optimization_run_seq = int(getattr(state, 'optimization_run_seq', 0) or 0) + 1
     return f"run-{state.optimization_run_seq}-{int(time.time() * 1000)}"
+
+
+def _next_solver_workbench_run_id():
+    state.solver_workbench_run_seq = int(getattr(state, 'solver_workbench_run_seq', 0) or 0) + 1
+    return f"solver-{state.solver_workbench_run_seq}-{int(time.time() * 1000)}"
 
 
 def _norm_header(value):
@@ -605,6 +1279,96 @@ def _haversine_km(lat1, lon1, lat2, lon2):
         + math.cos(phi1) * math.cos(phi2) * math.sin(dlambda / 2.0) ** 2
     )
     return 2.0 * 6371.0 * math.asin(math.sqrt(max(0.0, a)))
+
+
+def _point_to_segment_distance_km(point_xy, start_xy, end_xy):
+    point_xy = np.asarray(point_xy, dtype=np.float64)
+    start_xy = np.asarray(start_xy, dtype=np.float64)
+    end_xy = np.asarray(end_xy, dtype=np.float64)
+    seg = end_xy - start_xy
+    seg_norm_sq = float(np.dot(seg, seg))
+    if seg_norm_sq <= 1e-12:
+        return float(np.linalg.norm(point_xy - start_xy))
+    projection = float(np.dot(point_xy - start_xy, seg) / seg_norm_sq)
+    projection = min(1.0, max(0.0, projection))
+    closest = start_xy + projection * seg
+    return float(np.linalg.norm(point_xy - closest))
+
+
+def _business_region_boundary_segments(business_regions):
+    segments = []
+    for region in (business_regions or []):
+        if bool(region.get('excluded')):
+            continue
+        ring = _normalize_polygon_coords(region.get('polygon_coords', []))
+        if len(ring) < 3:
+            continue
+        ring_body = ring[:-1] if len(ring) > 2 and ring[0] == ring[-1] else ring
+        if len(ring_body) < 3:
+            continue
+        for idx, start in enumerate(ring_body):
+            end = ring_body[(idx + 1) % len(ring_body)]
+            segments.append(((float(start[0]), float(start[1])), (float(end[0]), float(end[1]))))
+    return segments
+
+
+def _business_region_edge_penalty(candidate_lat, candidate_lon, radius_km, business_regions):
+    radius_km = max(0.0, float(radius_km or 0.0))
+    if radius_km <= 0.0:
+        return 0.0
+    clearance_km = _business_region_boundary_clearance_km(candidate_lat, candidate_lon, business_regions)
+    if not math.isfinite(clearance_km):
+        return 0.0
+    return max(0.0, radius_km - float(clearance_km))
+
+
+def _business_region_boundary_clearance_km(candidate_lat, candidate_lon, business_regions):
+    segments = _business_region_boundary_segments(business_regions)
+    if not segments:
+        return np.inf
+    ref_lat = float(candidate_lat)
+    point_xy = _latlon_to_xy_km([candidate_lat], [candidate_lon], ref_lat=ref_lat)[0]
+    min_dist = np.inf
+    for (start_lat, start_lon), (end_lat, end_lon) in segments:
+        segment_xy = _latlon_to_xy_km(
+            [start_lat, end_lat],
+            [start_lon, end_lon],
+            ref_lat=ref_lat,
+        )
+        min_dist = min(
+            min_dist,
+            _point_to_segment_distance_km(point_xy, segment_xy[0], segment_xy[1]),
+        )
+    return float(min_dist)
+
+
+def _setback_adjusted_edge_penalty(candidate_lat, candidate_lon, radius_km, business_regions, min_clearance_km=0.0):
+    clearance_km = _business_region_boundary_clearance_km(candidate_lat, candidate_lon, business_regions)
+    if not math.isfinite(clearance_km):
+        return 0.0, np.inf
+    min_clearance_km = max(0.0, float(min_clearance_km or 0.0))
+    raw_penalty = max(0.0, float(radius_km or 0.0) - clearance_km)
+    setback_shortfall = max(0.0, min_clearance_km - clearance_km)
+    adjusted_penalty = raw_penalty + setback_shortfall * max(2.0, float(radius_km or 0.0))
+    return float(adjusted_penalty), float(clearance_km)
+
+
+def _tier_boundary_setback_km(params, tier_name, stage_name='default'):
+    params = params or {}
+    key = f'{tier_name}_{stage_name}_min_boundary_clearance_km'
+    legacy_key = f'{tier_name}_min_boundary_clearance_km'
+    default_map = {
+        ('standard', 'gap_fill'): 0.5,
+        ('standard', 'rescue'): 0.75,
+        ('super', 'default'): 1.0,
+        ('super', 'overlay'): 0.5,
+    }
+    default_value = default_map.get((tier_name, stage_name), default_map.get((tier_name, 'default'), 0.0))
+    raw_value = params.get(key, params.get(legacy_key, default_value))
+    try:
+        return max(0.0, float(raw_value or 0.0))
+    except (TypeError, ValueError):
+        return max(0.0, float(default_value or 0.0))
 
 
 def _prepare_polygon_tests(regions):
@@ -969,14 +1733,32 @@ def osrm_one_to_many(src_lat, src_lon, dst_lats, dst_lons):
         dm = _osrm_table_batch([src_pt], dst)
         return s, e, np.asarray(dm[0, :], dtype=np.float64)
 
+    def run_batch_fresh(se):
+        s, e = se
+        dst = list(zip(dst_lats[s:e], dst_lons[s:e]))
+        dm = _osrm_table_batch_fresh([src_pt], dst)
+        return s, e, np.asarray(dm[0, :], dtype=np.float64)
+
     if len(batches) == 1:
         s, e, row = run_batch(batches[0])
         out[s:e] = row
         return out
 
-    futures = [_osrm_executor.submit(run_batch, b) for b in batches]
-    for fut in as_completed(futures):
-        s, e, row = fut.result()
+    future_map = {_osrm_executor.submit(run_batch, batch): batch for batch in batches}
+    completed = set()
+    try:
+        for fut in as_completed(future_map, timeout=float(OSRM_FUTURE_TIMEOUT)):
+            completed.add(fut)
+            s, e, row = fut.result()
+            out[s:e] = row
+    except FuturesTimeoutError:
+        pass
+
+    for fut, batch in future_map.items():
+        if fut in completed:
+            continue
+        fut.cancel()
+        s, e, row = run_batch_fresh(batch)
         out[s:e] = row
     return out
 
@@ -1529,19 +2311,13 @@ def _violates_same_tier_spacing(lat, lon, hubs, spacing_km):
     hub_xy = _latlon_to_xy_km(hub_lats, hub_lons, ref_lat=ref_lat)
     cand_xy = _latlon_to_xy_km(np.array([float(lat)]), np.array([float(lon)]), ref_lat=ref_lat)[0]
     euclid = np.sqrt(np.sum((hub_xy - cand_xy) ** 2, axis=1))
-    nearby_idx = np.flatnonzero(euclid <= float(spacing_km) + 0.2)
+    nearby_idx = np.flatnonzero(euclid <= float(spacing_km) + 0.25)
     if len(nearby_idx) == 0:
         return False
-    src = [(float(lat), float(lon))]
-    dst = [(float(hub_lats[i]), float(hub_lons[i])) for i in nearby_idx]
-    try:
-        forward = _osrm_table_batch(src, dst)[0]
-        reverse = _osrm_table_batch(dst, src)[:, 0]
-        pairwise = np.minimum(forward, reverse)
-        return bool(np.any(np.isfinite(pairwise) & (pairwise <= float(spacing_km) + 1e-6)))
-    except Exception as exc:
-        logger.warning("Spacing check fallback to geometric distance due to OSRM error: %s", exc)
-        return bool(np.any(euclid[nearby_idx] <= float(spacing_km) + 1e-6))
+    for idx in nearby_idx:
+        if _haversine_km(float(lat), float(lon), float(hub_lats[idx]), float(hub_lons[idx])) <= float(spacing_km) + 1e-6:
+            return True
+    return False
 
 
 def _normalized_standard_rescue_spacing_km(params):
@@ -1564,7 +2340,7 @@ def _default_standard_rescue_handover_pct(target_pct):
         target = float(target_pct)
     except (TypeError, ValueError):
         target = 100.0
-    return min(98.0, max(90.0, target))
+    return min(99.0, max(95.0, target))
 
 
 def normalize_placement_params(params):
@@ -1702,6 +2478,10 @@ def normalize_placement_params(params):
     base['meeting_fast_mode'] = bool(base.get('meeting_fast_mode', True))
     if base['meeting_fast_mode']:
         base['meeting_fast_defer_super'] = bool(base.get('meeting_fast_defer_super', True))
+        base['meeting_fast_defer_exception_branch'] = bool(base.get('meeting_fast_defer_exception_branch', True))
+        base['meeting_fast_finalize_active_branch_only'] = bool(
+            base.get('meeting_fast_finalize_active_branch_only', False)
+        )
         base['meeting_use_compact_frontier'] = bool(base.get('meeting_use_compact_frontier', True))
         base['meeting_include_reference_fixed_candidates'] = bool(
             base.get('meeting_include_reference_fixed_candidates', False)
@@ -1963,6 +2743,9 @@ def normalize_placement_params(params):
         except (TypeError, ValueError):
             exception_first_rescue_seed_top_k = 6
         base['exception_first_live_rescue_seed_top_k'] = max(1, exception_first_rescue_seed_top_k)
+        base['meeting_fast_finalize_active_branch_only'] = bool(
+            base.get('meeting_fast_finalize_active_branch_only', False)
+        )
     try:
         super_stride = int(float(base.get('super_geometry_demand_stride', 6 if base['meeting_fast_mode'] else 1) or (6 if base['meeting_fast_mode'] else 1)))
     except (TypeError, ValueError):
@@ -2017,8 +2800,13 @@ def normalize_placement_params(params):
         known_counts = [v for v in target_counts.values() if v is not None]
         if known_counts:
             base['target_max_hubs'] = int(sum(known_counts))
+    raw_business_target_pct = base.get('business_target_coverage_pct', '__missing__')
+    if raw_business_target_pct == '__missing__' and base.get('meeting_fast_mode'):
+        raw_business_target_pct = base.get('meeting_fast_target_coverage_pct', DEFAULT_MEETING_TARGET_COVERAGE_PCT)
+    elif raw_business_target_pct == '__missing__':
+        raw_business_target_pct = 100.0
     try:
-        business_target_pct = float(base.get('business_target_coverage_pct', 100.0) or 100.0)
+        business_target_pct = float(raw_business_target_pct or 100.0)
     except (TypeError, ValueError):
         business_target_pct = 100.0
     base['business_target_coverage_pct'] = min(100.0, max(90.0, business_target_pct))
@@ -2059,6 +2847,30 @@ def _effective_super_base_cost(params):
 
 def _super_overlay_only(params):
     return str((params or {}).get('super_role') or '').strip().lower() == 'overlay_core_only'
+
+
+def _decision_grade_super_sites(super_ds):
+    sites = list(super_ds or [])
+    if not sites:
+        return []
+    has_explicit_overlay_semantics = any(
+        ('counts_as_true_super' in site) or str(site.get('site_semantics') or '').strip().lower() == 'overlay_support'
+        for site in sites
+        if isinstance(site, dict)
+    )
+    if not has_explicit_overlay_semantics:
+        return sites
+    decision_grade_sites = []
+    for site in sites:
+        if not isinstance(site, dict):
+            continue
+        site_semantics = str(site.get('site_semantics') or '').strip().lower()
+        counts_as_true_super = site.get('counts_as_true_super')
+        if counts_as_true_super is None and site_semantics:
+            counts_as_true_super = site_semantics != 'overlay_support'
+        if bool(True if counts_as_true_super is None else counts_as_true_super):
+            decision_grade_sites.append(site)
+    return decision_grade_sites
 
 
 def _weighted_orders_in_radius(center_lat, center_lon, all_clat, all_clon, all_wts, radius_km):
@@ -2260,13 +3072,24 @@ def _context_positions_for_grid(context, grid_df):
 
 
 def _mask_for_grid_from_cached_seed(context, seed_lat, seed_lon, grid_df, radius_km):
-    full_mask = _distance_mask_from_cached_seed(context, seed_lat, seed_lon, None, radius_km)
-    if full_mask is None:
+    hit_idx, _hit_dists = _cached_seed_sparse_hits(
+        context,
+        seed_lat,
+        seed_lon,
+        demand_count=None,
+        radius_km=radius_km,
+    )
+    if hit_idx is None:
         return None
     positions = _context_positions_for_grid(context, grid_df)
     if positions is None:
         return None
-    return full_mask[positions]
+    positions = np.asarray(positions, dtype=np.int64)
+    if len(positions) == 0:
+        return np.zeros(0, dtype=bool)
+    if len(hit_idx) == 0:
+        return np.zeros(len(positions), dtype=bool)
+    return np.isin(positions, np.asarray(hit_idx, dtype=np.int64), assume_unique=False)
 
 
 def find_mini_ds(grid_data, params):
@@ -3192,7 +4015,10 @@ def _summarize_proposed_policy(weights, current_costs, proposed_costs, d_mini, d
     rstd = float(params.get('standard_ds_radius', 2.5))
     rstd_exception = float(params.get('standard_exception_radius_km', 5.0) or 5.0)
     rsup = float(params.get('super_ds_radius', DEFAULT_SUPER_RADIUS_KM))
-    overlay_super = _super_overlay_only(params)
+    mini_counts_as_hard_coverage = bool((params or {}).get('mini_counts_as_hard_coverage', True))
+    overlay_super = _super_overlay_only(params) and not bool(
+        (params or {}).get('overlay_super_counts_as_hard_coverage', False)
+    )
     served_mini = np.isfinite(d_mini) & (d_mini <= rmini + 1e-5) if mini_ds else np.zeros(len(weights), dtype=bool)
     served_std_base = (~served_mini) & np.isfinite(d_std) & (d_std <= rstd + 1e-5) if standard_ds else np.zeros(len(weights), dtype=bool)
     served_std_exception = (
@@ -3204,7 +4030,10 @@ def _summarize_proposed_policy(weights, current_costs, proposed_costs, d_mini, d
         (~served_mini) & (~served_std) & np.isfinite(d_sup) & (d_sup <= rsup + 1e-5)
         if super_ds and not overlay_super else np.zeros(len(weights), dtype=bool)
     )
-    hard_served = served_mini | served_std | served_sup
+    operational_served = served_mini | served_std | served_sup
+    hard_served = served_std | served_sup
+    if mini_counts_as_hard_coverage:
+        hard_served |= served_mini
 
     extra_candidates = []
     if mini_ds:
@@ -3226,6 +4055,7 @@ def _summarize_proposed_policy(weights, current_costs, proposed_costs, d_mini, d
     hybrid_pct = 100.0 * float(exception_bucket['hybrid_covered_orders_per_day']) / max(total_orders, 1e-9)
     return {
         'hard_served_mask': hard_served,
+        'operational_served_mask': operational_served,
         'hard_covered_orders_per_day': round(hard_covered_orders, 2),
         'hard_uncovered_orders_per_day': round(float(np.sum(weights[~hard_served])), 2),
         'proposed_hard_coverage_pct': round(hard_pct, 2),
@@ -3239,6 +4069,9 @@ def evaluate_network(grid_data, existing_stores, mini_ds, standard_ds, super_ds,
     """Evaluate current vs proposed using OSRM road distances only (Table API)."""
     require_osrm()
     params = normalize_placement_params(params)
+    decision_grade_super_ds = _decision_grade_super_sites(super_ds)
+    policy_params = dict(params or {})
+    policy_params['overlay_super_counts_as_hard_coverage'] = bool(decision_grade_super_ds)
     base_cost = params.get('base_cost', 29)
     var_rate = params.get('variable_rate', 9)
     weights = grid_data['orders_per_day'].values
@@ -3284,7 +4117,7 @@ def evaluate_network(grid_data, existing_stores, mini_ds, standard_ds, super_ds,
 
     # Proposed network — tier-specific cost when use_tiered_costs
     if progress_cb: progress_cb("Computing proposed network road distances...")
-    all_hubs = mini_ds + standard_ds + super_ds
+    all_hubs = mini_ds + standard_ds + decision_grade_super_ds
     if len(all_hubs) == 0:
         all_hubs = [{'lat': s['lat'], 'lon': s['lon'], 'type': 'standard'} for s in existing_stores]
 
@@ -3297,9 +4130,9 @@ def evaluate_network(grid_data, existing_stores, mini_ds, standard_ds, super_ds,
     rmini = float(params.get('mini_ds_radius', 1.0))
     rstd = float(params.get('standard_ds_radius', 2.5))
     rsup = float(params.get('super_ds_radius', DEFAULT_SUPER_RADIUS_KM))
-    overlay_super = _super_overlay_only(params)
+    overlay_super = _super_overlay_only(policy_params)
     use_tiered = params.get('use_tiered_costs', True)
-    has_proposed = bool(mini_ds or standard_ds or super_ds)
+    has_proposed = bool(mini_ds or standard_ds or decision_grade_super_ds)
 
     n = len(cust_lats)
 
@@ -3351,7 +4184,7 @@ def evaluate_network(grid_data, existing_stores, mini_ds, standard_ds, super_ds,
         radius_km=float(params.get('standard_exception_radius_km', 5.0) or 5.0),
         cache_label='standard_exception',
     )
-    d_sup = _min_dist_to_hubs(super_ds, radius_km=rsup, cache_label='super')
+    d_sup = _min_dist_to_hubs(decision_grade_super_ds, radius_km=rsup, cache_label='super')
 
     # Nearest-hub matrix: only when tier radii do not fully define service (no proposed hubs yet
     # uses existing stores; or non-tiered mode). Skip when tiered + proposed hubs — big OSRM saving;
@@ -3387,7 +4220,7 @@ def evaluate_network(grid_data, existing_stores, mini_ds, standard_ds, super_ds,
                 )
                 proposed_dists[i] = chosen_std_dist
                 proposed_costs[i] = sb + svar * chosen_std_dist
-            elif super_ds and (not overlay_super) and d_sup[i] <= rsup:
+            elif decision_grade_super_ds and (not overlay_super) and d_sup[i] <= rsup:
                 proposed_dists[i] = d_sup[i]
                 proposed_costs[i] = pbb + pvar * d_sup[i]
             elif has_proposed:
@@ -3414,18 +4247,19 @@ def evaluate_network(grid_data, existing_stores, mini_ds, standard_ds, super_ds,
     proposed_policy = _summarize_proposed_policy(
         weights, current_costs, proposed_costs,
         d_mini, d_std, d_std_exception, d_sup,
-        mini_ds, standard_ds, super_ds, params,
+        mini_ds, standard_ds, decision_grade_super_ds, policy_params,
     )
     served = proposed_policy['hard_served_mask']
+    operational_served = proposed_policy.get('operational_served_mask', served)
     hybrid_mask = served | proposed_policy['exception_bucket_usage'].get('selected_mask', np.zeros(n, dtype=bool))
-    modeled_cost = _modeled_cost_summary(weights, proposed_costs, params, len(super_ds))
+    modeled_cost = _modeled_cost_summary(weights, proposed_costs, params, len(decision_grade_super_ds))
     addressable = _addressable_coverage_metrics(
         weights, served, hybrid_mask,
         {'excluded_orders_per_day': 0.0, 'excluded_zone_count': 0},
         dict(params or {}, low_density_policy='always_serve'),
     )
-    if np.any(served):
-        proposed_avg_dist = float(np.average(proposed_dists[served], weights=weights[served]))
+    if np.any(operational_served):
+        proposed_avg_dist = float(np.average(proposed_dists[operational_served], weights=weights[operational_served]))
         proposed_mean_dist_unweighted = float(np.nanmean(proposed_dists))
     else:
         proposed_avg_dist = None
@@ -3436,7 +4270,7 @@ def evaluate_network(grid_data, existing_stores, mini_ds, standard_ds, super_ds,
 
     wsum = float(np.sum(weights))
     pct_order_weight_outside_tier_radii = round(
-        float(100.0 * np.sum(weights[~served]) / max(wsum, 1e-9)) if has_proposed else 0.0,
+        float(100.0 * np.sum(weights[~operational_served]) / max(wsum, 1e-9)) if has_proposed else 0.0,
         2,
     )
 
@@ -3445,11 +4279,11 @@ def evaluate_network(grid_data, existing_stores, mini_ds, standard_ds, super_ds,
     labels = ['0-1km', '1-2km', '2-3km', '3-4km', '4-5km', '5+km']
     hist_counts = []
     for i in range(len(bins) - 1):
-        mask = served & (proposed_dists >= bins[i]) & (proposed_dists < bins[i + 1])
+        mask = operational_served & (proposed_dists >= bins[i]) & (proposed_dists < bins[i + 1])
         hist_counts.append(float(weights[mask].sum()))
     hist_map = {labels[i]: hist_counts[i] for i in range(len(labels))}
-    if has_proposed and np.any(~served):
-        hist_map['Outside tier radii (unserved)'] = float(np.sum(weights[~served]))
+    if has_proposed and np.any(~operational_served):
+        hist_map['Outside tier radii (unserved)'] = float(np.sum(weights[~operational_served]))
 
     dist_src = 'OSRM road distance (Table API)'
 
@@ -3513,7 +4347,7 @@ def evaluate_network(grid_data, existing_stores, mini_ds, standard_ds, super_ds,
             'exception_standard_hub_count': len(exception_standard_hubs),
             'has_mini': bool(mini_ds),
             'has_standard': bool(standard_ds),
-            'has_super': bool(super_ds),
+            'has_super': bool(decision_grade_super_ds),
         }
     return result
 
@@ -3971,16 +4805,17 @@ def _build_radius_override_recommendations(grid_data, weights, proposed_costs, s
         max_radius = max(current_radius, max_radius)
         if max_radius <= current_radius + 1e-5:
             continue
-        dists_full = _distance_array_from_cached_contexts(
+        cached_hit_idx, cached_hit_dists = _cached_seed_sparse_hits_from_contexts(
             [cached_context, fixed_context],
             float(hub['lat']),
             float(hub['lon']),
-            len(grid_data),
+            demand_count=len(grid_data),
+            allowed_idx=uncovered_idx,
         )
-        if dists_full is None:
+        if cached_hit_idx is None:
             dists = osrm_one_to_many(float(hub['lat']), float(hub['lon']), uncovered_lats, uncovered_lons)
         else:
-            dists = dists_full[uncovered_idx]
+            dists = _distance_subset_from_sparse_hits(uncovered_idx, cached_hit_idx, cached_hit_dists)
         if single_step_mode:
             candidate_radii = [round(max_radius, 3)]
         else:
@@ -4265,6 +5100,236 @@ def _build_service_gap_polygons(uncovered_pockets, grid_data, stage_label='base'
             'polygon': polygon,
         })
     return polygons
+
+
+def _assign_service_area_tiers(demand_count, tier_site_distances, tier_priority=('mini', 'standard', 'super')):
+    assigned_tier = np.array(['unserved'] * int(demand_count), dtype=object)
+    assigned_site_id = np.array([None] * int(demand_count), dtype=object)
+    assigned_distance_km = np.full(int(demand_count), np.inf, dtype=np.float64)
+    unassigned_mask = np.ones(int(demand_count), dtype=bool)
+
+    for tier_name in tier_priority:
+        site_rows = list((tier_site_distances or {}).get(tier_name) or [])
+        if not site_rows or not np.any(unassigned_mask):
+            continue
+        best_distance = np.full(int(demand_count), np.inf, dtype=np.float64)
+        best_site_id = np.array([None] * int(demand_count), dtype=object)
+        for site_row in site_rows:
+            site_id = str(site_row.get('site_id') or '')
+            radius_km = float(site_row.get('radius_km', np.inf) or np.inf)
+            distance_km = np.asarray(site_row.get('distance_km'), dtype=np.float64)
+            if len(distance_km) != int(demand_count):
+                raise ValueError(
+                    f"Service-area distance array for {tier_name}:{site_id or 'unknown'} has "
+                    f"{len(distance_km)} rows, expected {int(demand_count)}."
+                )
+            valid = np.isfinite(distance_km) & (distance_km <= radius_km + 1e-5)
+            better = valid & (distance_km < best_distance)
+            if not np.any(better):
+                continue
+            best_distance[better] = distance_km[better]
+            best_site_id[better] = site_id
+        tier_claim_mask = unassigned_mask & np.isfinite(best_distance)
+        if not np.any(tier_claim_mask):
+            continue
+        assigned_tier[tier_claim_mask] = tier_name
+        assigned_site_id[tier_claim_mask] = best_site_id[tier_claim_mask]
+        assigned_distance_km[tier_claim_mask] = best_distance[tier_claim_mask]
+        unassigned_mask[tier_claim_mask] = False
+
+    return {
+        'assigned_tier': assigned_tier,
+        'assigned_site_id': assigned_site_id,
+        'assigned_distance_km': assigned_distance_km,
+    }
+
+
+def _grid_axis_step(values, fallback=0.002):
+    arr = np.sort(np.unique(np.round(np.asarray(values, dtype=np.float64), 6)))
+    if len(arr) <= 1:
+        return float(fallback)
+    diffs = np.diff(arr)
+    diffs = diffs[diffs > 1e-8]
+    if len(diffs) == 0:
+        return float(fallback)
+    return float(np.median(diffs))
+
+
+def _grid_component_groups(lat_idx, lon_idx):
+    coords = {(int(la), int(lo)) for la, lo in zip(lat_idx, lon_idx)}
+    remaining = set(coords)
+    components = []
+    while remaining:
+        start = remaining.pop()
+        stack = [start]
+        comp = [start]
+        while stack:
+            lat_pos, lon_pos = stack.pop()
+            for nxt in (
+                (lat_pos - 1, lon_pos),
+                (lat_pos + 1, lon_pos),
+                (lat_pos, lon_pos - 1),
+                (lat_pos, lon_pos + 1),
+            ):
+                if nxt in remaining:
+                    remaining.remove(nxt)
+                    stack.append(nxt)
+                    comp.append(nxt)
+        components.append(comp)
+    return components
+
+
+def _cell_component_polygon(component, lat_origin, lon_origin, lat_step, lon_step):
+    lat_half = float(lat_step) / 2.0
+    lon_half = float(lon_step) / 2.0
+    boundary_edges = {}
+
+    def _round_point(lon_val, lat_val):
+        return (round(float(lon_val), 6), round(float(lat_val), 6))
+
+    for lat_idx, lon_idx in component:
+        cell_lat = float(lat_origin + lat_idx * lat_step)
+        cell_lon = float(lon_origin + lon_idx * lon_step)
+        corners = [
+            _round_point(cell_lon - lon_half, cell_lat - lat_half),
+            _round_point(cell_lon + lon_half, cell_lat - lat_half),
+            _round_point(cell_lon + lon_half, cell_lat + lat_half),
+            _round_point(cell_lon - lon_half, cell_lat + lat_half),
+        ]
+        for start, end in (
+            (corners[0], corners[1]),
+            (corners[1], corners[2]),
+            (corners[2], corners[3]),
+            (corners[3], corners[0]),
+        ):
+            key = tuple(sorted((start, end)))
+            if key in boundary_edges:
+                del boundary_edges[key]
+            else:
+                boundary_edges[key] = (start, end)
+
+    adjacency = defaultdict(list)
+    for start, end in boundary_edges.values():
+        adjacency[start].append(end)
+        adjacency[end].append(start)
+
+    unused = {tuple(sorted((start, end))) for start, end in boundary_edges.values()}
+    polygons = []
+    while unused:
+        seed_key = min(unused)
+        start = seed_key[0]
+        current = start
+        prev = None
+        loop = [start]
+        while True:
+            candidates = [
+                nxt for nxt in adjacency[current]
+                if tuple(sorted((current, nxt))) in unused and nxt != prev
+            ]
+            if not candidates:
+                candidates = [
+                    nxt for nxt in adjacency[current]
+                    if tuple(sorted((current, nxt))) in unused
+                ]
+            if not candidates:
+                break
+            nxt = sorted(candidates)[0]
+            unused.remove(tuple(sorted((current, nxt))))
+            prev, current = current, nxt
+            loop.append(current)
+            if current == start:
+                break
+        if len(loop) >= 4 and loop[0] == loop[-1]:
+            polygons.append([[lat, lon] for lon, lat in loop])
+    return polygons
+
+
+def _build_service_area_polygons_from_assignments(grid_data, assigned_tier, assigned_site_id=None):
+    grid = grid_data[['cell_lat', 'cell_lon', 'orders_per_day']].copy().reset_index(drop=True)
+    assigned_tier = np.asarray(assigned_tier, dtype=object)
+    if len(grid) != len(assigned_tier):
+        raise ValueError("Assigned tier array length must match grid length.")
+    assigned_site_id = (
+        np.asarray(assigned_site_id, dtype=object)
+        if assigned_site_id is not None
+        else np.array([None] * len(grid), dtype=object)
+    )
+    if len(grid) != len(assigned_site_id):
+        raise ValueError("Assigned site array length must match grid length.")
+
+    lat_values = grid['cell_lat'].values.astype(np.float64)
+    lon_values = grid['cell_lon'].values.astype(np.float64)
+    lat_step = _grid_axis_step(lat_values, fallback=0.002)
+    lon_step = _grid_axis_step(lon_values, fallback=0.002)
+    lat_origin = float(np.min(lat_values))
+    lon_origin = float(np.min(lon_values))
+    lat_idx = np.rint((lat_values - lat_origin) / max(lat_step, 1e-6)).astype(np.int64)
+    lon_idx = np.rint((lon_values - lon_origin) / max(lon_step, 1e-6)).astype(np.int64)
+
+    summary = {}
+    features = []
+    for tier_name in ('mini', 'standard', 'super'):
+        tier_mask = assigned_tier == tier_name
+        if not np.any(tier_mask):
+            summary[tier_name] = {'num_cells': 0, 'orders_per_day': 0.0, 'component_count': 0}
+            continue
+        tier_lat_idx = lat_idx[tier_mask]
+        tier_lon_idx = lon_idx[tier_mask]
+        tier_orders = grid.loc[tier_mask, 'orders_per_day'].values.astype(np.float64)
+        tier_site_ids = assigned_site_id[tier_mask]
+        components = _grid_component_groups(tier_lat_idx, tier_lon_idx)
+        summary[tier_name] = {
+            'num_cells': int(np.sum(tier_mask)),
+            'orders_per_day': round(float(np.sum(tier_orders)), 2),
+            'component_count': int(len(components)),
+        }
+        coord_to_tier_idx = {
+            (int(la), int(lo)): idx
+            for idx, (la, lo) in enumerate(zip(tier_lat_idx, tier_lon_idx))
+        }
+        tier_polygons = []
+        tier_site_id_set = set()
+        for comp_idx, component in enumerate(components, start=1):
+            component_indices = np.fromiter(
+                (
+                    coord_to_tier_idx[(int(la), int(lo))]
+                    for la, lo in component
+                    if (int(la), int(lo)) in coord_to_tier_idx
+                ),
+                dtype=np.int64,
+                count=len(component),
+            )
+            if component_indices.size == 0:
+                continue
+            polygons = _cell_component_polygon(component, lat_origin, lon_origin, lat_step, lon_step)
+            if not polygons:
+                continue
+            tier_polygons.extend(polygons)
+            tier_site_id_set.update(str(site_id) for site_id in tier_site_ids[component_indices] if site_id)
+        if tier_polygons:
+            features.append({
+                'tier': tier_name,
+                'component_id': f'{tier_name}-all',
+                'site_ids': sorted(tier_site_id_set),
+                'num_cells': summary[tier_name]['num_cells'],
+                'orders_per_day': summary[tier_name]['orders_per_day'],
+                'polygons': tier_polygons,
+                'polygon': tier_polygons[0],
+            })
+
+    unserved_mask = assigned_tier == 'unserved'
+    summary['unserved'] = {
+        'num_cells': int(np.sum(unserved_mask)),
+        'orders_per_day': round(float(np.sum(grid.loc[unserved_mask, 'orders_per_day'])), 2),
+    }
+    return {
+        'summary': summary,
+        'features': features,
+        'cell_step': {
+            'lat': round(float(lat_step), 6),
+            'lon': round(float(lon_step), 6),
+        },
+    }
 
 
 def _tier_cost_params(params, tier_name):
@@ -5981,7 +7046,7 @@ def _build_fixed_standard_sites(params):
     return fixed_sites
 
 
-def _select_fixed_super_sites(scope_grid, fixed_sites, params, progress_cb=None):
+def _select_fixed_super_sites(scope_grid, fixed_sites, params, progress_cb=None, fixed_context=None):
     if not fixed_sites:
         return [], []
     super_radius = float(params.get('super_ds_radius', params.get('super_radius_km', DEFAULT_SUPER_RADIUS_KM)) or DEFAULT_SUPER_RADIUS_KM)
@@ -6002,7 +7067,14 @@ def _select_fixed_super_sites(scope_grid, fixed_sites, params, progress_cb=None)
         min_incremental_orders = 25.0
     weights = scope_grid['orders_per_day'].values.astype(np.float64)
     n = len(scope_grid)
-    baseline_standard = _min_dist_to_hubs_for_grid(scope_grid, fixed_sites, progress_cb=None)
+    baseline_standard = _min_distances_from_cached_hubs(
+        fixed_context,
+        fixed_sites,
+        len(scope_grid),
+        radius_km=None,
+    ) if fixed_context is not None else None
+    if baseline_standard is None:
+        baseline_standard = _min_dist_to_hubs_for_grid(scope_grid, fixed_sites, progress_cb=None)
     extra_covered = np.zeros(n, dtype=bool)
     promoted_ids = set()
     promoted_sites = []
@@ -6012,12 +7084,19 @@ def _select_fixed_super_sites(scope_grid, fixed_sites, params, progress_cb=None)
             site_id = str(site.get('id') or '')
             if site_id in promoted_ids:
                 continue
-            super_dist = osrm_one_to_many(
-                float(site['lat']),
-                float(site['lon']),
-                scope_grid['avg_cust_lat'].values,
-                scope_grid['avg_cust_lon'].values,
-            )
+            super_dist = _min_distances_from_cached_hubs(
+                fixed_context,
+                [site],
+                len(scope_grid),
+                radius_km=None,
+            ) if fixed_context is not None else None
+            if super_dist is None:
+                super_dist = osrm_one_to_many(
+                    float(site['lat']),
+                    float(site['lon']),
+                    scope_grid['avg_cust_lat'].values,
+                    scope_grid['avg_cust_lon'].values,
+                )
             extra_mask = (
                 np.isfinite(super_dist) &
                 (super_dist <= super_radius + 1e-5) &
@@ -6044,6 +7123,14 @@ def _select_fixed_super_sites(scope_grid, fixed_sites, params, progress_cb=None)
             'radius_km': super_radius,
             'selection': 'fixed_super_promotion',
             'promoted_from_fixed': True,
+            'site_source': 'existing_standard',
+            'reused_on_standard_site': True,
+            'site_role': 'super_overlay_reuse',
+            'site_role_family': 'super_overlay',
+            'selection_provenance': 'fixed_super_promotion',
+            'site_semantics': 'overlay_support',
+            'counts_as_true_super': False,
+            'physical_site_status': 'reused_fixed_standard',
             'orders_per_day': round(float(np.sum(weights[extra_mask])), 2),
         })
         if progress_cb:
@@ -6055,23 +7142,211 @@ def _select_fixed_super_sites(scope_grid, fixed_sites, params, progress_cb=None)
     return promoted_sites, remaining_standard
 
 
+def _provisional_fixed_super_relief(
+    scope_grid,
+    covered_mask,
+    standard_sites,
+    params,
+    progress_cb=None,
+    fixed_context=None,
+    cached_context=None,
+):
+    if scope_grid is None or len(scope_grid) == 0 or not standard_sites:
+        return np.zeros(0, dtype=bool), []
+    try:
+        super_radius = float(
+            params.get('super_ds_radius', params.get('super_radius_km', DEFAULT_SUPER_RADIUS_KM))
+            or params.get('super_radius_km', DEFAULT_SUPER_RADIUS_KM)
+            or DEFAULT_SUPER_RADIUS_KM
+        )
+    except (TypeError, ValueError):
+        super_radius = DEFAULT_SUPER_RADIUS_KM
+    try:
+        standard_radius = float(params.get('standard_ds_radius', DEFAULT_STANDARD_RADIUS_KM) or DEFAULT_STANDARD_RADIUS_KM)
+    except (TypeError, ValueError):
+        standard_radius = DEFAULT_STANDARD_RADIUS_KM
+    if super_radius <= standard_radius + 1e-5:
+        return np.zeros(len(scope_grid), dtype=bool), []
+    candidate_sites = []
+    for site in (standard_sites or []):
+        if bool(site.get('fixed_open')) and not bool(site.get('super_eligible_fixed', False)):
+            continue
+        candidate_sites.append(dict(site))
+    if not candidate_sites:
+        return np.zeros(len(scope_grid), dtype=bool), []
+
+    try:
+        max_promotions = params.get('fixed_super_max_sites')
+        max_promotions = None if max_promotions in (None, '', 0, '0') else max(0, int(float(max_promotions)))
+    except (TypeError, ValueError):
+        max_promotions = None
+    try:
+        min_incremental_orders = float(params.get('fixed_super_min_incremental_orders_per_day', 25.0) or 25.0)
+    except (TypeError, ValueError):
+        min_incremental_orders = 25.0
+
+    weights = scope_grid['orders_per_day'].values.astype(np.float64)
+    covered_mask_arr = (
+        np.asarray(covered_mask, dtype=bool)
+        if covered_mask is not None and len(covered_mask) == len(scope_grid)
+        else np.zeros(len(scope_grid), dtype=bool)
+    )
+    relief_mask = np.zeros(len(scope_grid), dtype=bool)
+    promoted_super_sites = []
+    promoted_ids = set()
+    last_heartbeat_at = time.time()
+
+    if progress_cb:
+        progress_cb(
+            f"Provisional Super relief: evaluating eligible Standard-to-Super promotions "
+            f"across {len(candidate_sites)} candidate site(s)..."
+        )
+
+    def _site_distances(site):
+        if bool(site.get('fixed_open')):
+            d_site = _min_distances_from_cached_hubs(
+                fixed_context,
+                [site],
+                len(scope_grid),
+                radius_km=None,
+            ) if fixed_context is not None else None
+            if d_site is not None:
+                return d_site
+        d_site = _distance_array_from_cached_seed(
+            cached_context,
+            float(site['lat']),
+            float(site['lon']),
+            len(scope_grid),
+        ) if cached_context is not None else None
+        if d_site is not None:
+            return d_site
+        return _min_dist_to_hubs_for_grid(scope_grid, [site], progress_cb=None)
+
+    while candidate_sites and (max_promotions is None or len(promoted_super_sites) < max_promotions):
+        best = None
+        for site_pos, site in enumerate(candidate_sites, start=1):
+            now = time.time()
+            if progress_cb and now - last_heartbeat_at >= 5.0:
+                effective_covered = covered_mask_arr | relief_mask
+                coverage_pct = 100.0 * float(np.sum(weights[effective_covered])) / max(float(np.sum(weights)), 1e-9)
+                progress_cb(
+                    f"Provisional Super relief: checking site {site_pos}/{len(candidate_sites)} "
+                    f"with {len(promoted_super_sites)} promotion(s) chosen so far; effective coverage {coverage_pct:.2f}%."
+                )
+                last_heartbeat_at = now
+            site_id = str(site.get('id') or '')
+            if site_id in promoted_ids:
+                continue
+            d_site = _site_distances(site)
+            extra_mask = (
+                np.isfinite(d_site) &
+                (d_site <= super_radius + 1e-5) &
+                (~covered_mask_arr) &
+                (~relief_mask)
+            )
+            incremental_orders = float(np.sum(weights[extra_mask]))
+            if incremental_orders <= min_incremental_orders:
+                continue
+            candidate = (incremental_orders, site, extra_mask)
+            if best is None or candidate[0] > best[0]:
+                best = candidate
+        if best is None:
+            break
+        incremental_orders, site, extra_mask = best
+        promoted_ids.add(str(site.get('id') or ''))
+        relief_mask |= extra_mask
+        promoted_super_sites.append({
+            **dict(site),
+            'type': 'super',
+            'radius_km': super_radius,
+            'selection': 'provisional_super_relief',
+            'promoted_from_fixed': bool(site.get('fixed_open')),
+            'site_source': 'existing_standard' if bool(site.get('fixed_open')) else 'proposed_standard',
+            'reused_on_standard_site': True,
+            'site_role': 'super_overlay_reuse',
+            'site_role_family': 'super_overlay',
+            'selection_provenance': 'provisional_fixed_super_relief',
+            'site_semantics': 'overlay_support',
+            'counts_as_true_super': False,
+            'physical_site_status': 'reused_fixed_standard' if bool(site.get('fixed_open')) else 'reused_new_standard',
+            'orders_per_day': round(incremental_orders, 2),
+        })
+
+    if progress_cb:
+        relief_orders = float(np.sum(weights[relief_mask])) if len(relief_mask) == len(weights) else 0.0
+        progress_cb(
+            f"Provisional Super relief: {len(promoted_super_sites)} valid Standard-to-Super promotion(s) "
+            f"remove ~{relief_orders:.0f} orders/day from rescue pressure."
+        )
+    return relief_mask, promoted_super_sites
+
+
 def _count_nonfixed_sites(sites):
     return sum(1 for site in (sites or []) if not bool(site.get('fixed_open', False)))
 
 
+def _site_identity_key(site):
+    if not isinstance(site, dict):
+        return None
+    site_id = str(site.get('id') or site.get('site_id') or site.get('hub_id') or '').strip()
+    if site_id:
+        return ('id', site_id)
+    try:
+        return ('coord', round(float(site['lat']), 5), round(float(site['lon']), 5))
+    except Exception:
+        return None
+
+
 def _physical_store_count_summary(fixed_standard_sites, fixed_super_sites, mini_ds, standard_ds, super_ds):
-    fixed_total = int(len(fixed_standard_sites) + len(fixed_super_sites))
-    new_standard = int(_count_nonfixed_sites(standard_ds))
-    new_super = int(_count_nonfixed_sites(super_ds))
-    mini_count = int(_count_nonfixed_sites(mini_ds))
+    fixed_standard_keys = {_site_identity_key(site) for site in (fixed_standard_sites or [])}
+    fixed_standard_keys.discard(None)
+    fixed_super_keys = {_site_identity_key(site) for site in (fixed_super_sites or [])}
+    fixed_super_keys.discard(None)
+    fixed_total_keys = set(fixed_standard_keys) | set(fixed_super_keys)
+
+    standard_new_keys = {
+        _site_identity_key(site)
+        for site in (standard_ds or [])
+        if not bool((site or {}).get('fixed_open', False))
+    }
+    standard_new_keys.discard(None)
+    standard_physical_keys = set(fixed_standard_keys) | set(standard_new_keys)
+
+    reused_super_keys = set()
+    new_super_keys = set()
+    for site in (super_ds or []):
+        if bool((site or {}).get('fixed_open', False)):
+            continue
+        key = _site_identity_key(site)
+        if key is None:
+            continue
+        site_source = str(site.get('site_source') or '').strip().lower()
+        if site_source in {'existing_standard', 'proposed_standard'} or key in standard_physical_keys:
+            reused_super_keys.add(key)
+        else:
+            new_super_keys.add(key)
+
+    mini_keys = {
+        _site_identity_key(site)
+        for site in (mini_ds or [])
+        if not bool((site or {}).get('fixed_open', False))
+    }
+    mini_keys.discard(None)
+
+    fixed_total = int(len(fixed_total_keys))
+    new_standard = int(len(standard_new_keys))
+    new_super = int(len(new_super_keys))
+    mini_count = int(len(mini_keys))
+    total_unique_keys = set(fixed_total_keys) | set(standard_new_keys) | set(new_super_keys) | set(mini_keys)
     return {
         'fixed_physical_store_count': fixed_total,
-        'fixed_standard_count': int(len(fixed_standard_sites)),
-        'fixed_super_count': int(len(fixed_super_sites)),
+        'fixed_standard_count': int(len(fixed_standard_keys)),
+        'fixed_super_count': int(len(fixed_super_keys)),
         'new_standard_count': new_standard,
         'new_super_count': new_super,
+        'reused_super_on_standard_count': int(len(reused_super_keys)),
         'mini_count': mini_count,
-        'total_physical_stores': fixed_total + new_standard + new_super + mini_count,
+        'total_physical_stores': int(len(total_unique_keys)),
     }
 
 
@@ -6129,7 +7404,6 @@ def _meeting_reference_candidate_sites(params):
 def _apply_standard_exception_overrides(scope_grid, covered_mask, standard_sites, params, remaining_slots=None, progress_cb=None):
     base_radius = float(params.get('standard_ds_radius', 3.0) or 3.0)
     exception_radius = float(params.get('standard_exception_radius_km', 5.0) or 5.0)
-    exception_spacing_km = max(base_radius, _tier_spacing_radius(params, 'standard'))
     if exception_radius <= base_radius + 1e-5 or not standard_sites or scope_grid is None or len(scope_grid) == 0:
         return [], np.array(covered_mask, copy=True)
 
@@ -6204,25 +7478,23 @@ def _apply_standard_exception_overrides(scope_grid, covered_mask, standard_sites
         site = site_by_id.get(str(rec.get('hub_id')))
         if site is None:
             continue
-        spacing_reference_sites = [
-            other for other in standard_sites
-            if str(other.get('id')) != str(site.get('id'))
-        ]
-        if _violates_same_tier_spacing(float(site['lat']), float(site['lon']), spacing_reference_sites, exception_spacing_km):
-            continue
         site['exception_standard'] = True
         site['base_radius_km'] = base_radius
         site['radius_km'] = float(rec.get('new_radius_km', exception_radius) or exception_radius)
         site['exception_rank'] = rank
         site['rescued_orders_per_day'] = float(rec.get('rescued_orders_per_day', 0) or 0)
-        cached_dists = _distance_array_from_cached_contexts(
+        cached_cover_idx, _cached_cover_dists = _cached_seed_sparse_hits_from_contexts(
             [cached_context, fixed_context],
             float(site['lat']),
             float(site['lon']),
-            len(scope_grid),
+            demand_count=len(scope_grid),
+            radius_km=float(site['radius_km']),
         )
-        dists = cached_dists if cached_dists is not None else osrm_one_to_many(float(site['lat']), float(site['lon']), clat, clon)
-        revised_covered |= np.isfinite(dists) & (dists <= float(site['radius_km']) + 1e-5)
+        if cached_cover_idx is not None:
+            revised_covered[np.asarray(cached_cover_idx, dtype=np.int64)] = True
+        else:
+            dists = osrm_one_to_many(float(site['lat']), float(site['lon']), clat, clon)
+            revised_covered |= np.isfinite(dists) & (dists <= float(site['radius_km']) + 1e-5)
         exception_sites.append(site)
     return exception_sites, revised_covered
 
@@ -6246,7 +7518,29 @@ def _standard_site_role_counts(new_sites):
     return counts
 
 
-def _site_cover_mask_for_scope(scope_grid, site, params, cached_context=None):
+def _standard_plan_progress_summary(plan):
+    plan = plan or {}
+    fixed_count = int(plan.get('fixed_count', len(plan.get('fixed_sites') or [])) or 0)
+    new_sites = list(plan.get('new_sites') or [])
+    role_counts = _standard_site_role_counts(new_sites)
+    exception_count = int(plan.get('exception_count', len(plan.get('exception_sites') or [])) or 0)
+    coverage_pct = plan.get('coverage_pct')
+    coverage_text = ""
+    if coverage_pct is not None:
+        try:
+            coverage_text = f", coverage {float(coverage_pct):.2f}%"
+        except (TypeError, ValueError):
+            coverage_text = ""
+    return (
+        f"fixed {fixed_count}, new {len(new_sites)} "
+        f"(base {int(role_counts.get('base_new_count', 0) or 0)} + "
+        f"gap-fill {int(role_counts.get('gap_fill_count', 0) or 0)} + "
+        f"rescue {int(role_counts.get('rescue_count', 0) or 0)}), "
+        f"exceptions {exception_count}{coverage_text}"
+    )
+
+
+def _site_cover_mask_for_scope(scope_grid, site, params, cached_context=None, fallback_contexts=None):
     if scope_grid is None or len(scope_grid) == 0:
         return np.zeros(0, dtype=bool)
     try:
@@ -6261,6 +7555,13 @@ def _site_cover_mask_for_scope(scope_grid, site, params, cached_context=None):
         _distance_mask_from_cached_seed(cached_context, lat, lon, len(scope_grid), radius_km)
         if cached_context is not None else None
     )
+    if cached_mask is None:
+        for context in fallback_contexts or ():
+            if context is None:
+                continue
+            cached_mask = _distance_mask_from_cached_seed(context, lat, lon, len(scope_grid), radius_km)
+            if cached_mask is not None:
+                break
     if cached_mask is not None:
         return np.array(cached_mask, copy=True)
     d_full = osrm_one_to_many(
@@ -6279,6 +7580,7 @@ def _prune_redundant_standard_sites(
     exception_sites,
     params,
     cached_context=None,
+    fixed_context=None,
     progress_cb=None,
 ):
     if scope_grid is None or len(scope_grid) == 0 or not new_sites:
@@ -6297,7 +7599,13 @@ def _prune_redundant_standard_sites(
     target_orders = total_orders * target_coverage_pct / 100.0
 
     fixed_masks = [
-        _site_cover_mask_for_scope(scope_grid, site, params, cached_context=cached_context)
+        _site_cover_mask_for_scope(
+            scope_grid,
+            site,
+            params,
+            cached_context=fixed_context,
+            fallback_contexts=(cached_context,),
+        )
         for site in (fixed_sites or [])
     ]
     new_masks = [
@@ -6305,7 +7613,13 @@ def _prune_redundant_standard_sites(
         for site in (new_sites or [])
     ]
     exception_masks = [
-        _site_cover_mask_for_scope(scope_grid, site, params, cached_context=None)
+        _site_cover_mask_for_scope(
+            scope_grid,
+            site,
+            params,
+            cached_context=None,
+            fallback_contexts=(fixed_context, cached_context),
+        )
         for site in (exception_sites or [])
     ]
 
@@ -6380,6 +7694,7 @@ def _run_standard_rescue_pass(
     exception_sites,
     params,
     cached_context=None,
+    rescue_relief_mask=None,
     progress_cb=None,
     stop_predicate=None,
     stop_meta=None,
@@ -6406,24 +7721,29 @@ def _run_standard_rescue_pass(
     rescue_seed_top_k = max(1, int(float(params.get('standard_rescue_seed_top_k', 8) or 8)))
     base_cost = float(params.get('standard_base_cost', 29) or 29)
     var_rate = float(params.get('standard_variable_rate', 9) or 9)
+    rescue_edge_penalty_weight = float(params.get('standard_rescue_edge_penalty_weight', 140.0) or 140.0)
+    business_regions = list((params or {}).get('_business_regions') or state.business_regions or [])
     clat = scope_grid['cell_lat'].values.astype(np.float64)
     clon = scope_grid['cell_lon'].values.astype(np.float64)
     wts = scope_grid['orders_per_day'].values.astype(np.float64)
     blocked_idx = np.zeros(len(scope_grid), dtype=bool)
+    relief_mask = np.zeros(len(scope_grid), dtype=bool)
+    if rescue_relief_mask is not None and len(rescue_relief_mask) == len(scope_grid):
+        relief_mask = np.asarray(rescue_relief_mask, dtype=bool)
     rescue_count = 0
     rescue_penalty_total = 0.0
     meeting_fast_mode = bool(params.get('meeting_fast_mode', False))
     stop_meta = stop_meta if isinstance(stop_meta, dict) else None
+    last_heartbeat_at = time.time()
     try:
-        meeting_target_coverage_pct = float(
-            params.get('meeting_fast_target_coverage_pct', _business_target_coverage_pct(params)) or _business_target_coverage_pct(params)
-        )
+        meeting_target_coverage_pct = float(_required_decision_grade_coverage_pct(params))
     except (TypeError, ValueError):
         meeting_target_coverage_pct = _business_target_coverage_pct(params)
 
-    while np.any(~covered_mask):
+    while np.any(~(covered_mask | relief_mask)):
         if meeting_fast_mode:
-            coverage_pct = 100.0 * float(np.sum(wts[covered_mask])) / max(float(np.sum(wts)), 1e-9)
+            effective_covered = covered_mask | relief_mask
+            coverage_pct = 100.0 * float(np.sum(wts[effective_covered])) / max(float(np.sum(wts)), 1e-9)
             if coverage_pct >= meeting_target_coverage_pct - 1e-9:
                 if progress_cb:
                     progress_cb(
@@ -6432,7 +7752,8 @@ def _run_standard_rescue_pass(
                     )
                 break
         if callable(stop_predicate):
-            coverage_pct = 100.0 * float(np.sum(wts[covered_mask])) / max(float(np.sum(wts)), 1e-9)
+            effective_covered = covered_mask | relief_mask
+            coverage_pct = 100.0 * float(np.sum(wts[effective_covered])) / max(float(np.sum(wts)), 1e-9)
             stop_reason = stop_predicate(
                 coverage_pct=coverage_pct,
                 rescue_count=rescue_count,
@@ -6454,7 +7775,7 @@ def _run_standard_rescue_pass(
                     f"Standard rescue stopped at total hub cap ({current_total_hubs}/{total_hub_cap})."
                 )
             break
-        uncovered_idx = np.where((~covered_mask) & (~blocked_idx))[0]
+        uncovered_idx = np.where((~covered_mask) & (~relief_mask) & (~blocked_idx))[0]
         if len(uncovered_idx) == 0:
             break
         if len(uncovered_idx) > rescue_seed_top_k:
@@ -6464,52 +7785,121 @@ def _run_standard_rescue_pass(
             seed_candidates = uncovered_idx
 
         best_candidate = None
-        for seed_idx in seed_candidates:
+        for seed_pos, seed_idx in enumerate(seed_candidates, start=1):
+            now = time.time()
+            if progress_cb and now - last_heartbeat_at >= 5.0:
+                effective_covered = covered_mask | relief_mask
+                coverage_pct = 100.0 * float(np.sum(wts[effective_covered])) / max(float(np.sum(wts)), 1e-9)
+                progress_cb(
+                    f"Standard rescue: evaluating seed {seed_pos}/{len(seed_candidates)} "
+                    f"at {coverage_pct:.2f}% coverage with {rescue_count} rescue site(s) chosen so far..."
+                )
+                last_heartbeat_at = now
             seed_lat = float(clat[seed_idx])
             seed_lon = float(clon[seed_idx])
-            full_seed_mask = _distance_mask_from_cached_seed(cached_context, seed_lat, seed_lon, len(scope_grid), radius) if cached_context is not None else None
-            if full_seed_mask is None:
+            cached_member_idx, _cached_member_dists = _cached_seed_sparse_hits(
+                cached_context,
+                seed_lat,
+                seed_lon,
+                demand_count=len(scope_grid),
+                radius_km=radius,
+                allowed_idx=uncovered_idx,
+            ) if cached_context is not None else (None, None)
+            if cached_member_idx is None:
                 d_seed = osrm_one_to_many(seed_lat, seed_lon, clat[uncovered_idx], clon[uncovered_idx])
                 local_mask = np.isfinite(d_seed) & (d_seed <= radius + 1e-5)
                 member_idx = uncovered_idx[local_mask]
             else:
-                member_idx = uncovered_idx[full_seed_mask[uncovered_idx]]
+                member_idx = cached_member_idx
             if len(member_idx) == 0:
                 member_idx = np.array([seed_idx], dtype=np.int64)
 
-            center_lat = float(np.average(clat[member_idx], weights=wts[member_idx]))
-            center_lon = float(np.average(clon[member_idx], weights=wts[member_idx]))
-            snap_pos = int(np.argmin((clat[member_idx] - center_lat) ** 2 + (clon[member_idx] - center_lon) ** 2))
-            center_lat = float(clat[member_idx][snap_pos])
-            center_lon = float(clon[member_idx][snap_pos])
-            cached_full = _distance_array_from_cached_seed(cached_context, center_lat, center_lon, len(scope_grid)) if cached_context is not None else None
-            d_full = cached_full if cached_full is not None else osrm_one_to_many(
-                center_lat, center_lon, scope_grid['avg_cust_lat'].values, scope_grid['avg_cust_lon'].values
-            )
-            cover_mask = np.isfinite(d_full) & (d_full <= radius + 1e-5)
-            if _violates_same_tier_spacing(center_lat, center_lon, fixed_sites + new_sites, rescue_spacing_km):
-                alt_cached = _distance_array_from_cached_seed(cached_context, seed_lat, seed_lon, len(scope_grid)) if cached_context is not None else None
-                alt_full = alt_cached if alt_cached is not None else osrm_one_to_many(
-                    seed_lat, seed_lon, scope_grid['avg_cust_lat'].values, scope_grid['avg_cust_lon'].values
+            if meeting_fast_mode:
+                center_lat = seed_lat
+                center_lon = seed_lon
+                cached_cover_idx, cached_cover_dists = _cached_seed_sparse_hits(
+                    cached_context,
+                    seed_lat,
+                    seed_lon,
+                    demand_count=len(scope_grid),
+                    radius_km=radius,
+                ) if cached_context is not None else (None, None)
+            else:
+                center_lat = float(np.average(clat[member_idx], weights=wts[member_idx]))
+                center_lon = float(np.average(clon[member_idx], weights=wts[member_idx]))
+                snap_pos = int(np.argmin((clat[member_idx] - center_lat) ** 2 + (clon[member_idx] - center_lon) ** 2))
+                center_lat = float(clat[member_idx][snap_pos])
+                center_lon = float(clon[member_idx][snap_pos])
+                cached_cover_idx, cached_cover_dists = _cached_seed_sparse_hits(
+                    cached_context,
+                    center_lat,
+                    center_lon,
+                    demand_count=len(scope_grid),
+                    radius_km=radius,
+                ) if cached_context is not None else (None, None)
+            if cached_cover_idx is None:
+                d_full = osrm_one_to_many(
+                    center_lat, center_lon, scope_grid['avg_cust_lat'].values, scope_grid['avg_cust_lon'].values
                 )
-                alt_cover_mask = np.isfinite(alt_full) & (alt_full <= radius + 1e-5)
-                if _violates_same_tier_spacing(seed_lat, seed_lon, fixed_sites + new_sites, rescue_spacing_km):
+                cover_mask = np.isfinite(d_full) & (d_full <= radius + 1e-5)
+            else:
+                d_full = None
+                cover_mask = None
+            if _violates_same_tier_spacing(center_lat, center_lon, fixed_sites + new_sites, rescue_spacing_km):
+                if meeting_fast_mode or _violates_same_tier_spacing(seed_lat, seed_lon, fixed_sites + new_sites, rescue_spacing_km):
                     blocked_idx[member_idx] = True
                     continue
+                alt_cover_idx, alt_cover_dists = _cached_seed_sparse_hits(
+                    cached_context,
+                    seed_lat,
+                    seed_lon,
+                    demand_count=len(scope_grid),
+                    radius_km=radius,
+                ) if cached_context is not None else (None, None)
+                if alt_cover_idx is None:
+                    alt_full = osrm_one_to_many(
+                        seed_lat, seed_lon, scope_grid['avg_cust_lat'].values, scope_grid['avg_cust_lon'].values
+                    )
+                    alt_cover_mask = np.isfinite(alt_full) & (alt_full <= radius + 1e-5)
+                else:
+                    alt_full = None
+                    alt_cover_mask = None
                 center_lat = seed_lat
                 center_lon = seed_lon
                 d_full = alt_full
                 cover_mask = alt_cover_mask
+                cached_cover_idx = alt_cover_idx
+                cached_cover_dists = alt_cover_dists
 
-            marginal_mask = cover_mask & (~covered_mask)
-            marginal_new_orders = float(np.sum(wts[marginal_mask]))
+            if cover_mask is not None:
+                marginal_mask = cover_mask & (~covered_mask) & (~relief_mask)
+                marginal_new_orders = float(np.sum(wts[marginal_mask]))
+                catchment_orders = float(np.sum(wts[cover_mask]))
+            else:
+                marginal_local = (~covered_mask[cached_cover_idx]) & (~relief_mask[cached_cover_idx])
+                marginal_new_orders = float(np.sum(wts[cached_cover_idx][marginal_local]))
+                catchment_orders = float(np.sum(wts[cached_cover_idx]))
             if marginal_new_orders <= 1e-6:
                 blocked_idx[member_idx] = True
                 continue
-            catchment_orders = float(np.sum(wts[cover_mask]))
-            modeled_cost = float(np.sum((base_cost + var_rate * d_full[marginal_mask]) * wts[marginal_mask])) + rescue_penalty_per_day
+            edge_penalty, boundary_clearance_km = _setback_adjusted_edge_penalty(
+                center_lat,
+                center_lon,
+                radius,
+                business_regions,
+                min_clearance_km=_tier_boundary_setback_km(params, 'standard', 'rescue'),
+            )
+            if cover_mask is not None:
+                modeled_cost = float(np.sum((base_cost + var_rate * d_full[marginal_mask]) * wts[marginal_mask])) + rescue_penalty_per_day
+            else:
+                modeled_cost = float(np.sum(
+                    (base_cost + var_rate * cached_cover_dists[marginal_local]) * wts[cached_cover_idx][marginal_local]
+                )) + rescue_penalty_per_day
             candidate = (
+                marginal_new_orders - rescue_edge_penalty_weight * edge_penalty,
                 marginal_new_orders,
+                -edge_penalty,
+                boundary_clearance_km,
                 -modeled_cost,
                 -catchment_orders,
                 {
@@ -6518,18 +7908,32 @@ def _run_standard_rescue_pass(
                     'lon': center_lon,
                     'd_full': d_full,
                     'cover_mask': cover_mask,
+                    'cover_idx': cached_cover_idx,
+                    'cover_dists': cached_cover_dists,
                     'catchment_orders': catchment_orders,
                     'marginal_new_orders': marginal_new_orders,
                     'modeled_cost': modeled_cost,
+                    'edge_penalty': edge_penalty,
+                    'boundary_clearance_km': boundary_clearance_km,
                 }
             )
-            if best_candidate is None or candidate[:3] > best_candidate[:3]:
+            if best_candidate is None or candidate[:6] > best_candidate[:6]:
                 best_candidate = candidate
 
         if best_candidate is None:
             break
 
-        chosen = best_candidate[3]
+        chosen = best_candidate[6]
+        chosen_cover_mask = chosen.get('cover_mask')
+        chosen_d_full = chosen.get('d_full')
+        if chosen_cover_mask is None or chosen_d_full is None:
+            chosen_cover_idx = chosen.get('cover_idx')
+            if chosen_cover_idx is None:
+                chosen_cover_idx = np.empty(0, dtype=np.int64)
+            chosen_cover_idx = np.asarray(chosen_cover_idx, dtype=np.int64)
+            chosen_cover_mask = np.zeros(len(scope_grid), dtype=bool)
+            chosen_cover_mask[chosen_cover_idx] = True
+            chosen_d_full = _dense_distance_array_from_sparse_hits(len(scope_grid), chosen_cover_idx, chosen.get('cover_dists'))
         hub = {
             'id': f'NEW-STD-{len(new_sites) + 1}',
             'lat': chosen['lat'],
@@ -6537,7 +7941,7 @@ def _run_standard_rescue_pass(
             'orders_per_day': chosen['catchment_orders'],
             'radius_km': radius,
             'type': 'standard',
-            'cells': int(np.sum(chosen['cover_mask'])),
+            'cells': int(np.sum(chosen_cover_mask)),
             'selection': '15k-rescue',
             'coverage_satellite': True,
             'gap_fill': True,
@@ -6548,22 +7952,26 @@ def _run_standard_rescue_pass(
             'marginal_modeled_daily_cost': round(chosen['modeled_cost'], 2),
             'rescue_spacing_km': rescue_spacing_km,
             'rescue_penalty_per_day': rescue_penalty_per_day,
+            'edge_penalty': round(float(chosen['edge_penalty']), 3),
+            'boundary_clearance_km': round(float(chosen['boundary_clearance_km']), 3),
         }
         new_sites.append(hub)
-        current_min_d = np.minimum(current_min_d, chosen['d_full'])
-        covered_mask |= np.isfinite(chosen['d_full']) & (chosen['d_full'] <= radius + 1e-5)
+        current_min_d = np.minimum(current_min_d, chosen_d_full)
+        covered_mask |= chosen_cover_mask
         rescue_count += 1
         rescue_penalty_total += rescue_penalty_per_day
-        coverage_pct = 100.0 * float(np.sum(wts[covered_mask])) / max(float(np.sum(wts)), 1e-9)
+        effective_covered = covered_mask | relief_mask
+        coverage_pct = 100.0 * float(np.sum(wts[effective_covered])) / max(float(np.sum(wts)), 1e-9)
         if progress_cb:
             progress_cb(
                 f"Standard rescue: added {rescue_count} spacing-relaxed Standard site(s); "
                 f"coverage now {coverage_pct:.2f}%."
             )
+            last_heartbeat_at = time.time()
         if callable(milestone_cb):
             milestone_cb(
                 coverage_pct=coverage_pct,
-                covered_mask=np.array(covered_mask, copy=True),
+                covered_mask=np.array(effective_covered, copy=True),
                 current_min_d=np.array(current_min_d, copy=True),
                 rescue_count=rescue_count,
                 rescue_penalty_total=rescue_penalty_total,
@@ -6592,7 +8000,7 @@ def _strict_standard_base_params(params):
         )
     except (TypeError, ValueError):
         core_publish_pct = min(100.0, max(DEFAULT_MEETING_CORE_PUBLISH_COVERAGE_PCT, business_target_pct))
-    default_strict_base_target = min(98.5, max(95.0, core_publish_pct - 2.0))
+    default_strict_base_target = min(99.25, max(96.5, core_publish_pct - 0.25))
     try:
         strict_base_target = float(
             strict_params.get(
@@ -6604,10 +8012,11 @@ def _strict_standard_base_params(params):
         strict_base_target = default_strict_base_target
     strict_params['meeting_fast_target_coverage_pct'] = min(100.0, max(90.0, strict_base_target))
     try:
-        strict_gap_fill_cap = int(float(strict_params.get('strict_standard_base_gap_fill_cap', 20) or 20))
+        strict_gap_fill_cap = int(float(strict_params.get('strict_standard_base_gap_fill_cap', 40) or 40))
     except (TypeError, ValueError):
-        strict_gap_fill_cap = 20
+        strict_gap_fill_cap = 40
     strict_params['meeting_fast_max_standard_gap_fill_sites'] = max(10, strict_gap_fill_cap)
+    strict_params['bounded_standard_gap_fill'] = True
     strict_params['meeting_fast_allow_standard_gap_satellites'] = False
     strict_params['meeting_fast_skip_second_exception_pass'] = True
     strict_params['standard_exception_max_hubs'] = 0
@@ -6698,6 +8107,23 @@ def _business_target_coverage_pct(params):
     return min(100.0, max(90.0, target))
 
 
+def _required_decision_grade_coverage_pct(params):
+    params = params or {}
+    candidates = [float(DEFAULT_MEETING_CORE_PUBLISH_COVERAGE_PCT)]
+    for key in (
+        'business_target_coverage_pct',
+        'meeting_fast_target_coverage_pct',
+        'meeting_core_publish_coverage_pct',
+    ):
+        try:
+            value = float(params.get(key))
+        except (TypeError, ValueError):
+            continue
+        if math.isfinite(value):
+            candidates.append(value)
+    return min(100.0, max(candidates))
+
+
 def _actual_min_distances_to_standard_sites(scope_grid, fixed_sites, new_sites, params, cached_context=None, fixed_context=None):
     demand_count = len(scope_grid)
     if demand_count == 0:
@@ -6766,15 +8192,18 @@ def _run_standard_cost_frontier_pass(scope_grid, fixed_sites, new_sites, current
         for seed_idx in seed_candidates:
             seed_lat = float(clat[seed_idx])
             seed_lon = float(clon[seed_idx])
-            full_seed_mask = (
-                _distance_mask_from_cached_seed(cached_context, seed_lat, seed_lon, len(scope_grid), radius)
-                if cached_context is not None else None
-            )
-            if full_seed_mask is None:
+            cached_member_idx, _cached_member_dists = _cached_seed_sparse_hits(
+                cached_context,
+                seed_lat,
+                seed_lon,
+                demand_count=len(scope_grid),
+                radius_km=radius,
+            ) if cached_context is not None else (None, None)
+            if cached_member_idx is None:
                 d_seed = osrm_one_to_many(seed_lat, seed_lon, clat, clon)
                 member_idx = np.flatnonzero(np.isfinite(d_seed) & (d_seed <= radius + 1e-5))
             else:
-                member_idx = np.flatnonzero(full_seed_mask)
+                member_idx = cached_member_idx
             if len(member_idx) == 0:
                 member_idx = np.array([seed_idx], dtype=np.int64)
 
@@ -6783,24 +8212,49 @@ def _run_standard_cost_frontier_pass(scope_grid, fixed_sites, new_sites, current
             snap_pos = int(np.argmin((clat[member_idx] - center_lat) ** 2 + (clon[member_idx] - center_lon) ** 2))
             center_lat = float(clat[member_idx][snap_pos])
             center_lon = float(clon[member_idx][snap_pos])
-            cached_full = (
-                _distance_array_from_cached_seed(cached_context, center_lat, center_lon, len(scope_grid))
-                if cached_context is not None else None
-            )
-            d_full = cached_full if cached_full is not None else osrm_one_to_many(
-                center_lat, center_lon, scope_grid['avg_cust_lat'].values, scope_grid['avg_cust_lon'].values
-            )
-            cover_mask = np.isfinite(d_full) & (d_full <= radius + 1e-5)
+            cached_cover_idx, cached_cover_dists = _cached_seed_sparse_hits(
+                cached_context,
+                center_lat,
+                center_lon,
+                demand_count=len(scope_grid),
+                radius_km=radius,
+            ) if cached_context is not None else (None, None)
+            if cached_cover_idx is None:
+                d_full = osrm_one_to_many(
+                    center_lat, center_lon, scope_grid['avg_cust_lat'].values, scope_grid['avg_cust_lon'].values
+                )
+                cover_mask = np.isfinite(d_full) & (d_full <= radius + 1e-5)
+            else:
+                d_full = None
+                cover_mask = None
             if _violates_same_tier_spacing(center_lat, center_lon, fixed_sites + new_sites, rescue_spacing_km):
                 blocked_idx[int(seed_idx)] = True
                 continue
 
-            improve_mask = cover_mask & np.isfinite(actual_min_d) & (d_full + 1e-5 < actual_min_d)
-            if not np.any(improve_mask):
-                blocked_idx[int(seed_idx)] = True
-                continue
-
-            daily_cost_gain = float(np.sum((actual_min_d[improve_mask] - d_full[improve_mask]) * wts[improve_mask] * var_rate))
+            if cover_mask is not None:
+                improve_mask = cover_mask & np.isfinite(actual_min_d) & (d_full + 1e-5 < actual_min_d)
+                if not np.any(improve_mask):
+                    blocked_idx[int(seed_idx)] = True
+                    continue
+                improved_orders = float(np.sum(wts[improve_mask]))
+                daily_cost_gain = float(
+                    np.sum((actual_min_d[improve_mask] - d_full[improve_mask]) * wts[improve_mask] * var_rate)
+                )
+            else:
+                improve_local = np.isfinite(actual_min_d[cached_cover_idx]) & (
+                    cached_cover_dists + 1e-5 < actual_min_d[cached_cover_idx]
+                )
+                if not np.any(improve_local):
+                    blocked_idx[int(seed_idx)] = True
+                    continue
+                improved_orders = float(np.sum(wts[cached_cover_idx][improve_local]))
+                daily_cost_gain = float(
+                    np.sum(
+                        (actual_min_d[cached_cover_idx][improve_local] - cached_cover_dists[improve_local])
+                        * wts[cached_cover_idx][improve_local]
+                        * var_rate
+                    )
+                )
             net_gain = daily_cost_gain - rescue_penalty_per_day
             if net_gain <= min_daily_gain:
                 blocked_idx[int(seed_idx)] = True
@@ -6809,13 +8263,16 @@ def _run_standard_cost_frontier_pass(scope_grid, fixed_sites, new_sites, current
             candidate = (
                 net_gain,
                 daily_cost_gain,
-                float(np.sum(wts[improve_mask])),
+                improved_orders,
                 {
                     'lat': center_lat,
                     'lon': center_lon,
                     'd_full': d_full,
                     'cover_mask': cover_mask,
-                    'improve_mask': improve_mask,
+                    'cover_idx': cached_cover_idx,
+                    'cover_dists': cached_cover_dists,
+                    'improve_mask': improve_mask if cover_mask is not None else None,
+                    'improve_local': improve_local if cover_mask is None else None,
                     'daily_cost_gain': daily_cost_gain,
                     'net_gain': net_gain,
                 }
@@ -6827,14 +8284,28 @@ def _run_standard_cost_frontier_pass(scope_grid, fixed_sites, new_sites, current
             break
 
         chosen = best[3]
+        chosen_cover_mask = chosen.get('cover_mask')
+        chosen_d_full = chosen.get('d_full')
+        chosen_improve_mask = chosen.get('improve_mask')
+        if chosen_cover_mask is None or chosen_d_full is None:
+            chosen_cover_idx = np.asarray(chosen.get('cover_idx'), dtype=np.int64)
+            chosen_cover_mask = np.zeros(len(scope_grid), dtype=bool)
+            chosen_cover_mask[chosen_cover_idx] = True
+            chosen_d_full = _dense_distance_array_from_sparse_hits(
+                len(scope_grid),
+                chosen_cover_idx,
+                chosen.get('cover_dists'),
+            )
+            chosen_improve_mask = np.zeros(len(scope_grid), dtype=bool)
+            chosen_improve_mask[chosen_cover_idx] = np.asarray(chosen.get('improve_local'), dtype=bool)
         hub = {
             'id': f'NEW-STD-{len(new_sites) + 1}',
             'lat': chosen['lat'],
             'lon': chosen['lon'],
-            'orders_per_day': float(np.sum(wts[chosen['cover_mask']])),
+            'orders_per_day': float(np.sum(wts[chosen_cover_mask])),
             'radius_km': radius,
             'type': 'standard',
-            'cells': int(np.sum(chosen['cover_mask'])),
+            'cells': int(np.sum(chosen_cover_mask)),
             'selection': '15k-frontier-cost',
             'coverage_satellite': True,
             'gap_fill': False,
@@ -6842,14 +8313,14 @@ def _run_standard_cost_frontier_pass(scope_grid, fixed_sites, new_sites, current
             'cost_frontier_refine': True,
             'fixed_open': False,
             'planning_order': len(new_sites) + 1,
-            'marginal_covered_orders_per_day': round(float(np.sum(wts[chosen['improve_mask']])), 2),
+            'marginal_covered_orders_per_day': round(float(np.sum(wts[chosen_improve_mask])), 2),
             'marginal_modeled_daily_cost': round(chosen['net_gain'], 2),
             'rescue_spacing_km': rescue_spacing_km,
             'rescue_penalty_per_day': rescue_penalty_per_day,
             'daily_cost_reduction_estimate': round(chosen['daily_cost_gain'], 2),
         }
         new_sites.append(hub)
-        actual_min_d = np.minimum(actual_min_d, chosen['d_full'])
+        actual_min_d = np.minimum(actual_min_d, chosen_d_full)
         added_count += 1
         added_daily_gain += chosen['daily_cost_gain']
         if progress_cb:
@@ -6868,6 +8339,11 @@ def _complete_standard_branch_from_base(scope_grid, base_plan, params, branch_ty
     current_min_d = np.array(base_plan.get('min_distances_km', np.full(len(scope_grid), np.inf, dtype=np.float64)), copy=True)
     cached_context = base_plan.get('cached_demand_candidate_context')
     fixed_context = base_plan.get('cached_fixed_site_context')
+    rescue_relief_mask = np.asarray(
+        base_plan.get('provisional_fixed_super_relief_mask', np.zeros(len(scope_grid), dtype=bool)),
+        dtype=bool,
+    )
+    provisional_fixed_super_sites = _copy_site_records(base_plan.get('provisional_fixed_super_sites'))
     base_new_count = len(new_sites)
     exception_sites = []
     rescue_count = 0
@@ -6889,6 +8365,13 @@ def _complete_standard_branch_from_base(scope_grid, base_plan, params, branch_ty
         except (TypeError, ValueError):
             incumbent_coverage_pct = None
         incumbent_physical_count = len(incumbent_plan.get('all_sites') or [])
+    if progress_cb:
+        backbone_coverage_pct = 100.0 * float(np.sum(wts[covered])) / max(float(np.sum(wts)), 1e-9)
+        progress_cb(
+            f"{'Rescue-first' if branch_type == 'rescue_first' else 'Exception-first'} branch completion: "
+            f"starting from backbone [fixed {len(fixed_sites)}, new {len(new_sites)}, "
+            f"provisional Super relief {len(provisional_fixed_super_sites)}, coverage {backbone_coverage_pct:.2f}%]."
+        )
 
     def _partial_branch_plan(covered_snapshot, current_min_d_snapshot, rescue_count_snapshot, rescue_penalty_total_snapshot,
                              completion_mode='live_partial', stop_reason=''):
@@ -6901,6 +8384,7 @@ def _complete_standard_branch_from_base(scope_grid, base_plan, params, branch_ty
         new_sites_snapshot = _copy_site_records(new_sites)
         exception_sites_snapshot = _copy_site_records(exception_sites)
         all_sites_snapshot = fixed_sites_snapshot + new_sites_snapshot
+        role_counts_snapshot = _standard_site_role_counts(new_sites_snapshot)
         physical_count_at_100 = len(all_sites_snapshot) if not np.any(~covered_snapshot) else None
         frontier_max = _compact_standard_frontier_limit(physical_count_at_100, params=params)
         return {
@@ -6910,19 +8394,21 @@ def _complete_standard_branch_from_base(scope_grid, base_plan, params, branch_ty
             'all_sites': all_sites_snapshot,
             'cached_demand_candidate_context': cached_context,
             'cached_fixed_site_context': fixed_context,
+            'provisional_fixed_super_sites': _copy_site_records(provisional_fixed_super_sites),
+            'provisional_fixed_super_relief_mask': np.array(rescue_relief_mask, copy=True),
             'covered_mask': covered_snapshot,
             'min_distances_km': current_min_d_snapshot,
             'actual_min_distances_km': current_min_d_snapshot,
             'coverage_pct': round(coverage_pct, 2),
             'uncovered_orders_per_day': round(uncovered_orders, 2),
             'infeasible_under_cap': bool(np.any(~covered_snapshot)),
-            'gap_fill_count': gap_fill_count,
+            'gap_fill_count': int(role_counts_snapshot.get('gap_fill_count', 0) or 0),
             'exception_sites': exception_sites_snapshot,
             'exception_count': len(exception_sites_snapshot),
             'fixed_count': len(fixed_sites_snapshot),
             'new_count': len(new_sites_snapshot),
-            'base_new_count': base_new_count,
-            'rescue_count': int(rescue_count_snapshot or 0),
+            'base_new_count': int(role_counts_snapshot.get('base_new_count', 0) or 0),
+            'rescue_count': int(role_counts_snapshot.get('rescue_count', 0) or 0),
             'frontier_cost_refine_count': 0,
             'frontier_cost_refine_daily_gain': 0.0,
             'rescue_penalty_per_day_total': round(float(rescue_penalty_total_snapshot or 0.0), 2),
@@ -6979,7 +8465,20 @@ def _complete_standard_branch_from_base(scope_grid, base_plan, params, branch_ty
         rescue_count += int(rescue_added or 0)
         rescue_penalty_total += float(rescue_penalty or 0.0)
 
+    skip_rescue_before_finalize = False
     if branch_type == 'rescue_first':
+        skip_rescue_before_finalize = bool(params.get('meeting_fast_mode', True)) and bool(
+            params.get('meeting_fast_skip_rescue_before_finalize', False)
+        )
+        try:
+            rescue_publish_cap_pct = float(
+                params.get(
+                    'standard_rescue_handover_coverage_pct',
+                    params.get('meeting_fast_target_coverage_pct', branch_target_coverage_pct),
+                ) or branch_target_coverage_pct
+            )
+        except (TypeError, ValueError):
+            rescue_publish_cap_pct = branch_target_coverage_pct
         try:
             live_publish_threshold_pct = float(
                 params.get('meeting_core_publish_coverage_pct', params.get('meeting_fast_publish_coverage_pct', DEFAULT_MEETING_CORE_PUBLISH_COVERAGE_PCT)) or DEFAULT_MEETING_CORE_PUBLISH_COVERAGE_PCT
@@ -6988,17 +8487,20 @@ def _complete_standard_branch_from_base(scope_grid, base_plan, params, branch_ty
             live_publish_threshold_pct = DEFAULT_MEETING_CORE_PUBLISH_COVERAGE_PCT
         live_publish_threshold_pct = min(
             branch_target_coverage_pct,
+            max(95.0, rescue_publish_cap_pct),
             max(90.0, live_publish_threshold_pct),
         )
         live_publish_state = {'published': False}
+        stop_after_publish = bool(params.get('meeting_fast_mode', True)) and bool(
+            params.get('meeting_fast_stop_after_publish', True)
+        )
 
         def _rescue_milestone_cb(coverage_pct, covered_mask, current_min_d, rescue_count, rescue_penalty_total):
             if live_publish_state['published'] or not callable(live_publish_cb):
                 return
             if coverage_pct + 1e-9 < live_publish_threshold_pct:
                 return
-            live_publish_state['published'] = True
-            live_publish_cb(
+            published = live_publish_cb(
                 _partial_branch_plan(
                     covered_mask,
                     current_min_d,
@@ -7008,6 +8510,16 @@ def _complete_standard_branch_from_base(scope_grid, base_plan, params, branch_ty
                     stop_reason=f"Published once rescue-first crossed {live_publish_threshold_pct:.2f}% coverage.",
                 )
             )
+            if published:
+                live_publish_state['published'] = True
+
+        def _rescue_publish_stop_predicate(coverage_pct, rescue_count, fixed_sites, new_sites, exception_sites):
+            if stop_after_publish and live_publish_state['published']:
+                return (
+                    f"meeting handoff after publish "
+                    f"({coverage_pct:.2f}% >= {live_publish_threshold_pct:.2f}%)."
+                )
+            return None
 
         rescue_first_params = dict(params or {})
         try:
@@ -7026,38 +8538,83 @@ def _complete_standard_branch_from_base(scope_grid, base_plan, params, branch_ty
             rescue_handover_pct,
         )
 
-        original_params = params
-        params = rescue_first_params
-        _run_rescue("Rescue-first completion", milestone_cb=_rescue_milestone_cb)
-        params = original_params
-        _apply_exception("Rescue-first completion")
-        coverage_after_exception = 100.0 * float(np.sum(wts[covered])) / max(float(np.sum(wts)), 1e-9)
-        if np.any(~covered) and coverage_after_exception + 1e-9 < branch_target_coverage_pct:
-            final_rescue_params = dict(params or {})
-            final_rescue_params['meeting_fast_target_coverage_pct'] = branch_target_coverage_pct
-            original_params = params
-            params = final_rescue_params
-            _run_rescue("Rescue-first final completion")
-            params = original_params
-            if np.any(~covered):
-                _apply_exception("Rescue-first final completion")
-        if not live_publish_state['published'] and callable(live_publish_cb):
-            coverage_after_exception = 100.0 * float(np.sum(wts[covered])) / max(float(np.sum(wts)), 1e-9)
-            if coverage_after_exception >= live_publish_threshold_pct - 1e-9:
-                live_publish_state['published'] = True
-                live_publish_cb(
-                    _partial_branch_plan(
-                        covered,
-                        current_min_d,
-                        rescue_count,
-                        rescue_penalty_total,
-                        completion_mode='live_partial',
-                        stop_reason=(
-                            f"Published once rescue-first reached {coverage_after_exception:.2f}% "
-                            "coverage after Exception overrides."
-                        ),
-                    )
+        if skip_rescue_before_finalize:
+            branch_completion_mode = 'bounded_live'
+            branch_stop_reason = (
+                "meeting-fast deferred rescue until after multilayer finalize."
+            )
+            branch_comparison_ready = False
+        else:
+            if progress_cb:
+                coverage_pct = 100.0 * float(np.sum(wts[covered])) / max(float(np.sum(wts)), 1e-9)
+                progress_cb(
+                    f"Rescue-first completion: entering true-tail rescue search at {coverage_pct:.2f}% "
+                    f"with {len(provisional_fixed_super_sites)} provisional fixed-Super relief site(s) excluded from hard-coverage accounting."
                 )
+            original_params = params
+            params = rescue_first_params
+            _run_rescue(
+                "Rescue-first completion",
+                stop_predicate=_rescue_publish_stop_predicate if stop_after_publish else None,
+                milestone_cb=_rescue_milestone_cb,
+            )
+            params = original_params
+            if live_publish_state['published'] and stop_after_publish:
+                branch_completion_mode = 'bounded_live'
+                branch_stop_reason = (
+                    f"meeting handoff published at {live_publish_threshold_pct:.2f}% "
+                    "threshold; deferring extra rescue/Exception polishing."
+                )
+                branch_comparison_ready = False
+            else:
+                if progress_cb:
+                    coverage_after_rescue = 100.0 * float(np.sum(wts[covered])) / max(float(np.sum(wts)), 1e-9)
+                    progress_cb(
+                        f"Rescue-first completion: raw rescue search is at {coverage_after_rescue:.2f}% before exception cleanup. "
+                        "Now checking whether Exception and final rescue can lift decision-grade coverage."
+                    )
+                _apply_exception("Rescue-first completion")
+                coverage_after_exception = 100.0 * float(np.sum(wts[covered])) / max(float(np.sum(wts)), 1e-9)
+                if np.any(~covered) and coverage_after_exception + 1e-9 < branch_target_coverage_pct:
+                    if progress_cb:
+                        progress_cb(
+                            f"Rescue-first final completion: decision-grade branch still below target after Exception cleanup "
+                            f"({coverage_after_exception:.2f}% < {branch_target_coverage_pct:.2f}%). Running one deeper rescue pass..."
+                        )
+                    final_rescue_params = dict(params or {})
+                    final_rescue_params['meeting_fast_target_coverage_pct'] = branch_target_coverage_pct
+                    original_params = params
+                    params = final_rescue_params
+                    _run_rescue("Rescue-first final completion")
+                    params = original_params
+                    if np.any(~covered):
+                        _apply_exception("Rescue-first final completion")
+                if not live_publish_state['published'] and callable(live_publish_cb):
+                    coverage_after_exception = 100.0 * float(np.sum(wts[covered])) / max(float(np.sum(wts)), 1e-9)
+                    if coverage_after_exception >= live_publish_threshold_pct - 1e-9:
+                        published = live_publish_cb(
+                            _partial_branch_plan(
+                                covered,
+                                current_min_d,
+                                rescue_count,
+                                rescue_penalty_total,
+                                completion_mode='live_partial',
+                                stop_reason=(
+                                    f"Published once rescue-first reached {coverage_after_exception:.2f}% "
+                                    "coverage after Exception overrides."
+                                ),
+                            )
+                        )
+                        if published:
+                            live_publish_state['published'] = True
+                            if stop_after_publish:
+                                branch_completion_mode = 'bounded_live'
+                                branch_stop_reason = (
+                                    f"meeting handoff published at {coverage_after_exception:.2f}% "
+                                    "decision-grade coverage after Exception overrides; "
+                                    "deferring extra rescue/Exception polishing."
+                                )
+                                branch_comparison_ready = False
     else:
         exception_cfg = _exception_first_live_config(params, incumbent_plan=incumbent_plan)
         branch_budget_seconds = float(exception_cfg['budget_seconds'])
@@ -7132,6 +8689,27 @@ def _complete_standard_branch_from_base(scope_grid, base_plan, params, branch_ty
                 branch_completion_mode = 'bounded_live'
                 branch_stop_reason = str(stop_meta.get('stop_reason') or '')
 
+    if branch_type == 'rescue_first' and skip_rescue_before_finalize:
+        partial_plan = _partial_branch_plan(
+            covered,
+            current_min_d,
+            rescue_count,
+            rescue_penalty_total,
+            completion_mode=branch_completion_mode,
+            stop_reason=branch_stop_reason,
+        )
+        partial_plan['provisional_fixed_super_sites'] = provisional_fixed_super_sites
+        partial_plan['provisional_fixed_super_relief_mask'] = rescue_relief_mask
+        partial_plan['covered_mask'] = np.array(covered, copy=True)
+        partial_plan['actual_min_distances_km'] = np.array(current_min_d, copy=True)
+        partial_plan['branch_comparison_ready'] = False
+        return partial_plan
+
+    if progress_cb:
+        progress_cb(
+            f"{'Rescue-first' if branch_type == 'rescue_first' else 'Exception-first'} completion: "
+            "refreshing exact Standard distances for cleanup..."
+        )
     actual_min_d = _actual_min_distances_to_standard_sites(
         scope_grid,
         fixed_sites,
@@ -7187,6 +8765,11 @@ def _complete_standard_branch_from_base(scope_grid, base_plan, params, branch_ty
         rescue_count += int(frontier_added or 0)
         rescue_penalty_total += float(params.get('standard_rescue_open_penalty_per_day', 0.0) or 0.0) * int(frontier_added or 0)
 
+    if progress_cb:
+        progress_cb(
+            f"{'Rescue-first' if branch_type == 'rescue_first' else 'Exception-first'} cleanup: "
+            "pruning redundant Standard sites against the branch target..."
+        )
     pruned_new_sites, covered_after_prune, prune_summary = _prune_redundant_standard_sites(
         scope_grid,
         fixed_sites,
@@ -7194,6 +8777,7 @@ def _complete_standard_branch_from_base(scope_grid, base_plan, params, branch_ty
         exception_sites,
         params,
         cached_context=cached_context,
+        fixed_context=fixed_context,
         progress_cb=(lambda msg: progress_cb(f"{'Rescue-first' if branch_type == 'rescue_first' else 'Exception-first'} cleanup: {msg}") if progress_cb else None),
     )
     if prune_summary.get('removed_total', 0):
@@ -7208,6 +8792,11 @@ def _complete_standard_branch_from_base(scope_grid, base_plan, params, branch_ty
         rescue_count + frontier_added
     )
 
+    if progress_cb:
+        progress_cb(
+            f"{'Rescue-first' if branch_type == 'rescue_first' else 'Exception-first'} completion: "
+            "refreshing final Standard distances after cleanup..."
+        )
     actual_min_d = _actual_min_distances_to_standard_sites(
         scope_grid,
         fixed_sites,
@@ -7233,6 +8822,8 @@ def _complete_standard_branch_from_base(scope_grid, base_plan, params, branch_ty
         'all_sites': all_sites,
         'cached_demand_candidate_context': cached_context,
         'cached_fixed_site_context': fixed_context,
+        'provisional_fixed_super_sites': provisional_fixed_super_sites,
+        'provisional_fixed_super_relief_mask': rescue_relief_mask,
         'covered_mask': final_covered,
         'min_distances_km': current_min_d,
         'actual_min_distances_km': actual_min_d,
@@ -7249,6 +8840,8 @@ def _complete_standard_branch_from_base(scope_grid, base_plan, params, branch_ty
         'frontier_cost_refine_count': int(frontier_added or 0),
         'frontier_cost_refine_daily_gain': round(frontier_daily_gain, 2),
         'rescue_penalty_per_day_total': round(rescue_penalty_total, 2),
+        'fixed_super_relief_count': int(len(provisional_fixed_super_sites)),
+        'fixed_super_relief_orders_per_day': round(float(np.sum(wts[rescue_relief_mask])) if len(rescue_relief_mask) == len(wts) else 0.0, 2),
         'max_new_standard_stores': base_plan.get('max_new_standard_stores'),
         'exact_total_standard_stores': base_plan.get('exact_total_standard_stores'),
         'min_physical_standard_count_for_100': physical_count_at_target,
@@ -7300,6 +8893,7 @@ def _plan_standard_network(scope_grid, params, progress_cb=None):
     planner_params = dict(params or {})
     planner_params['_existing_standard_spacing_hubs'] = list(fixed_sites)
     meeting_fast_mode = bool(planner_params.get('meeting_fast_mode', False))
+    bounded_gap_fill_mode = bool(planner_params.get('bounded_standard_gap_fill', False))
     try:
         meeting_target_coverage_pct = float(
             planner_params.get('meeting_fast_target_coverage_pct', _business_target_coverage_pct(planner_params)) or _business_target_coverage_pct(planner_params)
@@ -7313,6 +8907,10 @@ def _plan_standard_network(scope_grid, params, progress_cb=None):
         meeting_gap_fill_cap = 40
     meeting_gap_fill_cap = max(0, meeting_gap_fill_cap)
     allow_gap_satellites = bool(planner_params.get('meeting_fast_allow_standard_gap_satellites', False))
+    business_regions = list(planner_params.get('_business_regions') or state.business_regions or [])
+    gap_fill_seed_top_k = max(1, int(float(planner_params.get('standard_gap_fill_seed_top_k', 6) or 6)))
+    rescue_edge_penalty_weight = float(planner_params.get('standard_rescue_edge_penalty_weight', 140.0) or 140.0)
+    gap_fill_edge_penalty_weight = float(planner_params.get('standard_gap_fill_edge_penalty_weight', rescue_edge_penalty_weight) or rescue_edge_penalty_weight)
     if cached_context is not None:
         planner_params['_cached_demand_candidate_context'] = cached_context
     fixed_context = None
@@ -7456,7 +9054,7 @@ def _plan_standard_network(scope_grid, params, progress_cb=None):
     gap_fill_count = 0
     blocked_gap_idx = np.zeros(len(scope_grid), dtype=bool)
     while np.any(~covered) and len(new_sites) < max_new:
-        if meeting_fast_mode:
+        if meeting_fast_mode or bounded_gap_fill_mode:
             coverage_pct = 100.0 * float(np.sum(wts[covered])) / max(float(np.sum(wts)), 1e-9)
             if coverage_pct >= meeting_target_coverage_pct - 1e-9:
                 if progress_cb:
@@ -7475,76 +9073,173 @@ def _plan_standard_network(scope_grid, params, progress_cb=None):
         uncovered_idx = np.where((~covered) & (~blocked_gap_idx))[0]
         if len(uncovered_idx) == 0:
             break
-        seed_idx = int(uncovered_idx[np.argmax(wts[uncovered_idx])])
-        seed_lat = float(clat[seed_idx])
-        seed_lon = float(clon[seed_idx])
-        full_seed_mask = _distance_mask_from_cached_seed(cached_context, seed_lat, seed_lon, len(scope_grid), radius) if cached_context is not None else None
-        if full_seed_mask is None:
-            d_seed = osrm_one_to_many(seed_lat, seed_lon, clat[uncovered_idx], clon[uncovered_idx])
-            local_mask = np.isfinite(d_seed) & (d_seed <= radius + 1e-5)
-            member_idx = uncovered_idx[local_mask]
-        else:
-            member_idx = uncovered_idx[full_seed_mask[uncovered_idx]]
-        if len(member_idx) == 0:
-            member_idx = np.array([seed_idx], dtype=np.int64)
-        member_orders = float(np.sum(wts[member_idx]))
-        center_lat = float(np.average(clat[member_idx], weights=wts[member_idx]))
-        center_lon = float(np.average(clon[member_idx], weights=wts[member_idx]))
-        if cached_context is not None and len(member_idx) > 0:
-            snap_pos = int(np.argmin((clat[member_idx] - center_lat) ** 2 + (clon[member_idx] - center_lon) ** 2))
-            center_lat = float(clat[member_idx][snap_pos])
-            center_lon = float(clon[member_idx][snap_pos])
-        cached_full = _distance_array_from_cached_seed(cached_context, center_lat, center_lon, len(scope_grid)) if cached_context is not None else None
-        d_full = cached_full if cached_full is not None else osrm_one_to_many(
-            center_lat, center_lon, scope_grid['avg_cust_lat'].values, scope_grid['avg_cust_lon'].values
-        )
-        cover_mask = np.isfinite(d_full) & (d_full <= radius + 1e-5)
-        catchment_orders = float(np.sum(wts[cover_mask]))
-        coverage_satellite = not (min_orders <= catchment_orders <= max_orders)
-        if _violates_same_tier_spacing(center_lat, center_lon, fixed_sites + new_sites, spacing_km):
-            alt_cached = _distance_array_from_cached_seed(cached_context, seed_lat, seed_lon, len(scope_grid)) if cached_context is not None else None
-            alt_full = alt_cached if alt_cached is not None else osrm_one_to_many(
-                seed_lat, seed_lon, scope_grid['avg_cust_lat'].values, scope_grid['avg_cust_lon'].values
-            )
-            alt_cover_mask = np.isfinite(alt_full) & (alt_full <= radius + 1e-5)
-            if _violates_same_tier_spacing(seed_lat, seed_lon, fixed_sites + new_sites, spacing_km):
-                blocked_gap_idx[member_idx] = True
-                continue
-            center_lat = seed_lat
-            center_lon = seed_lon
-            d_full = alt_full
-            cover_mask = alt_cover_mask
-            catchment_orders = float(np.sum(wts[cover_mask]))
+        ranked_gap = np.argsort(wts[uncovered_idx])[::-1][:gap_fill_seed_top_k]
+        seed_candidates = uncovered_idx[ranked_gap]
+        best_gap_candidate = None
+        blocked_members = []
+        for seed_idx in seed_candidates:
+            seed_lat = float(clat[seed_idx])
+            seed_lon = float(clon[seed_idx])
+            cached_member_idx, _cached_member_dists = _cached_seed_sparse_hits(
+                cached_context,
+                seed_lat,
+                seed_lon,
+                demand_count=len(scope_grid),
+                radius_km=radius,
+                allowed_idx=uncovered_idx,
+            ) if cached_context is not None else (None, None)
+            if cached_member_idx is None:
+                d_seed = osrm_one_to_many(seed_lat, seed_lon, clat[uncovered_idx], clon[uncovered_idx])
+                local_mask = np.isfinite(d_seed) & (d_seed <= radius + 1e-5)
+                member_idx = uncovered_idx[local_mask]
+            else:
+                member_idx = cached_member_idx
+            if len(member_idx) == 0:
+                member_idx = np.array([seed_idx], dtype=np.int64)
+            blocked_members.append(member_idx)
+            center_lat = float(np.average(clat[member_idx], weights=wts[member_idx]))
+            center_lon = float(np.average(clon[member_idx], weights=wts[member_idx]))
+            if cached_context is not None and len(member_idx) > 0:
+                center_lat, center_lon = _snap_gap_fill_center_to_cached_member(
+                    cached_context,
+                    member_idx,
+                    clat,
+                    clon,
+                    center_lat,
+                    center_lon,
+                    fallback_idx=seed_idx,
+                )
+            cached_cover_idx, cached_cover_dists = _cached_seed_sparse_hits(
+                cached_context,
+                center_lat,
+                center_lon,
+                demand_count=len(scope_grid),
+                radius_km=radius,
+            ) if cached_context is not None else (None, None)
+            if cached_cover_idx is None:
+                d_full = osrm_one_to_many(
+                    center_lat, center_lon, scope_grid['avg_cust_lat'].values, scope_grid['avg_cust_lon'].values
+                )
+                cover_mask = np.isfinite(d_full) & (d_full <= radius + 1e-5)
+                catchment_orders = float(np.sum(wts[cover_mask]))
+            else:
+                d_full = None
+                cover_mask = None
+                catchment_orders = float(np.sum(wts[cached_cover_idx]))
             coverage_satellite = not (min_orders <= catchment_orders <= max_orders)
-        marginal_new_orders = float(np.sum(wts[cover_mask & ~covered]))
-        if marginal_new_orders <= 1e-6:
-            blocked_gap_idx[member_idx] = True
+            if _violates_same_tier_spacing(center_lat, center_lon, fixed_sites + new_sites, spacing_km):
+                alt_cover_idx, alt_cover_dists = _cached_seed_sparse_hits(
+                    cached_context,
+                    seed_lat,
+                    seed_lon,
+                    demand_count=len(scope_grid),
+                    radius_km=radius,
+                ) if cached_context is not None else (None, None)
+                if alt_cover_idx is None:
+                    alt_full = osrm_one_to_many(
+                        seed_lat, seed_lon, scope_grid['avg_cust_lat'].values, scope_grid['avg_cust_lon'].values
+                    )
+                    alt_cover_mask = np.isfinite(alt_full) & (alt_full <= radius + 1e-5)
+                else:
+                    alt_full = None
+                    alt_cover_mask = None
+                if _violates_same_tier_spacing(seed_lat, seed_lon, fixed_sites + new_sites, spacing_km):
+                    continue
+                center_lat = seed_lat
+                center_lon = seed_lon
+                d_full = alt_full
+                cover_mask = alt_cover_mask
+                cached_cover_idx = alt_cover_idx
+                cached_cover_dists = alt_cover_dists
+                catchment_orders = (
+                    float(np.sum(wts[cover_mask]))
+                    if cover_mask is not None else
+                    float(np.sum(wts[cached_cover_idx]))
+                )
+                coverage_satellite = not (min_orders <= catchment_orders <= max_orders)
+            if cover_mask is not None:
+                marginal_new_orders = float(np.sum(wts[cover_mask & ~covered]))
+                modeled_daily_cost = float(np.sum(
+                    (float(params.get('standard_base_cost', 29)) + float(params.get('standard_variable_rate', 9)) * d_full[cover_mask & ~covered])
+                    * wts[cover_mask & ~covered]
+                ))
+            else:
+                marginal_local = ~covered[cached_cover_idx]
+                marginal_new_orders = float(np.sum(wts[cached_cover_idx][marginal_local]))
+                modeled_daily_cost = float(np.sum(
+                    (float(params.get('standard_base_cost', 29)) + float(params.get('standard_variable_rate', 9)) * cached_cover_dists[marginal_local])
+                    * wts[cached_cover_idx][marginal_local]
+                ))
+            if marginal_new_orders <= 1e-6:
+                continue
+            if (meeting_fast_mode or bounded_gap_fill_mode) and coverage_satellite and not allow_gap_satellites:
+                continue
+            edge_penalty, boundary_clearance_km = _setback_adjusted_edge_penalty(
+                center_lat,
+                center_lon,
+                radius,
+                business_regions,
+                min_clearance_km=_tier_boundary_setback_km(params, 'standard', 'gap_fill'),
+            )
+            candidate = (
+                marginal_new_orders - gap_fill_edge_penalty_weight * edge_penalty,
+                marginal_new_orders,
+                -edge_penalty,
+                boundary_clearance_km,
+                -catchment_orders,
+                {
+                    'center_lat': center_lat,
+                    'center_lon': center_lon,
+                    'd_full': d_full,
+                    'cover_mask': cover_mask,
+                    'cover_idx': cached_cover_idx,
+                    'cover_dists': cached_cover_dists,
+                    'catchment_orders': catchment_orders,
+                    'coverage_satellite': coverage_satellite,
+                    'marginal_new_orders': marginal_new_orders,
+                    'edge_penalty': edge_penalty,
+                    'boundary_clearance_km': boundary_clearance_km,
+                    'modeled_daily_cost': modeled_daily_cost,
+                },
+            )
+            if best_gap_candidate is None or candidate[:5] > best_gap_candidate[:5]:
+                best_gap_candidate = candidate
+        if best_gap_candidate is None:
+            for member_idx in blocked_members:
+                blocked_gap_idx[member_idx] = True
             continue
-        if meeting_fast_mode and coverage_satellite and not allow_gap_satellites:
-            blocked_gap_idx[member_idx] = True
-            continue
+        chosen = best_gap_candidate[5]
+        chosen_cover_mask = chosen.get('cover_mask')
+        chosen_d_full = chosen.get('d_full')
+        if chosen_cover_mask is None or chosen_d_full is None:
+            chosen_cover_idx = chosen.get('cover_idx')
+            if chosen_cover_idx is None:
+                chosen_cover_idx = np.empty(0, dtype=np.int64)
+            chosen_cover_idx = np.asarray(chosen_cover_idx, dtype=np.int64)
+            chosen_cover_mask = np.zeros(len(scope_grid), dtype=bool)
+            chosen_cover_mask[chosen_cover_idx] = True
+            chosen_d_full = _dense_distance_array_from_sparse_hits(len(scope_grid), chosen_cover_idx, chosen.get('cover_dists'))
         hub = {
             'id': f'NEW-STD-{len(new_sites) + 1}',
-            'lat': center_lat,
-            'lon': center_lon,
-            'orders_per_day': catchment_orders,
+            'lat': chosen['center_lat'],
+            'lon': chosen['center_lon'],
+            'orders_per_day': chosen['catchment_orders'],
             'radius_km': radius,
             'type': 'standard',
-            'cells': int(np.sum(cover_mask)),
+            'cells': int(np.sum(chosen_cover_mask)),
             'selection': '15k-gapfill',
-            'coverage_satellite': coverage_satellite,
+            'coverage_satellite': chosen['coverage_satellite'],
             'gap_fill': True,
             'fixed_open': False,
             'planning_order': len(new_sites) + 1,
-            'marginal_covered_orders_per_day': round(marginal_new_orders, 2),
-            'marginal_modeled_daily_cost': round(float(np.sum(
-                (float(params.get('standard_base_cost', 29)) + float(params.get('standard_variable_rate', 9)) * d_full[cover_mask & ~covered])
-                * wts[cover_mask & ~covered]
-            )), 2),
+            'marginal_covered_orders_per_day': round(chosen['marginal_new_orders'], 2),
+            'marginal_modeled_daily_cost': round(float(chosen.get('modeled_daily_cost', 0.0) or 0.0), 2),
+            'edge_penalty': round(float(chosen['edge_penalty']), 3),
+            'boundary_clearance_km': round(float(chosen['boundary_clearance_km']), 3),
         }
         new_sites.append(hub)
-        current_min_d = np.minimum(current_min_d, d_full)
-        covered |= np.isfinite(d_full) & (d_full <= radius + 1e-5)
+        current_min_d = np.minimum(current_min_d, chosen_d_full)
+        covered |= chosen_cover_mask
         gap_fill_count += 1
         if progress_cb and gap_fill_count % 5 == 0:
             progress_cb(f"Standard gap fill: added {gap_fill_count} additional Standard site(s)...")
@@ -7568,17 +9263,26 @@ def _plan_standard_network(scope_grid, params, progress_cb=None):
                 exception_sites.append(site)
                 seen_exception_ids.add(str(site.get('id')))
 
-    covered, current_min_d, rescue_count, rescue_penalty_total = _run_standard_rescue_pass(
-        scope_grid,
-        covered,
-        current_min_d,
-        fixed_sites,
-        new_sites,
-        exception_sites,
-        planner_params,
-        cached_context=cached_context,
-        progress_cb=progress_cb,
-    )
+    if meeting_fast_mode and bool(planner_params.get('meeting_fast_skip_base_rescue', True)):
+        rescue_count = 0
+        rescue_penalty_total = 0.0
+        if progress_cb:
+            progress_cb(
+                "Meeting fast mode: skipping base-plan rescue; rescue is deferred to branch completion "
+                f"after backbone summary [{_standard_plan_progress_summary({'fixed_count': fixed_count, 'new_sites': new_sites, 'exception_sites': exception_sites, 'coverage_pct': 100.0 * float(np.sum(wts[covered])) / max(float(np.sum(wts)), 1e-9)})}]."
+            )
+    else:
+        covered, current_min_d, rescue_count, rescue_penalty_total = _run_standard_rescue_pass(
+            scope_grid,
+            covered,
+            current_min_d,
+            fixed_sites,
+            new_sites,
+            exception_sites,
+            planner_params,
+            cached_context=cached_context,
+            progress_cb=progress_cb,
+        )
     all_sites = fixed_sites + new_sites
     uncovered_orders = float(np.sum(wts[~covered]))
     coverage_pct = 100.0 * float(np.sum(wts[covered])) / max(float(np.sum(wts)), 1e-9)
@@ -7615,10 +9319,16 @@ def _plan_mini_overlay(scope_grid, params, progress_cb=None):
     for i, hub in enumerate(mini_sites, start=1):
         hub.setdefault('id', f'MINI-{i}')
         hub['overlay_layer'] = True
+        hub['site_role'] = 'mini_dense_cluster'
+        hub['site_role_family'] = 'mini'
+        hub['selection_provenance'] = 'mini_overlay'
+        hub['site_semantics'] = 'true_physical_mini'
+        hub['physical_site_status'] = 'new_physical_site'
     return mini_sites
 
 
-def _meeting_branch_eval_from_cached_distances(scope_grid, branch_plan, mini_sites, eval_params, params):
+def _meeting_branch_eval_from_cached_distances(scope_grid, branch_plan, mini_sites, eval_params, params, super_sites=None,
+                                               progress_label=None, progress_cb=None):
     weights = scope_grid['orders_per_day'].values.astype(np.float64)
     total_orders_per_day = float(np.sum(weights))
     n = len(scope_grid)
@@ -7630,16 +9340,26 @@ def _meeting_branch_eval_from_cached_distances(scope_grid, branch_plan, mini_sit
     current_avg_cost = float(current_baseline['current_avg_cost'])
     current_avg_dist = float(current_baseline['current_avg_dist'])
     current_policy = current_baseline['current_policy']
-
     mini_sites = list(mini_sites or [])
     standard_sites = list(branch_plan.get('all_sites') or [])
+    super_sites = list(super_sites or [])
+    decision_grade_super_sites = _decision_grade_super_sites(super_sites)
+    policy_params = dict(params or {})
+    policy_params['overlay_super_counts_as_hard_coverage'] = bool(decision_grade_super_sites)
+    if isinstance(eval_params, dict) and 'mini_counts_as_hard_coverage' in eval_params:
+        policy_params['mini_counts_as_hard_coverage'] = bool(
+            eval_params.get('mini_counts_as_hard_coverage')
+        )
     rmini = float(params.get('mini_ds_radius', 1.0) or 1.0)
     rstd = float(params.get('standard_ds_radius', 3.0) or 3.0)
     rstd_exception = float(params.get('standard_exception_radius_km', rstd) or rstd)
+    rsup = float(params.get('super_radius_km', params.get('super_ds_radius', DEFAULT_SUPER_RADIUS_KM)) or DEFAULT_SUPER_RADIUS_KM)
     mb = float(params.get('mini_base_cost', 20) or 20)
     mvar = float(params.get('mini_variable_rate', 6) or 6)
     sb = float(params.get('standard_base_cost', 29) or 29)
     svar = float(params.get('standard_variable_rate', 9) or 9)
+    pbb = _effective_super_base_cost(params)
+    pvar = float(params.get('super_variable_rate', 9) or 9)
     explicit_exception_sites = list(branch_plan.get('exception_sites') or [])
     explicit_exception_site_ids = {
         str(site.get('id'))
@@ -7664,30 +9384,55 @@ def _meeting_branch_eval_from_cached_distances(scope_grid, branch_plan, mini_sit
         else:
             base_standard_hubs.append(site)
 
+    branch_actual_min_d = np.asarray(
+        branch_plan.get('actual_min_distances_km', branch_plan.get('min_distances_km', np.full(n, np.inf, dtype=np.float64))),
+        dtype=np.float64,
+    ) if len(branch_plan.get('all_sites') or []) else np.full(n, np.inf, dtype=np.float64)
+
+    if progress_cb and progress_label:
+        progress_cb(f"{progress_label}: scoring cached tier distances...")
+
     d_mini = _cached_min_distances_for_hubs(
         scope_grid,
         mini_sites,
         eval_params,
         rmini,
         'mini',
-        progress_cb=None,
+        progress_cb=(lambda msg: progress_cb(f"{progress_label}: Mini cache {msg}") if progress_cb and progress_label else None),
     ) if mini_sites else np.full(n, np.inf, dtype=np.float64)
-    d_std = _cached_min_distances_for_hubs(
+    can_reuse_branch_standard = (
+        bool(params.get('meeting_fast_mode', True)) and
+        len(branch_actual_min_d) == n and
+        not exception_standard_hubs
+    )
+    if can_reuse_branch_standard:
+        d_std = np.where(np.isfinite(branch_actual_min_d) & (branch_actual_min_d <= rstd + 1e-5), branch_actual_min_d, np.inf)
+        d_std_exception = np.full(n, np.inf, dtype=np.float64)
+    else:
+        d_std = _cached_min_distances_for_hubs(
+            scope_grid,
+            base_standard_hubs,
+            eval_params,
+            rstd,
+            'standard_base',
+            progress_cb=(lambda msg: progress_cb(f"{progress_label}: Standard cache {msg}") if progress_cb and progress_label else None),
+        ) if base_standard_hubs else np.full(n, np.inf, dtype=np.float64)
+        d_std_exception = _cached_min_distances_for_hubs(
+            scope_grid,
+            exception_standard_hubs,
+            eval_params,
+            rstd_exception,
+            'standard_exception',
+            progress_cb=(lambda msg: progress_cb(f"{progress_label}: Exception cache {msg}") if progress_cb and progress_label else None),
+        ) if exception_standard_hubs else np.full(n, np.inf, dtype=np.float64)
+    d_sup = _cached_min_distances_for_hubs(
         scope_grid,
-        base_standard_hubs,
+        decision_grade_super_sites,
         eval_params,
-        rstd,
-        'standard_base',
-        progress_cb=None,
-    ) if base_standard_hubs else np.full(n, np.inf, dtype=np.float64)
-    d_std_exception = _cached_min_distances_for_hubs(
-        scope_grid,
-        exception_standard_hubs,
-        eval_params,
-        rstd_exception,
-        'standard_exception',
-        progress_cb=None,
-    ) if exception_standard_hubs else np.full(n, np.inf, dtype=np.float64)
+        rsup,
+        'super',
+        progress_cb=(lambda msg: progress_cb(f"{progress_label}: Super cache {msg}") if progress_cb and progress_label else None),
+    ) if decision_grade_super_sites else np.full(n, np.inf, dtype=np.float64)
 
     def _score_network(include_mini):
         proposed_dists = np.full(n, np.nan, dtype=np.float64)
@@ -7708,6 +9453,9 @@ def _meeting_branch_eval_from_cached_distances(scope_grid, branch_plan, mini_sit
         served_std = (~served_mini) & np.isfinite(chosen_std_dist)
         proposed_dists[served_std] = chosen_std_dist[served_std]
         proposed_costs[served_std] = sb + svar * chosen_std_dist[served_std]
+        served_sup = (~served_mini) & (~served_std) & np.isfinite(d_sup) & (d_sup <= rsup + 1e-5)
+        proposed_dists[served_sup] = d_sup[served_sup]
+        proposed_costs[served_sup] = pbb + pvar * d_sup[served_sup]
 
         proposed_policy = _summarize_proposed_policy(
             weights,
@@ -7716,15 +9464,16 @@ def _meeting_branch_eval_from_cached_distances(scope_grid, branch_plan, mini_sit
             d_mini if include_mini else np.full(n, np.inf, dtype=np.float64),
             d_std,
             d_std_exception,
-            np.full(n, np.inf, dtype=np.float64),
+            d_sup,
             mini_sites if include_mini else [],
             standard_sites,
-            [],
-            params,
+            decision_grade_super_sites,
+            policy_params,
         )
         served = proposed_policy['hard_served_mask']
+        operational_served = proposed_policy.get('operational_served_mask', served)
         hybrid_mask = served | proposed_policy['exception_bucket_usage'].get('selected_mask', np.zeros(n, dtype=bool))
-        modeled_cost = _modeled_cost_summary(weights, proposed_costs, params, 0)
+        modeled_cost = _modeled_cost_summary(weights, proposed_costs, params, len(decision_grade_super_sites))
         addressable = _addressable_coverage_metrics(
             weights,
             served,
@@ -7734,13 +9483,13 @@ def _meeting_branch_eval_from_cached_distances(scope_grid, branch_plan, mini_sit
         )
         proposed_avg_dist = None
         proposed_mean_dist_unweighted = None
-        if np.any(served):
-            proposed_avg_dist = float(np.average(proposed_dists[served], weights=weights[served]))
+        if np.any(operational_served):
+            proposed_avg_dist = float(np.average(proposed_dists[operational_served], weights=weights[operational_served]))
             proposed_mean_dist_unweighted = float(np.nanmean(proposed_dists))
         proposed_avg_cost = float(np.average(proposed_costs, weights=weights))
         daily_savings = (current_avg_cost - proposed_avg_cost) * total_orders_per_day
         pct_order_weight_outside_tier_radii = round(
-            float(100.0 * np.sum(weights[~served]) / max(total_orders_per_day, 1e-9)),
+            float(100.0 * np.sum(weights[~operational_served]) / max(total_orders_per_day, 1e-9)),
             2,
         )
         result = {
@@ -7750,8 +9499,9 @@ def _meeting_branch_eval_from_cached_distances(scope_grid, branch_plan, mini_sit
             'current_avg_cost': round(current_avg_cost, 2),
             'proposed_avg_cost': round(proposed_avg_cost, 2),
             'avg_modeled_cost_per_order': round(modeled_cost['avg_modeled_cost_per_order'], 2),
-            'super_penalty_cost_per_day': 0.0,
+            'super_penalty_cost_per_day': round(modeled_cost['super_penalty_cost_per_day'], 2),
             'exception_standard_hub_count': len(exception_standard_hubs),
+            'super_site_count': len(decision_grade_super_sites),
             'current_operational_coverage_pct': current_policy['current_operational_coverage_pct'],
             'current_policy_coverage_pct': current_policy['current_policy_coverage_pct'],
             'proposed_hard_coverage_pct': proposed_policy['proposed_hard_coverage_pct'],
@@ -7785,10 +9535,30 @@ def _meeting_branch_eval_from_cached_distances(scope_grid, branch_plan, mini_sit
             ),
         }
         return result, {
+            'weights': weights,
+            'current_costs': current_costs,
+            'current_avg_cost': current_avg_cost,
+            'current_avg_dist': current_avg_dist,
+            'current_policy': current_policy,
             'served_mini': served_mini,
             'served_std': served_std,
+            'served_sup': served_sup,
+            'hard_served_mask': served,
+            'exception_bucket_usage': proposed_policy['exception_bucket_usage'],
+            'd_mini': d_mini,
+            'd_std': d_std,
+            'd_std_exception': d_std_exception,
+            'd_sup': d_sup,
             'proposed_dists': proposed_dists,
             'proposed_costs': proposed_costs,
+            'rmini': rmini,
+            'rstd': rstd,
+            'rstd_exception': rstd_exception,
+            'rsup': rsup,
+            'exception_standard_hub_count': len(exception_standard_hubs),
+            'has_mini': bool(mini_sites),
+            'has_standard': bool(standard_sites),
+            'has_super': bool(decision_grade_super_sites),
         }
 
     standard_only_metrics, standard_debug = _score_network(include_mini=False)
@@ -7801,6 +9571,12 @@ def _meeting_branch_eval_from_cached_distances(scope_grid, branch_plan, mini_sit
         'avg_cost_reduction_per_order': round(avg_delta, 2),
         'daily_cost_reduction': round(avg_delta * total_orders_per_day, 2),
     }
+    if progress_cb and progress_label:
+        progress_cb(
+            f"{progress_label}: scored hard coverage {combined_metrics.get('proposed_hard_coverage_pct', 0.0):.2f}% "
+            f"with {len(decision_grade_super_sites)} decision-grade Super site(s)."
+        )
+
     return {
         'combined_metrics': combined_metrics,
         'combined_debug': combined_debug,
@@ -7809,21 +9585,33 @@ def _meeting_branch_eval_from_cached_distances(scope_grid, branch_plan, mini_sit
     }
 
 
-def _evaluate_meeting_standard_branch(scope_grid, baseline_stores, branch_plan, mini_sites, eval_params, params, progress_label, progress_cb=None):
-    if bool((params or {}).get('meeting_fast_mode', True)):
+def _evaluate_meeting_standard_branch(scope_grid, baseline_stores, branch_plan, mini_sites, eval_params, params, progress_label, progress_cb=None, super_sites=None):
+    eval_params = eval_params or {}
+    can_use_cached_branch_eval = (
+        bool((params or {}).get('meeting_fast_mode', True))
+        or (
+            bool((params or {}).get('reuse_tier_edge_cache', True))
+            and isinstance(eval_params, dict)
+            and eval_params.get('_precomputed_current_baseline') is not None
+        )
+    )
+    if can_use_cached_branch_eval:
         return _meeting_branch_eval_from_cached_distances(
             scope_grid,
             branch_plan,
             mini_sites,
             eval_params,
             params,
+            super_sites=super_sites,
+            progress_label=progress_label,
+            progress_cb=progress_cb,
         )
     combined_eval = evaluate_network(
         scope_grid,
         baseline_stores,
         list(mini_sites or []),
         list(branch_plan.get('all_sites') or []),
-        [],
+        list(super_sites or []),
         eval_params,
         progress_cb=(lambda msg: progress_cb(f"{progress_label}: {msg}") if progress_cb else None),
         return_debug=True,
@@ -7845,12 +9633,50 @@ def _evaluate_meeting_standard_branch(scope_grid, baseline_stores, branch_plan, 
     }
 
 
+def _meeting_super_count_semantics(total_physical_standard_count, mini_sites, super_sites):
+    reused_existing = 0
+    reused_new = 0
+    overlay_support_count = 0
+    true_super_count = 0
+    for site in (super_sites or []):
+        counts_as_true_super = bool(site.get('counts_as_true_super', True))
+        site_semantics = str(site.get('site_semantics') or '').strip().lower()
+        if site_semantics == 'overlay_support' or not counts_as_true_super:
+            overlay_support_count += 1
+            continue
+        site_source = str(site.get('site_source') or '').strip().lower()
+        if site_source == 'existing_standard' or bool(site.get('fixed_open')) or bool(site.get('promoted_from_fixed')):
+            reused_existing += 1
+        elif site_source == 'proposed_standard' or bool(site.get('reused_on_standard_site')):
+            reused_new += 1
+        true_super_count += 1
+    reused_total = reused_existing + reused_new
+    super_total = int(true_super_count)
+    new_super_physical = max(0, super_total - reused_total)
+    return {
+        'super_count': super_total,
+        'overlay_super_count': int(overlay_support_count),
+        'reused_super_on_standard_count': int(reused_total),
+        'reused_existing_standard_super_count': int(reused_existing),
+        'reused_new_standard_super_count': int(reused_new),
+        'new_physical_super_count': int(new_super_physical),
+        'total_unique_physical_store_count': int(total_physical_standard_count + len(mini_sites or []) + new_super_physical),
+    }
+
+
 def _build_meeting_scenario_view(view_key, label, branch_plan, metrics, params, mini_sites=None,
-                                 mini_summary=None, candidate_universe_label=None, spacing_mode_label='strict'):
+                                 mini_summary=None, super_sites=None, candidate_universe_label=None, spacing_mode_label='strict'):
     mini_sites = list(mini_sites or [])
+    super_sites = list(super_sites or [])
     mini_summary = dict(mini_summary or {})
     branch_type = branch_plan.get('branch_type', 'strict_base')
     fixed_sites = _copy_site_records(branch_plan.get('fixed_sites'))
+    for site in fixed_sites:
+        site.setdefault('site_role', 'fixed_standard')
+        site.setdefault('site_role_family', 'standard')
+        site.setdefault('selection_provenance', 'fixed_store_world')
+        site.setdefault('site_semantics', 'fixed_physical_standard')
+        site.setdefault('physical_site_status', 'fixed_existing_site')
     new_sites = _copy_site_records(branch_plan.get('new_sites'))
     exception_sites = _copy_site_records(branch_plan.get('exception_sites'))
     standard_sites = list(branch_plan.get('all_sites') or [])
@@ -7878,6 +9704,11 @@ def _build_meeting_scenario_view(view_key, label, branch_plan, metrics, params, 
             base_new_sites.append(dict(site))
         annotated_site = dict(site)
         annotated_site['standard_role'] = role
+        annotated_site['site_role'] = role
+        annotated_site['site_role_family'] = 'standard'
+        annotated_site['selection_provenance'] = 'branch_completion'
+        annotated_site['site_semantics'] = 'new_physical_standard'
+        annotated_site['physical_site_status'] = 'new_physical_site'
         annotated_site['is_standard_base_new'] = role == 'base_new'
         annotated_site['is_standard_gap_fill'] = role == 'gap_fill'
         annotated_site['is_standard_rescue'] = role == 'rescue_spacing_relaxed'
@@ -7902,6 +9733,11 @@ def _build_meeting_scenario_view(view_key, label, branch_plan, metrics, params, 
     for site in exception_like_sites:
         annotated_site = dict(site)
         annotated_site['standard_role'] = 'exception_override'
+        annotated_site['site_role'] = 'exception_override'
+        annotated_site['site_role_family'] = 'standard'
+        annotated_site['selection_provenance'] = 'exception_override'
+        annotated_site['site_semantics'] = 'fixed_radius_lift'
+        annotated_site['physical_site_status'] = 'existing_physical_site'
         annotated_site['is_exception_override'] = True
         annotated_exception_sites.append(annotated_site)
     spacing_relaxed_sites = []
@@ -7918,6 +9754,8 @@ def _build_meeting_scenario_view(view_key, label, branch_plan, metrics, params, 
         int(branch_plan.get('exception_count', 0) or 0),
         int(len(annotated_exception_sites)),
     )
+    physical_new_standard_count = base_new_count + int(branch_plan.get('gap_fill_count', len(gap_fill_sites)) or len(gap_fill_sites)) + rescue_count
+    super_count_semantics = _meeting_super_count_semantics(total_physical, mini_sites, super_sites)
     return {
         'view_key': view_key,
         'label': label,
@@ -7939,6 +9777,11 @@ def _build_meeting_scenario_view(view_key, label, branch_plan, metrics, params, 
         'total_physical_standard_count': total_physical,
         'exception_override_count': exception_override_count,
         'mini_count': int(len(mini_sites)),
+        'super_count': int(super_count_semantics['super_count']),
+        'overlay_super_count': int(super_count_semantics['overlay_super_count']),
+        'reused_super_on_standard_count': int(super_count_semantics['reused_super_on_standard_count']),
+        'new_physical_super_count': int(super_count_semantics['new_physical_super_count']),
+        'total_unique_physical_store_count': int(super_count_semantics['total_unique_physical_store_count']),
         'proposed_hard_coverage_pct': float(view_metrics.get('proposed_hard_coverage_pct', 0.0) or 0.0),
         'proposed_avg_cost': float(view_metrics.get('proposed_avg_cost', 0.0) or 0.0),
         'proposed_avg_dist': float(view_metrics.get('proposed_avg_dist', 0.0) or 0.0) if view_metrics.get('proposed_avg_dist') is not None else None,
@@ -7958,7 +9801,7 @@ def _build_meeting_scenario_view(view_key, label, branch_plan, metrics, params, 
         'standard_ds_radius': float(params.get('standard_ds_radius', 3.0) or 3.0),
         'mini_ds': _copy_site_records(mini_sites),
         'standard_ds': _copy_site_records(new_sites),
-        'super_ds': [],
+        'super_ds': _copy_site_records(super_sites),
         'metrics': view_metrics,
         'planning_layers': {
             'standard': {
@@ -7971,7 +9814,7 @@ def _build_meeting_scenario_view(view_key, label, branch_plan, metrics, params, 
                 'rescue_standard_sites': _copy_site_records(rescue_sites),
                 'spacing_relaxed_standard_sites': _copy_site_records(spacing_relaxed_sites),
                 'exception_override_sites': _copy_site_records(annotated_exception_sites),
-                'new_store_count': int(branch_plan.get('new_count', 0) or 0),
+                'new_store_count': physical_new_standard_count,
                 'base_new_store_count': base_new_count,
                 'rescue_store_count': rescue_count,
                 'gap_fill_store_count': int(branch_plan.get('gap_fill_count', len(gap_fill_sites)) or len(gap_fill_sites)),
@@ -7999,32 +9842,86 @@ def _build_meeting_scenario_view(view_key, label, branch_plan, metrics, params, 
                 **mini_summary,
                 'site_count': int(len(mini_sites)),
             },
+            'super': {
+                'sites': _copy_site_records(super_sites),
+                'site_count': int(super_count_semantics['super_count']),
+                'overlay_super_count': int(super_count_semantics['overlay_super_count']),
+                'reused_super_on_standard_count': int(super_count_semantics['reused_super_on_standard_count']),
+                'reused_existing_standard_count': int(super_count_semantics['reused_existing_standard_super_count']),
+                'reused_new_standard_count': int(super_count_semantics['reused_new_standard_super_count']),
+                'new_super_site_count': int(super_count_semantics['new_physical_super_count']),
+                'total_unique_physical_store_count': int(super_count_semantics['total_unique_physical_store_count']),
+            },
         },
     }
 
 
-def _pick_active_meeting_view_key(scenario_views):
-    preferred = [
-        'rescue_first_standard_100_plus_mini',
-        'exception_first_standard_100_plus_mini',
-        'rescue_first_standard_100',
-        'exception_first_standard_100',
-        'strict_standard_base',
-    ]
+def _pick_active_meeting_view_key(scenario_views, params=None):
+    if any(
+        key in scenario_views
+        for key in (
+            'rescue_first_standard_100_plus_mini',
+            'exception_first_standard_100_plus_mini',
+            'rescue_first_standard_100',
+            'exception_first_standard_100',
+        )
+    ):
+        preferred = [
+            'rescue_first_standard_100_plus_mini',
+            'exception_first_standard_100_plus_mini',
+            'rescue_first_standard_100',
+            'exception_first_standard_100',
+        ]
+    else:
+        preferred = ['strict_standard_base']
     candidates = [scenario_views[k] for k in preferred if k in scenario_views]
     if not candidates:
         return None
+    params = params or {}
+    required_coverage_pct = _business_target_coverage_pct(params)
+    try:
+        mini_savings_hurdle = float(params.get('mini_incremental_savings_hurdle_per_order', 0.15) or 0.15)
+    except (TypeError, ValueError):
+        mini_savings_hurdle = 0.15
 
-    def _score(view):
-        comparison_ready = 1 if bool(view.get('branch_comparison_ready', True)) else 0
-        coverage = float(view.get('proposed_hard_coverage_pct', 0.0) or 0.0)
-        avg_cost = float(view.get('proposed_avg_cost', np.inf) or np.inf)
-        total_sites = int(view.get('total_physical_standard_count', 0) or 0)
-        rescue_count = int(view.get('rescue_standard_count', 0) or 0)
-        exception_count = int(view.get('exception_override_count', 0) or 0)
-        return (comparison_ready, coverage, -avg_cost, -total_sites, -rescue_count, -exception_count)
+    def _mini_business_case_ok(view):
+        mini_count = int(view.get('mini_count', 0) or 0)
+        if mini_count <= 0:
+            return True
+        savings_delta = float(view.get('avg_cost_delta_vs_parent', 0.0) or 0.0)
+        return savings_delta + 1e-9 >= mini_savings_hurdle
 
-    best = max(candidates, key=_score)
+    eligible = [
+        view for view in candidates
+        if float(view.get('proposed_hard_coverage_pct', 0.0) or 0.0) + 1e-9 >= required_coverage_pct
+        and _mini_business_case_ok(view)
+    ]
+
+    def _business_rank(view):
+        return (
+            float(view.get('proposed_avg_cost', np.inf) or np.inf),
+            -float(view.get('proposed_hard_coverage_pct', 0.0) or 0.0),
+            int(view.get('total_physical_standard_count', 0) or 0),
+            int(view.get('rescue_standard_count', 0) or 0),
+            int(view.get('exception_override_count', 0) or 0),
+            0 if bool(view.get('branch_comparison_ready', True)) else 1,
+        )
+
+    if eligible:
+        best = min(eligible, key=_business_rank)
+        return best.get('view_key')
+
+    def _fallback_rank(view):
+        return (
+            -float(view.get('proposed_hard_coverage_pct', 0.0) or 0.0),
+            float(view.get('proposed_avg_cost', np.inf) or np.inf),
+            int(view.get('total_physical_standard_count', 0) or 0),
+            int(view.get('rescue_standard_count', 0) or 0),
+            int(view.get('exception_override_count', 0) or 0),
+            0 if bool(view.get('branch_comparison_ready', True)) else 1,
+        )
+
+    best = min(candidates, key=_fallback_rank)
     return best.get('view_key')
 
 
@@ -8054,6 +9951,146 @@ def _meeting_scenario_summaries(scenario_order, scenario_views, active_view_key)
             'selected': view_key == active_view_key,
         })
     return summaries
+
+
+def _meeting_view_new_standard_count(view):
+    view = dict(view or {})
+    base_new_count = int(view.get('base_new_standard_count', 0) or 0)
+    gap_fill_count = int(view.get('gap_fill_standard_count', 0) or 0)
+    rescue_count = int(view.get('rescue_standard_count', 0) or 0)
+    total_count = base_new_count + gap_fill_count + rescue_count
+    if total_count <= 0:
+        fixed_count = int(view.get('fixed_standard_count', 0) or 0)
+        total_physical = int(view.get('total_physical_standard_count', 0) or 0)
+        total_count = max(0, total_physical - fixed_count)
+    return total_count
+
+
+def _meeting_view_true_super_count(view):
+    view = dict(view or {})
+    raw_count = view.get('super_count', '__missing__')
+    if raw_count not in ('__missing__', None, ''):
+        return int(raw_count or 0)
+    super_sites = list(view.get('super_ds') or [])
+    if super_sites:
+        return sum(1 for site in super_sites if bool(site.get('counts_as_true_super', True)))
+    return 0
+
+
+def _validate_meeting_packet(packet):
+    if not isinstance(packet, dict):
+        raise ValueError("Meeting packet must be a dict.")
+    decision = dict(packet.get('decision_grade_result') or {})
+    scenario_views = dict(packet.get('scenario_views') or {})
+    scenario_summaries = list(packet.get('scenario_summaries') or [])
+    active_view_key = decision.get('active_view_key')
+    if active_view_key and active_view_key not in scenario_views:
+        raise ValueError(f"Active meeting view {active_view_key!r} is missing from scenario_views.")
+    selected_keys = [str(item.get('view_key')) for item in scenario_summaries if bool(item.get('selected'))]
+    if active_view_key and selected_keys and selected_keys != [str(active_view_key)]:
+        raise ValueError(
+            f"Scenario summary selected view mismatch: active={active_view_key!r}, selected={selected_keys!r}."
+        )
+    fixed_count = int(decision.get('fixed_standard_count', 0) or 0)
+    new_count = int(decision.get('new_standard_count', 0) or 0)
+    base_new_count = int(decision.get('base_new_standard_count', 0) or 0)
+    gap_fill_count = int(decision.get('gap_fill_standard_count', 0) or 0)
+    rescue_count = int(decision.get('rescue_standard_count', 0) or 0)
+    total_standard_count = int(decision.get('total_physical_standard_count', 0) or 0)
+    if new_count != base_new_count + gap_fill_count + rescue_count:
+        raise ValueError(
+            f"New-standard count mismatch: {new_count} != {base_new_count} + {gap_fill_count} + {rescue_count}."
+        )
+    planning_standard = dict(((packet.get('planning_layers') or {}).get('standard') or {}))
+    if planning_standard:
+        if int(planning_standard.get('fixed_open_count', 0) or 0) != fixed_count:
+            raise ValueError("Fixed-standard count mismatch between decision packet and planning layers.")
+        if int(planning_standard.get('new_store_count', 0) or 0) != new_count:
+            raise ValueError("New-standard count mismatch between decision packet and planning layers.")
+        if int(planning_standard.get('base_new_store_count', 0) or 0) != base_new_count:
+            raise ValueError("Base new-standard count mismatch between decision packet and planning layers.")
+        if int(planning_standard.get('gap_fill_store_count', 0) or 0) != gap_fill_count:
+            raise ValueError("Gap-fill standard count mismatch between decision packet and planning layers.")
+        if int(planning_standard.get('rescue_store_count', 0) or 0) != rescue_count:
+            raise ValueError("Rescue-standard count mismatch between decision packet and planning layers.")
+        if int(planning_standard.get('total_standard_sites', 0) or 0) != total_standard_count:
+            raise ValueError("Total physical standard count mismatch between decision packet and planning layers.")
+    if active_view_key:
+        active_view = dict(scenario_views.get(active_view_key) or {})
+        if active_view:
+            if int(active_view.get('fixed_standard_count', 0) or 0) != fixed_count:
+                raise ValueError("Active-view fixed-standard count mismatch.")
+            if int(active_view.get('base_new_standard_count', 0) or 0) != base_new_count:
+                raise ValueError("Active-view base-new count mismatch.")
+            if int(active_view.get('gap_fill_standard_count', 0) or 0) != gap_fill_count:
+                raise ValueError("Active-view gap-fill count mismatch.")
+            if int(active_view.get('rescue_standard_count', 0) or 0) != rescue_count:
+                raise ValueError("Active-view rescue count mismatch.")
+            if int(active_view.get('total_physical_standard_count', 0) or 0) != total_standard_count:
+                raise ValueError("Active-view total physical standard count mismatch.")
+            if round(float(active_view.get('proposed_hard_coverage_pct', 0.0) or 0.0), 2) != round(float(decision.get('proposed_hard_coverage_pct', 0.0) or 0.0), 2):
+                raise ValueError("Active-view hard coverage mismatch.")
+            if int(active_view.get('super_count', 0) or 0) != int(decision.get('super_count', 0) or 0):
+                raise ValueError("Active-view Super count mismatch.")
+            if int(active_view.get('mini_count', 0) or 0) != int(decision.get('mini_count', 0) or 0):
+                raise ValueError("Active-view Mini count mismatch.")
+    planning_mini = dict(((packet.get('planning_layers') or {}).get('mini') or {}))
+    if planning_mini and int(planning_mini.get('site_count', 0) or 0) != int(decision.get('mini_count', 0) or 0):
+        raise ValueError("Mini count mismatch between decision packet and planning layers.")
+    planning_super = dict(((packet.get('planning_layers') or {}).get('super') or {}))
+    if planning_super and int(planning_super.get('site_count', 0) or 0) != int(decision.get('super_count', 0) or 0):
+        raise ValueError("Super count mismatch between decision packet and planning layers.")
+
+
+def _build_meeting_decision_grade_result(active_view_key, active_view, params, *,
+                                         mini_count=0, super_count=None,
+                                         proposed_avg_cost=None, proposed_avg_dist=None,
+                                         current_avg_cost=None, current_avg_dist=None,
+                                         daily_savings=None, monthly_savings=None):
+    active_view = dict(active_view or {})
+    new_standard_count = _meeting_view_new_standard_count(active_view)
+    resolved_super_count = int(
+        super_count if super_count is not None else _meeting_view_true_super_count(active_view)
+    )
+    return {
+        'active_view_key': active_view_key,
+        'fixed_standard_count': int(active_view.get('fixed_standard_count', 0) or 0),
+        'new_standard_count': new_standard_count,
+        'base_new_standard_count': int(active_view.get('base_new_standard_count', 0) or 0),
+        'gap_fill_standard_count': int(active_view.get('gap_fill_standard_count', 0) or 0),
+        'rescue_standard_count': int(active_view.get('rescue_standard_count', 0) or 0),
+        'spacing_relaxed_standard_count': int(active_view.get('spacing_relaxed_standard_count', 0) or 0),
+        'total_physical_standard_count': int(active_view.get('total_physical_standard_count', 0) or 0),
+        'exception_hub_count': int(active_view.get('exception_override_count', 0) or 0),
+        'mini_count': int(mini_count or 0),
+        'super_count': resolved_super_count,
+        'overlay_super_count': int(active_view.get('overlay_super_count', 0) or 0),
+        'reused_super_on_standard_count': int(active_view.get('reused_super_on_standard_count', 0) or 0),
+        'new_physical_super_count': int(active_view.get('new_physical_super_count', max(0, resolved_super_count - int(active_view.get('reused_super_on_standard_count', 0) or 0))) or 0),
+        'total_unique_physical_store_count': int(active_view.get('total_unique_physical_store_count', (int(active_view.get('total_physical_standard_count', 0) or 0) + int(mini_count or 0) + max(0, resolved_super_count - int(active_view.get('reused_super_on_standard_count', 0) or 0)))) or 0),
+        'proposed_hard_coverage_pct': float(active_view.get('proposed_hard_coverage_pct', 0.0) or 0.0),
+        'proposed_avg_cost': float(
+            proposed_avg_cost if proposed_avg_cost is not None else active_view.get('proposed_avg_cost', 0.0) or 0.0
+        ),
+        'proposed_avg_dist': float(
+            proposed_avg_dist if proposed_avg_dist is not None else active_view.get('proposed_avg_dist', 0.0) or 0.0
+        ) if (
+            proposed_avg_dist is not None or active_view.get('proposed_avg_dist') is not None
+        ) else None,
+        'current_avg_cost': float(
+            current_avg_cost if current_avg_cost is not None else active_view.get('current_avg_cost', 0.0) or 0.0
+        ),
+        'current_avg_dist': float(
+            current_avg_dist if current_avg_dist is not None else active_view.get('current_avg_dist', 0.0) or 0.0
+        ),
+        'daily_savings': float(
+            daily_savings if daily_savings is not None else active_view.get('daily_savings', 0.0) or 0.0
+        ),
+        'monthly_savings': float(
+            monthly_savings if monthly_savings is not None else active_view.get('monthly_savings', 0.0) or 0.0
+        ),
+        **_meeting_context_fields(params),
+    }
 
 
 def _build_exact_standard_candidate_pool(scope_grid, fixed_sites, params, progress_cb=None):
@@ -9739,6 +11776,88 @@ def _get_fixed_site_context(grid_data, fixed_sites, params, progress_cb=None):
     return context
 
 
+def _get_named_site_context(grid_data, sites, graph_max_radius, cache_label, progress_cb=None):
+    named_sites = list(sites or [])
+    if not named_sites:
+        return None
+    h = hashlib.sha1()
+    h.update(str(cache_label).encode('utf-8'))
+    h.update(f"{float(graph_max_radius):.4f}".encode('utf-8'))
+    demand_frame = grid_data[['avg_cust_lat', 'avg_cust_lon', 'orders_per_day']].copy()
+    h.update(np.round(demand_frame.values.astype(np.float64), 5).tobytes())
+    site_arr = np.array(
+        [[float(site['lat']), float(site['lon'])] for site in named_sites],
+        dtype=np.float64,
+    )
+    h.update(np.round(site_arr, 5).tobytes())
+    cache_key = ('named_site_edge_context', h.hexdigest())
+    cached = state.site_edge_context_cache.get(cache_key)
+    if cached is not None:
+        return cached
+
+    cache_path = _exact_named_site_graph_cache_path(grid_data, named_sites, graph_max_radius, cache_label)
+    site_graph = _load_or_build_exact_site_edge_graph(
+        grid_data,
+        named_sites,
+        graph_max_radius,
+        cache_path,
+        f'{cache_label} current sites',
+        progress_cb=progress_cb,
+    )
+    context = _site_edge_context_from_graph(
+        named_sites,
+        site_graph,
+        len(grid_data),
+        raw_grid_idx=_ensure_grid_idx(grid_data)['_grid_idx'].values.astype(np.int64),
+    )
+    state.site_edge_context_cache[cache_key] = context
+    return context
+
+
+def _service_area_cache_key(result_obj):
+    if state.grid_data is None or not isinstance(result_obj, dict) or not result_obj:
+        return None
+    selected_view = (
+        ((result_obj.get('decision_grade_result') or {}).get('active_view_key'))
+        or ((result_obj.get('pipeline') or {}).get('active_view_key'))
+        or ''
+    )
+    return (
+        id(state.grid_data),
+        id(state.store_regions),
+        id(result_obj),
+        str(selected_view),
+    )
+
+
+def _start_service_area_prewarm_async(force=False):
+    if state.grid_data is None or not isinstance(state.optimization_result, dict) or not state.optimization_result:
+        return False
+    cache_key = _service_area_cache_key(state.optimization_result)
+    if cache_key is None:
+        return False
+    if state.service_area_prewarm_running:
+        return False
+    if not force and cache_key in state.service_area_payload_cache:
+        return False
+
+    def run():
+        state.service_area_prewarm_running = True
+        state.service_area_prewarm_error = ''
+        state.service_area_prewarm_started_at = time.time()
+        try:
+            _service_area_payload_for_result(state.optimization_result)
+            state.service_area_prewarm_completed_at = time.time()
+        except Exception as exc:
+            logger.error("Service-area prewarm failed: %s", traceback.format_exc())
+            state.service_area_prewarm_error = str(exc)
+        finally:
+            state.service_area_prewarm_running = False
+
+    threading.Thread(target=run, daemon=True).start()
+    return True
+
+
 def _distance_mask_from_cached_seed(context, seed_lat, seed_lon, demand_count, radius_km):
     coord_to_site_idx = context.get('coord_to_site_idx', {})
     site_idx = coord_to_site_idx.get(_rounded_site_key(seed_lat, seed_lon))
@@ -9775,6 +11894,131 @@ def _distance_array_from_cached_seed(context, seed_lat, seed_lon, demand_count):
     return dists
 
 
+def _cached_seed_sparse_hits(context, seed_lat, seed_lon, demand_count=None, radius_km=None, allowed_idx=None):
+    if context is None:
+        return None, None
+    coord_to_site_idx = context.get('coord_to_site_idx', {})
+    site_idx = coord_to_site_idx.get(_rounded_site_key(seed_lat, seed_lon))
+    if site_idx is None:
+        return None, None
+    demand_idx_arr, dist_arr = _site_demand_arrays_from_context(context, site_idx)
+    if demand_idx_arr is None or dist_arr is None:
+        return None, None
+
+    demand_idx_arr = np.asarray(demand_idx_arr, dtype=np.int64)
+    dist_arr = np.asarray(dist_arr, dtype=np.float64)
+    effective_count = int(context.get('demand_count', demand_count if demand_count is not None else 0) or 0)
+    valid = np.ones(len(demand_idx_arr), dtype=bool)
+    if effective_count > 0:
+        valid &= demand_idx_arr < effective_count
+    if radius_km is not None:
+        valid &= dist_arr <= float(radius_km) + 1e-5
+    if not np.any(valid):
+        return np.empty(0, dtype=np.int64), np.empty(0, dtype=np.float64)
+
+    hit_idx = demand_idx_arr[valid]
+    hit_dists = dist_arr[valid]
+    if allowed_idx is not None:
+        allowed_idx = np.asarray(allowed_idx, dtype=np.int64)
+        if allowed_idx.size == 0:
+            return np.empty(0, dtype=np.int64), np.empty(0, dtype=np.float64)
+        keep = np.isin(hit_idx, allowed_idx, assume_unique=False)
+        hit_idx = hit_idx[keep]
+        hit_dists = hit_dists[keep]
+    return hit_idx, hit_dists
+
+
+def _snap_gap_fill_center_to_cached_member(context, member_idx, clat, clon, target_lat, target_lon, fallback_idx=None):
+    if context is None:
+        return float(target_lat), float(target_lon)
+    coord_to_site_idx = context.get('coord_to_site_idx', {})
+    if not coord_to_site_idx:
+        return float(target_lat), float(target_lon)
+    if coord_to_site_idx.get(_rounded_site_key(target_lat, target_lon)) is not None:
+        return float(target_lat), float(target_lon)
+
+    member_idx = np.asarray(member_idx, dtype=np.int64)
+    if member_idx.size > 0:
+        cached_member_idx = [
+            int(idx)
+            for idx in member_idx.tolist()
+            if coord_to_site_idx.get(_rounded_site_key(clat[int(idx)], clon[int(idx)])) is not None
+        ]
+        if cached_member_idx:
+            cached_member_idx = np.asarray(cached_member_idx, dtype=np.int64)
+            snap_pos = int(
+                np.argmin(
+                    (clat[cached_member_idx] - float(target_lat)) ** 2
+                    + (clon[cached_member_idx] - float(target_lon)) ** 2
+                )
+            )
+            chosen_idx = int(cached_member_idx[snap_pos])
+            return float(clat[chosen_idx]), float(clon[chosen_idx])
+
+    if fallback_idx is not None:
+        fallback_idx = int(fallback_idx)
+        if coord_to_site_idx.get(_rounded_site_key(clat[fallback_idx], clon[fallback_idx])) is not None:
+            return float(clat[fallback_idx]), float(clon[fallback_idx])
+
+    return float(target_lat), float(target_lon)
+
+
+def _dense_distance_array_from_sparse_hits(demand_count, demand_idx_arr, dist_arr):
+    dists = np.full(int(demand_count), np.inf, dtype=np.float64)
+    if demand_idx_arr is None or dist_arr is None:
+        return dists
+    demand_idx_arr = np.asarray(demand_idx_arr, dtype=np.int64)
+    if len(demand_idx_arr) == 0:
+        return dists
+    dist_arr = np.asarray(dist_arr, dtype=np.float64)
+    valid = demand_idx_arr < int(demand_count)
+    dists[demand_idx_arr[valid]] = dist_arr[valid]
+    return dists
+
+
+def _cached_seed_sparse_hits_from_contexts(contexts, seed_lat, seed_lon, demand_count=None, radius_km=None, allowed_idx=None):
+    for context in contexts or ():
+        if context is None:
+            continue
+        hit_idx, hit_dists = _cached_seed_sparse_hits(
+            context,
+            seed_lat,
+            seed_lon,
+            demand_count=demand_count,
+            radius_km=radius_km,
+            allowed_idx=allowed_idx,
+        )
+        if hit_idx is not None:
+            return hit_idx, hit_dists
+    return None, None
+
+
+def _distance_subset_from_sparse_hits(subset_idx, hit_idx, hit_dists):
+    subset_idx = np.asarray(subset_idx, dtype=np.int64)
+    if len(subset_idx) == 0:
+        return np.empty(0, dtype=np.float64)
+    dists = np.full(len(subset_idx), np.inf, dtype=np.float64)
+    if hit_idx is None or hit_dists is None:
+        return dists
+    hit_idx = np.asarray(hit_idx, dtype=np.int64)
+    if len(hit_idx) == 0:
+        return dists
+    hit_dists = np.asarray(hit_dists, dtype=np.float64)
+    if len(hit_idx) != len(hit_dists):
+        raise ValueError("Sparse cached hit index and distance arrays must align.")
+
+    sort_order = np.argsort(subset_idx)
+    sorted_subset = subset_idx[sort_order]
+    local_pos = np.searchsorted(sorted_subset, hit_idx)
+    valid = local_pos < len(sorted_subset)
+    valid &= sorted_subset[local_pos] == hit_idx
+    if np.any(valid):
+        sorted_dists = np.full(len(sorted_subset), np.inf, dtype=np.float64)
+        sorted_dists[local_pos[valid]] = hit_dists[valid]
+        dists[sort_order] = sorted_dists
+    return dists
+
+
 def _distance_array_from_cached_contexts(contexts, seed_lat, seed_lon, demand_count):
     for context in contexts or ():
         if context is None:
@@ -9783,6 +12027,138 @@ def _distance_array_from_cached_contexts(contexts, seed_lat, seed_lon, demand_co
         if dists is not None:
             return dists
     return None
+
+
+def _service_area_site_distance_arrays(scope_grid, sites, contexts, graph_max_radius, cache_label, progress_cb=None):
+    site_distances = {}
+    missing_sites = []
+    demand_count = int(len(scope_grid))
+    for site in sites or ():
+        site_key = str(site.get('id') or f"{round(float(site['lat']), 6)},{round(float(site['lon']), 6)}")
+        dists = _distance_array_from_cached_contexts(contexts, float(site['lat']), float(site['lon']), demand_count)
+        if dists is not None:
+            site_distances[site_key] = dists
+        else:
+            missing_sites.append(site)
+    if not missing_sites:
+        return site_distances
+    lat_col = 'avg_cust_lat' if 'avg_cust_lat' in scope_grid.columns else 'cell_lat'
+    lon_col = 'avg_cust_lon' if 'avg_cust_lon' in scope_grid.columns else 'cell_lon'
+    demand_lat = np.radians(scope_grid[lat_col].values.astype(np.float64))
+    demand_lon = np.radians(scope_grid[lon_col].values.astype(np.float64))
+    demand_cos = np.cos(demand_lat)
+    earth_radius_km = 6371.0
+    for site in missing_sites:
+        site_key = str(site.get('id') or f"{round(float(site['lat']), 6)},{round(float(site['lon']), 6)}")
+        site_lat = math.radians(float(site['lat']))
+        site_lon = math.radians(float(site['lon']))
+        dphi = demand_lat - site_lat
+        dlambda = demand_lon - site_lon
+        a = np.sin(dphi / 2.0) ** 2 + demand_cos * math.cos(site_lat) * np.sin(dlambda / 2.0) ** 2
+        site_distances[site_key] = 2.0 * earth_radius_km * np.arcsin(np.sqrt(np.clip(a, 0.0, 1.0)))
+    return site_distances
+
+
+def _service_area_payload_for_result(result_obj, progress_cb=None):
+    if not isinstance(result_obj, dict) or not result_obj:
+        raise ValueError("A saved optimization result is required before computing service areas.")
+    cache_key = _service_area_cache_key(result_obj)
+    if cache_key is not None:
+        cached_payload = state.service_area_payload_cache.get(cache_key)
+        if cached_payload is not None:
+            return copy.deepcopy(cached_payload)
+    if state.grid_data is None:
+        return {
+            'available': False,
+            'mode': 'radius_fallback',
+            'reason': 'Load Bangalore inputs to derive demand-cell service areas. Radius rings remain the honest fallback.',
+        }
+
+    result_params = normalize_placement_params(dict(result_obj.get('params') or {}))
+    scope_grid, _out_scope_grid, _business_regions, _excluded_islands, scope_summary = _resolve_scope_grid_and_regions(result_params)
+    if scope_grid is None or len(scope_grid) == 0:
+        return {
+            'available': False,
+            'mode': 'radius_fallback',
+            'reason': 'No in-scope Bangalore demand cells are loaded for service-area derivation.',
+        }
+
+    fixed_sites = list(result_obj.get('existing_stores') or [])
+    standard_sites = fixed_sites + list(result_obj.get('standard_ds') or [])
+    mini_sites = list(result_obj.get('mini_ds') or [])
+    super_sites = list(result_obj.get('super_ds') or [])
+    demand_count = int(len(scope_grid))
+    graph_max_radius = float(
+        result_params.get(
+            'exact_graph_max_radius_km',
+            max(
+                float(result_params.get('mini_ds_radius', 1.5) or 1.5),
+                float(result_params.get('standard_ds_radius', 3.0) or 3.0),
+                float(result_params.get('super_ds_radius', DEFAULT_SUPER_RADIUS_KM) or DEFAULT_SUPER_RADIUS_KM),
+            ),
+        ) or 0.0
+    )
+    service_area_contexts = []
+
+    tier_site_distances = {
+        'mini': [],
+        'standard': [],
+        'super': [],
+    }
+    for tier_name, tier_sites, fallback_radius, cache_label in (
+        ('mini', mini_sites, float(result_params.get('mini_ds_radius', 1.5) or 1.5), 'mini'),
+        ('standard', standard_sites, float(result_params.get('standard_ds_radius', 3.0) or 3.0), 'standard'),
+        ('super', super_sites, float(result_params.get('super_ds_radius', DEFAULT_SUPER_RADIUS_KM) or DEFAULT_SUPER_RADIUS_KM), 'super'),
+    ):
+        if not tier_sites:
+            continue
+        sites_by_radius = defaultdict(list)
+        for site in tier_sites:
+            radius_km = round(float(site.get('radius_km', fallback_radius) or fallback_radius), 3)
+            sites_by_radius[radius_km].append(site)
+        for radius_km, radius_sites in sorted(sites_by_radius.items()):
+            site_distance_lookup = _service_area_site_distance_arrays(
+                scope_grid,
+                radius_sites,
+                service_area_contexts,
+                graph_max_radius,
+                f'{cache_label}_{str(radius_km).replace(".", "_")}',
+                progress_cb=(lambda msg: progress_cb(msg) if progress_cb else None),
+            )
+            for site in radius_sites:
+                site_id = str(site.get('id') or f"{round(float(site['lat']), 6)},{round(float(site['lon']), 6)}")
+                distance_km = site_distance_lookup.get(site_id)
+                if distance_km is None:
+                    continue
+                tier_site_distances[tier_name].append({
+                    'site_id': site_id,
+                    'radius_km': radius_km,
+                    'distance_km': distance_km,
+                })
+
+    assignments = _assign_service_area_tiers(demand_count, tier_site_distances)
+    payload = _build_service_area_polygons_from_assignments(
+        scope_grid,
+        assignments['assigned_tier'],
+        assignments['assigned_site_id'],
+    )
+    payload.update({
+        'available': True,
+        'mode': 'assigned_demand_cells',
+        'selected_view': (
+            ((result_obj.get('decision_grade_result') or {}).get('active_view_key'))
+            or ((result_obj.get('pipeline') or {}).get('active_view_key'))
+        ),
+        'scope_summary': scope_summary,
+        'demand_count': demand_count,
+        'notes': [
+            'Tier territories are derived from loaded in-scope demand cells, assigned in Mini > Standard > Super order by geographic distance and the configured service radii.',
+            'These polygons are modeled demand-cell territories, not OSRM drive-time isochrones.',
+        ],
+    })
+    if cache_key is not None:
+        state.service_area_payload_cache[cache_key] = copy.deepcopy(payload)
+    return payload
 
 
 def _min_distances_from_cached_hubs(context, hubs, demand_count, radius_km=None):
@@ -10423,6 +12799,7 @@ def _load_or_build_exact_standard_superset_graph(scope_grid, fixed_sites, candid
     fixed_overlay_cache_path = _exact_fixed_overlay_graph_cache_path(scope_grid, fixed_sites, params, allow_exceptions=True)
     partial_cache_path = _exact_graph_partial_cache_path(cache_path)
     status_path = _exact_graph_status_path(cache_path)
+    partial_candidate_cache_path = _exact_graph_partial_cache_path(candidate_cache_path)
     if cache_enabled and os.path.exists(cache_path):
         if progress_cb:
             progress_cb(f"Exact Standard: loading cached graph {os.path.basename(cache_path)}")
@@ -10471,15 +12848,51 @@ def _load_or_build_exact_standard_superset_graph(scope_grid, fixed_sites, candid
                     'distance_rule': 'store_to_customer_osrm_km',
                     'fixed_edges': list(converted.get('candidate_edges', [])),
                 })
-            if cache_enabled and not os.path.exists(fixed_overlay_cache_path):
-                _write_exact_superset_component_cache(fixed_overlay_cache_path, {
-                    'version': 1,
-                    'graph_max_radius_km': float(graph_max_radius),
-                    'distance_rule': 'store_to_customer_osrm_km',
-                    'fixed_edges': list(converted.get('fixed_edges', [])),
-                })
-            return converted
+        if cache_enabled and not os.path.exists(fixed_overlay_cache_path):
+            _write_exact_superset_component_cache(fixed_overlay_cache_path, {
+                'version': 1,
+                'graph_max_radius_km': float(graph_max_radius),
+                'distance_rule': 'store_to_customer_osrm_km',
+                'fixed_edges': list(converted.get('fixed_edges', [])),
+            })
+        return converted
         return cached
+
+    if cache_enabled and not os.path.exists(candidate_cache_path) and not os.path.exists(partial_candidate_cache_path):
+        derived_graph, _derived_pool_path, derived_superset_path = _try_derive_candidate_graph_from_completed_superset(
+            scope_grid,
+            candidate_sites,
+            params,
+            graph_max_radius,
+            progress_cb=progress_cb,
+        )
+        if derived_graph is not None:
+            _write_exact_superset_component_cache(candidate_cache_path, derived_graph)
+            if progress_cb and derived_superset_path:
+                progress_cb(
+                    "Exact Standard: cached candidate graph derived from "
+                    f"{os.path.basename(derived_superset_path)}"
+                )
+    if cache_enabled and not os.path.exists(candidate_cache_path) and not os.path.exists(partial_candidate_cache_path):
+        seeded_partial, _seeded_pool_path, seeded_superset_path = _try_seed_candidate_graph_delta_from_completed_superset(
+            scope_grid,
+            candidate_sites,
+            params,
+            graph_max_radius,
+            progress_cb=progress_cb,
+        )
+        if seeded_partial is not None:
+            with open(partial_candidate_cache_path, 'wb') as f:
+                pickle.dump(seeded_partial, f, protocol=pickle.HIGHEST_PROTOCOL)
+            if progress_cb and seeded_superset_path:
+                progress_cb(
+                    "Exact Standard: candidate graph warm delta seeded from "
+                    f"{os.path.basename(seeded_superset_path)}"
+                )
+    elif progress_cb and os.path.exists(partial_candidate_cache_path) and not os.path.exists(candidate_cache_path):
+        progress_cb(
+            f"Exact Standard: resuming candidate graph warm-start partial {os.path.basename(partial_candidate_cache_path)}"
+        )
 
     if cache_enabled and os.path.exists(candidate_cache_path):
         if progress_cb:
@@ -11634,8 +14047,16 @@ def _build_prepared_exact_scenario_model(scope_grid, fixed_sites, candidate_site
 def _get_or_build_highs_stage2_solver(prepared_model, params):
     if highspy is None:
         return None
+    rel_gap = float(params.get('exact_highs_mip_rel_gap', 0.0) or 0.0)
+    abs_gap = float(params.get('exact_highs_mip_abs_gap', 0.0) or 0.0)
+    threads = int(params.get('exact_highs_threads', max(1, os.cpu_count() or 1)) or max(1, os.cpu_count() or 1))
+    solver_config = {
+        'mip_rel_gap': rel_gap,
+        'mip_abs_gap': abs_gap,
+        'threads': threads,
+    }
     cached = prepared_model.get('_highs_stage2_solver')
-    if cached is not None:
+    if cached is not None and prepared_model.get('_highs_stage2_solver_config') == solver_config:
         return cached
 
     stage2_A_csc = prepared_model['stage2_A'].tocsc()
@@ -11661,9 +14082,8 @@ def _get_or_build_highs_stage2_solver(prepared_model, params):
     solver = highspy.Highs()
     solver.setOptionValue('output_flag', False)
     solver.setOptionValue('log_to_console', False)
-    solver.setOptionValue('mip_rel_gap', 0.0)
-    solver.setOptionValue('mip_abs_gap', 0.0)
-    threads = int(params.get('exact_highs_threads', max(1, os.cpu_count() or 1)) or max(1, os.cpu_count() or 1))
+    solver.setOptionValue('mip_rel_gap', rel_gap)
+    solver.setOptionValue('mip_abs_gap', abs_gap)
     solver.setOptionValue('threads', threads)
     status = solver.passModel(lp)
     if status != highspy.HighsStatus.kOk:
@@ -11688,6 +14108,7 @@ def _get_or_build_highs_stage2_solver(prepared_model, params):
     prepared_model['_highs_stage2_cost_template'] = np.asarray(lp.col_cost_, dtype=np.float64)
     prepared_model['_highs_cost_row_idx'] = int(cost_row_idx)
     prepared_model['_highs_new_row_idx'] = int(new_row_idx)
+    prepared_model['_highs_stage2_solver_config'] = solver_config
     return solver
 
 
@@ -12556,31 +14977,57 @@ def _write_exact_scenario_checkpoint(name, payload, graph_cache_path, params, sp
 
 
 def _load_exact_scenario_checkpoint(name, graph_cache_path, params, spacing_fingerprint='none', benchmark_fingerprint=None):
+    def _load_checkpoint_payload(path):
+        with open(path, 'rb') as f:
+            payload = pickle.load(f)
+        if payload.get('_checkpoint_version') != 3:
+            return None
+        if payload.get('_spacing_conflict_fingerprint') != spacing_fingerprint:
+            return None
+        if benchmark_fingerprint is not None and payload.get('_benchmark_fingerprint') != benchmark_fingerprint:
+            return None
+        loaded = dict(payload)
+        loaded['_checkpoint_source_path'] = path
+        if 'covered_mask' in loaded and not isinstance(loaded['covered_mask'], np.ndarray):
+            loaded['covered_mask'] = np.asarray(loaded['covered_mask'], dtype=bool)
+        if 'stage_solution_vector' in loaded and not isinstance(loaded['stage_solution_vector'], np.ndarray):
+            loaded['stage_solution_vector'] = np.asarray(loaded['stage_solution_vector'], dtype=np.float64)
+        return loaded
+
     checkpoint_path = _exact_scenario_checkpoint_path(graph_cache_path, name, params, spacing_fingerprint=spacing_fingerprint)
     if not os.path.exists(checkpoint_path):
         legacy_path = _exact_legacy_scenario_checkpoint_path(graph_cache_path, name, params, spacing_fingerprint=spacing_fingerprint)
-        if not os.path.exists(legacy_path):
-            return None
-        with open(legacy_path, 'r') as f:
-            payload = json.load(f)
-        if payload.get('_checkpoint_version') != 2:
-            return None
-        if 'covered_mask' in payload:
-            payload['covered_mask'] = np.asarray(payload['covered_mask'], dtype=bool)
-        return payload
-    with open(checkpoint_path, 'rb') as f:
-        payload = pickle.load(f)
-    if payload.get('_checkpoint_version') != 3:
+        if os.path.exists(legacy_path):
+            with open(legacy_path, 'r') as f:
+                payload = json.load(f)
+            if payload.get('_checkpoint_version') != 2:
+                return None
+            if 'covered_mask' in payload:
+                payload['covered_mask'] = np.asarray(payload['covered_mask'], dtype=bool)
+            payload['_checkpoint_source_path'] = legacy_path
+            return payload
+
+        fallback_pattern = os.path.join(OPTIMIZATION_RESULTS_DIR, f"exact_{name}_*.pkl")
+        fallback_paths = sorted(
+            (
+                path for path in glob.glob(fallback_pattern)
+                if os.path.abspath(path) != os.path.abspath(checkpoint_path)
+            ),
+            key=lambda path: os.path.getmtime(path),
+            reverse=True,
+        )
+        for fallback_path in fallback_paths:
+            fallback_payload = _load_checkpoint_payload(fallback_path)
+            if fallback_payload is None:
+                continue
+            logger.info(
+                "Reusing fingerprint-matching exact checkpoint %s for %s",
+                os.path.basename(fallback_path),
+                name,
+            )
+            return fallback_payload
         return None
-    if payload.get('_spacing_conflict_fingerprint') != spacing_fingerprint:
-        return None
-    if benchmark_fingerprint is not None and payload.get('_benchmark_fingerprint') != benchmark_fingerprint:
-        return None
-    if 'covered_mask' in payload and not isinstance(payload['covered_mask'], np.ndarray):
-        payload['covered_mask'] = np.asarray(payload['covered_mask'], dtype=bool)
-    if 'stage_solution_vector' in payload and not isinstance(payload['stage_solution_vector'], np.ndarray):
-        payload['stage_solution_vector'] = np.asarray(payload['stage_solution_vector'], dtype=np.float64)
-    return payload
+    return _load_checkpoint_payload(checkpoint_path)
 
 
 def _summarize_exact_standard_scenario_metrics(scope_grid, scenario, current_baseline, params):
@@ -12647,6 +15094,74 @@ def _summarize_exact_standard_scenario_metrics(scope_grid, scenario, current_bas
     }
 
 
+def _summarize_meeting_standard_branch_metrics(scope_grid, branch_plan, current_baseline, params):
+    weights = scope_grid['orders_per_day'].values.astype(np.float64)
+    total_orders = float(np.sum(weights))
+    covered_mask = np.asarray(branch_plan.get('covered_mask', np.zeros(len(scope_grid), dtype=bool)), dtype=bool)
+    uncovered_mask = ~covered_mask
+    current_costs = np.asarray(current_baseline['current_costs'], dtype=np.float64)
+    current_avg_cost = float(current_baseline['current_avg_cost'])
+    current_avg_dist = float(current_baseline['current_avg_dist'])
+    current_policy = current_baseline['current_policy']
+
+    base_cost = float(params.get('standard_base_cost', 29) or 29)
+    var_rate = float(params.get('standard_variable_rate', 9) or 9)
+    actual_min_d = np.asarray(
+        branch_plan.get('actual_min_distances_km', branch_plan.get('min_distances_km', np.full(len(scope_grid), np.inf, dtype=np.float64))),
+        dtype=np.float64,
+    )
+    served_mask = covered_mask & np.isfinite(actual_min_d)
+    proposed_costs = np.array(current_costs, copy=True)
+    proposed_costs[served_mask] = base_cost + var_rate * actual_min_d[served_mask]
+    proposed_avg_cost = float(np.average(proposed_costs, weights=weights))
+
+    served_orders = float(np.sum(weights[served_mask]))
+    if served_orders > 0:
+        proposed_avg_dist = float(np.average(actual_min_d[served_mask], weights=weights[served_mask]))
+    else:
+        proposed_avg_dist = None
+
+    hard_covered_orders = float(np.sum(weights[covered_mask]))
+    hard_pct = 100.0 * hard_covered_orders / max(total_orders, 1e-9)
+    daily_savings = (current_avg_cost - proposed_avg_cost) * total_orders
+    return {
+        'current_avg_dist': round(current_avg_dist, 3),
+        'proposed_avg_dist': None if proposed_avg_dist is None else round(float(proposed_avg_dist), 3),
+        'proposed_mean_dist_unweighted': None,
+        'current_avg_cost': round(current_avg_cost, 2),
+        'proposed_avg_cost': round(float(proposed_avg_cost), 2),
+        'avg_modeled_cost_per_order': round(float(proposed_avg_cost), 2),
+        'super_penalty_cost_per_day': 0.0,
+        'exception_standard_hub_count': int(branch_plan.get('exception_count', 0) or 0),
+        'current_operational_coverage_pct': current_policy['current_operational_coverage_pct'],
+        'current_policy_coverage_pct': current_policy['current_policy_coverage_pct'],
+        'proposed_hard_coverage_pct': round(float(hard_pct), 2),
+        'proposed_hybrid_coverage_pct': round(float(hard_pct), 2),
+        'full_hard_coverage_pct': round(float(hard_pct), 2),
+        'full_hybrid_coverage_pct': round(float(hard_pct), 2),
+        'addressable_hard_coverage_pct': round(float(hard_pct), 2),
+        'addressable_hybrid_coverage_pct': round(float(hard_pct), 2),
+        'policy_breach_orders_per_day': current_policy['policy_breach_orders_per_day'],
+        'policy_breach_hubs': current_policy['policy_breach_hubs'],
+        'exception_bucket_usage': {'selected_orders_per_day': 0.0, 'selected_pct': 0.0},
+        'daily_savings': round(max(0, daily_savings), 0),
+        'monthly_savings': round(max(0, daily_savings) * 30, 0),
+        'total_orders_per_day': round(total_orders, 2),
+        'pct_cost_reduction': round((current_avg_cost - proposed_avg_cost) / max(current_avg_cost, 0.01) * 100, 1),
+        'distance_source': 'Meeting-fast Standard branch actual distances + cached current baseline',
+        'distance_histogram': {},
+        'total_grid_cells': len(scope_grid),
+        'proposed_distances_proxy': False,
+        'pct_orders_within_mini_service_km': 0.0,
+        'mini_service_radius_km': round(float(params.get('mini_ds_radius', 1.0) or 1.0), 3),
+        'pct_order_weight_outside_tier_radii': round(float(np.sum(weights[uncovered_mask])) / max(total_orders, 1e-9) * 100.0, 2),
+        'metrics_note': (
+            'Meeting-fast Standard core metrics are derived directly from the branch plan actual distances; '
+            'uncovered demand remains costed at current baseline for whole-network comparability.'
+        ),
+    }
+
+
 def optimize_exact_standard_scenario_deck(params, progress_cb=None):
     require_osrm()
     params = dict(params or {})
@@ -12658,8 +15173,8 @@ def optimize_exact_standard_scenario_deck(params, progress_cb=None):
     if profile == 'demo_fast':
         # Fast interactive profile: keep the shared graph exact, but reduce the
         # solve footprint to a capped shortlist and a single near-full scenario.
-        params.setdefault('exact_candidate_cap', 1200)
-        params.setdefault('exact_model_candidate_cap', 600)
+        params.setdefault('exact_candidate_cap', 600)
+        params.setdefault('exact_model_candidate_cap', 250)
         params.setdefault('allow_full_exact_candidate_pool', False)
         params.setdefault('exact_include_near_full_scenario', True)
         params.setdefault('exact_solve_strict_100_scenario', False)
@@ -12668,6 +15183,7 @@ def optimize_exact_standard_scenario_deck(params, progress_cb=None):
         params.setdefault('exact_skip_mini_overlay', True)
         params.setdefault('exact_skip_recommended_diagnostics', True)
         params.setdefault('exact_enable_tiebreak_milps', False)
+        params.setdefault('exact_highs_mip_rel_gap', 0.01)
     params = normalize_placement_params(params)
     in_scope_grid, out_scope_grid, business_regions, excluded_islands, scope_summary = _resolve_scope_grid_and_regions(params)
     if in_scope_grid is None or len(in_scope_grid) == 0:
@@ -12681,10 +15197,13 @@ def optimize_exact_standard_scenario_deck(params, progress_cb=None):
     graph_cache_path = None
     if progress_cb and profile == 'demo_fast':
         candidate_cap = params.get('exact_candidate_cap')
+        model_cap = params.get('exact_model_candidate_cap')
         progress_cb(
             "Exact Standard benchmark: demo_fast profile using the shared "
             f"{round(float(params.get('exact_graph_max_radius_km', 10.0) or 10.0), 2)} km graph "
-            f"with a capped shortlist of {candidate_cap if candidate_cap not in (None, '', 0, '0') else 'all'} candidates..."
+            "with a capped shortlist of "
+            f"{candidate_cap if candidate_cap not in (None, '', 0, '0') else 'all'} candidates "
+            f"and a solver cap of {model_cap if model_cap not in (None, '', 0, '0') else 'all'}..."
         )
     if os.path.exists(candidate_pool_cache_path):
         try:
@@ -13310,9 +15829,8 @@ def _sample_super_geometry(scope_grid, business_regions, excluded_regions, param
             if point is not None:
                 point['demand_idx'] = int(demand_idx)
 
-    # In fast meeting mode we keep the Super layer demand-sampled on purpose.
-    # This makes the layer responsive enough for live scenario work, but it is
-    # also why the UI must label it as sample-validated rather than exact.
+    # Legacy helper retained for older artifacts. The live Super blanket path
+    # now works from the full in-scope demand grid instead of this sample set.
     if meeting_fast_mode:
         return points
 
@@ -13333,15 +15851,79 @@ def _sample_super_geometry(scope_grid, business_regions, excluded_regions, param
     return points
 
 
-def _plan_super_blanket(scope_grid, business_regions, excluded_regions, standard_sites, params, progress_cb=None):
+def _select_super_blanket_candidates(candidates, coverage_masks, weights, standard_served_mask, max_sites,
+                                     spacing_conflicts=None, overlap_penalty_weight=0.35,
+                                     standard_overlap_penalty_weight=0.85, edge_penalty_weight=0.0,
+                                     cross_tier_penalty_weight=0.0, reuse_bonus_weight=0.0,
+                                     min_incremental_orders=0.0):
+    if not candidates or not coverage_masks or max_sites <= 0:
+        return []
+
+    spacing_conflicts = spacing_conflicts or {}
+    covered = np.zeros(len(weights), dtype=bool)
+    available = set(range(len(candidates)))
+    selected = []
+
+    while available and len(selected) < int(max_sites):
+        best = None
+        for idx in list(available):
+            mask = np.asarray(coverage_masks[idx], dtype=bool)
+            if len(mask) != len(weights) or not np.any(mask):
+                available.remove(idx)
+                continue
+            incremental_mask = mask & (~covered)
+            incremental_orders = float(np.sum(weights[incremental_mask]))
+            if incremental_orders <= float(min_incremental_orders):
+                continue
+            overlap_orders = float(np.sum(weights[mask & covered]))
+            standard_overlap_orders = float(np.sum(weights[mask & standard_served_mask]))
+            edge_penalty = float(candidates[idx].get('edge_penalty', 0.0) or 0.0)
+            cross_tier_penalty = float(candidates[idx].get('cross_tier_penalty', 0.0) or 0.0)
+            reuse_bonus = float(candidates[idx].get('reuse_bonus', 0.0) or 0.0)
+            score = (
+                incremental_orders
+                - float(overlap_penalty_weight) * overlap_orders
+                - float(standard_overlap_penalty_weight) * standard_overlap_orders
+                - float(edge_penalty_weight) * edge_penalty
+                - float(cross_tier_penalty_weight) * cross_tier_penalty
+                + float(reuse_bonus_weight) * reuse_bonus
+            )
+            candidate = (
+                score,
+                incremental_orders,
+                reuse_bonus,
+                -standard_overlap_orders,
+                -cross_tier_penalty,
+                -edge_penalty,
+                idx,
+                mask,
+            )
+            if best is None or candidate > best:
+                best = candidate
+        if best is None or best[0] <= 0:
+            break
+        score, incremental_orders, _reuse_bonus, _neg_std_overlap, _neg_cross_tier_penalty, _neg_edge_penalty, idx, mask = best
+        selected_item = dict(candidates[idx])
+        selected_item['score'] = round(float(score), 2)
+        selected_item['incremental_orders_per_day'] = round(float(incremental_orders), 2)
+        selected.append(selected_item)
+        covered |= mask
+        available.remove(idx)
+        available -= set(spacing_conflicts.get(idx, set()))
+
+    return selected
+
+
+def _plan_super_blanket(scope_grid, business_regions, excluded_regions, standard_sites, params, progress_cb=None, mini_sites=None):
     radius = float(params.get('super_radius_km', params.get('super_ds_radius', DEFAULT_SUPER_RADIUS_KM)) or DEFAULT_SUPER_RADIUS_KM)
     max_sites = _safe_optional_count(params, 'super_ds_target_count')
     if max_sites is None:
         max_sites = int(params.get('super_ds_max', 200) or 200)
     meeting_fast_mode = bool(params.get('meeting_fast_mode', True))
-
-    sample_points = _sample_super_geometry(scope_grid, business_regions, excluded_regions, params=params)
-    if not sample_points:
+    super_fixed_only = meeting_fast_mode and bool(
+        params.get('meeting_fast_super_fixed_only', False)
+    )
+    if scope_grid is None or len(scope_grid) == 0:
         return {
             'sites': [],
             'blanket_coverage_pct': 100.0,
@@ -13352,132 +15934,328 @@ def _plan_super_blanket(scope_grid, business_regions, excluded_regions, standard
             'uncovered_sample_points': 0,
         }
 
-    lats = np.array([p['lat'] for p in sample_points], dtype=np.float64)
-    lons = np.array([p['lon'] for p in sample_points], dtype=np.float64)
-    weights = np.array([p['weight'] for p in sample_points], dtype=np.float64)
-    sample_demand_idx = np.array(
-        [int(p['demand_idx']) for p in sample_points if p.get('demand_idx') is not None],
-        dtype=np.int64
-    ) if sample_points and all(p.get('demand_idx') is not None for p in sample_points) else None
-    covered = np.zeros(len(sample_points), dtype=bool)
-    sites = []
-    used_keys = set()
-    reused_existing = 0
-    reused_new = 0
-    cached_context = (params or {}).get('_cached_demand_candidate_context')
-    if cached_context is None and meeting_fast_mode:
-        try:
-            cached_context = _get_all_demand_candidate_context(scope_grid, params, progress_cb=None)
-        except Exception:
-            cached_context = None
+    lat_col = 'avg_cust_lat' if 'avg_cust_lat' in scope_grid.columns else 'cell_lat'
+    lon_col = 'avg_cust_lon' if 'avg_cust_lon' in scope_grid.columns else 'cell_lon'
+    lats = scope_grid[lat_col].values.astype(np.float64)
+    lons = scope_grid[lon_col].values.astype(np.float64)
+    weights = scope_grid['orders_per_day'].values.astype(np.float64)
+    lat_rad = np.radians(lats)
+    lon_rad = np.radians(lons)
+    cos_lat = np.cos(lat_rad)
 
-    def _cached_super_cover_array(lat, lon):
-        if cached_context is None or sample_demand_idx is None:
-            return None
-        d_all = _distance_array_from_cached_seed(cached_context, lat, lon, len(scope_grid))
-        if d_all is None:
-            return None
-        return d_all[sample_demand_idx]
+    def _geo_distance_array(seed_lat, seed_lon):
+        seed_lat_rad = math.radians(float(seed_lat))
+        seed_lon_rad = math.radians(float(seed_lon))
+        dphi = lat_rad - seed_lat_rad
+        dlambda = lon_rad - seed_lon_rad
+        a = np.sin(dphi / 2.0) ** 2 + cos_lat * math.cos(seed_lat_rad) * np.sin(dlambda / 2.0) ** 2
+        return 2.0 * 6371.0 * np.arcsin(np.sqrt(np.clip(a, 0.0, 1.0)))
+
+    standard_radius = float(params.get('standard_ds_radius', DEFAULT_STANDARD_RADIUS_KM) or DEFAULT_STANDARD_RADIUS_KM)
+    standard_base_cost = float(params.get('standard_base_cost', 29) or 29)
+    standard_variable_rate = float(params.get('standard_variable_rate', 9) or 9)
+    super_base_cost = _effective_super_base_cost(params)
+    super_variable_rate = float(params.get('super_variable_rate', 9) or 9)
+    overlay_only = _super_overlay_only(params)
+    true_super_min_orders = float(
+        params.get(
+            'super_true_tier_min_orders_per_day',
+            params.get('super_ds_min_orders_per_day', 0) or 0,
+        ) or 0.0
+    )
+    max_standard_overlap_share = float(params.get('super_max_standard_overlap_share', 0.75) or 0.75)
+    min_estimated_daily_savings = float(
+        params.get(
+            'super_min_estimated_daily_savings_per_day',
+            max(float(params.get('super_infra_penalty_per_day', 0.0) or 0.0), 2500.0 if not overlay_only else 0.0),
+        ) or 0.0
+    )
+    super_setback_km = _tier_boundary_setback_km(params, 'super', 'overlay' if overlay_only else 'default')
+    min_std_dist = np.full(len(scope_grid), np.inf, dtype=np.float64)
+    for site in standard_sites or ():
+        min_std_dist = np.minimum(min_std_dist, _geo_distance_array(site['lat'], site['lon']))
+    standard_served_mask = np.isfinite(min_std_dist) & (min_std_dist <= standard_radius + 1e-5)
+    standard_cost_array = np.where(
+        np.isfinite(min_std_dist),
+        standard_base_cost + standard_variable_rate * min_std_dist,
+        np.nan,
+    )
+
+    if business_regions:
+        region_points = [pt for region in business_regions for pt in _normalize_polygon_coords(region.get('polygon_coords', []))]
+        region_lats = [float(pt[0]) for pt in region_points] or list(lats)
+        region_lons = [float(pt[1]) for pt in region_points] or list(lons)
+    else:
+        region_lats = list(lats)
+        region_lons = list(lons)
+    min_lat, max_lat = min(region_lats), max(region_lats)
+    min_lon, max_lon = min(region_lons), max(region_lons)
+
+    def _edge_penalty(candidate_lat, candidate_lon):
+        polygon_penalty, boundary_clearance_km = _setback_adjusted_edge_penalty(
+            candidate_lat,
+            candidate_lon,
+            radius,
+            business_regions,
+            min_clearance_km=super_setback_km,
+        )
+        if polygon_penalty > 0.0:
+            return polygon_penalty, boundary_clearance_km
+        lat_clear_km = min(abs(float(candidate_lat) - min_lat), abs(max_lat - float(candidate_lat))) * 110.574
+        lon_scale = 111.320 * max(math.cos(math.radians(float(candidate_lat))), 1e-6)
+        lon_clear_km = min(abs(float(candidate_lon) - min_lon), abs(max_lon - float(candidate_lon))) * lon_scale
+        clearance_km = min(lat_clear_km, lon_clear_km)
+        raw_penalty = max(0.0, radius - clearance_km)
+        setback_shortfall = max(0.0, super_setback_km - clearance_km)
+        return raw_penalty + setback_shortfall * max(2.0, radius), clearance_km
+
+    mini_sites = list(mini_sites or [])
+    locality_km = float(params.get('super_cross_tier_locality_km', 1.5) or 1.5)
+
+    def _nearest_site_distance_km(candidate_lat, candidate_lon, sites):
+        best = np.inf
+        for site in sites or ():
+            try:
+                best = min(best, _haversine_km(candidate_lat, candidate_lon, site['lat'], site['lon']))
+            except Exception:
+                continue
+        return best
+
+    def _candidate_business_case(candidate_lat, candidate_lon, site_source):
+        d_arr = _geo_distance_array(candidate_lat, candidate_lon)
+        cover_mask = d_arr <= radius + 1e-5
+        gross_orders = float(np.sum(weights[cover_mask]))
+        standard_overlap_orders = float(np.sum(weights[cover_mask & standard_served_mask]))
+        overlap_share = (
+            standard_overlap_orders / gross_orders
+            if gross_orders > 1e-9 else 1.0
+        )
+        super_costs = super_base_cost + super_variable_rate * d_arr
+        cost_improvement_mask = cover_mask & standard_served_mask & np.isfinite(standard_cost_array)
+        estimated_daily_savings = float(
+            np.sum(
+                np.maximum(0.0, standard_cost_array[cost_improvement_mask] - super_costs[cost_improvement_mask])
+                * weights[cost_improvement_mask]
+            )
+        )
+        edge_penalty, boundary_clearance_km = _edge_penalty(candidate_lat, candidate_lon)
+        true_super_eligible = bool(
+            gross_orders + 1e-9 >= true_super_min_orders
+            and overlap_share <= max_standard_overlap_share + 1e-9
+            and estimated_daily_savings + 1e-9 >= min_estimated_daily_savings
+            and boundary_clearance_km + 1e-9 >= super_setback_km
+        )
+        if true_super_eligible:
+            site_semantics = 'true_super_physical'
+            counts_as_true_super = True
+        elif overlay_only and site_source in {'existing_standard', 'proposed_standard'}:
+            site_semantics = 'overlay_support'
+            counts_as_true_super = False
+        else:
+            site_semantics = 'rejected'
+            counts_as_true_super = False
+        return {
+            'cover_mask': cover_mask,
+            'gross_orders_per_day': gross_orders,
+            'standard_overlap_orders_per_day': standard_overlap_orders,
+            'standard_overlap_share': overlap_share,
+            'estimated_daily_savings': estimated_daily_savings,
+            'edge_penalty': edge_penalty,
+            'boundary_clearance_km': boundary_clearance_km,
+            'site_semantics': site_semantics,
+            'counts_as_true_super': counts_as_true_super,
+        }
 
     candidate_sites = []
+    seen_keys = set()
     for site in standard_sites:
+        if bool(site.get('fixed_open')) and not bool(site.get('super_eligible_fixed', False)):
+            continue
+        if super_fixed_only and not bool(site.get('fixed_open')):
+            continue
+        key = (round(float(site['lat']), 5), round(float(site['lon']), 5))
+        if key in seen_keys:
+            continue
+        seen_keys.add(key)
+        nearest_mini_km = _nearest_site_distance_km(site['lat'], site['lon'], mini_sites)
+        site_source = 'existing_standard' if site.get('fixed_open') else 'proposed_standard'
+        business_case = _candidate_business_case(site['lat'], site['lon'], site_source)
+        if business_case['site_semantics'] == 'rejected':
+            continue
         candidate_sites.append({
             'id': site.get('id'),
             'lat': float(site['lat']),
             'lon': float(site['lon']),
-            'site_source': 'existing_standard' if site.get('fixed_open') else 'proposed_standard',
+            'site_source': site_source,
+            'edge_penalty': business_case['edge_penalty'],
+            'boundary_clearance_km': business_case['boundary_clearance_km'],
+            'cross_tier_penalty': 0.25 * max(0.0, locality_km - nearest_mini_km) if math.isfinite(nearest_mini_km) else 0.0,
+            'reuse_bonus': max(0.5, locality_km),
+            'gross_orders_per_day': business_case['gross_orders_per_day'],
+            'standard_overlap_orders_per_day': business_case['standard_overlap_orders_per_day'],
+            'standard_overlap_share': business_case['standard_overlap_share'],
+            'estimated_daily_savings': business_case['estimated_daily_savings'],
+            'site_semantics': business_case['site_semantics'],
+            'counts_as_true_super': business_case['counts_as_true_super'],
         })
 
-    while np.any(~covered) and candidate_sites and len(sites) < max_sites:
-        best = None
-        uncovered_idx = np.where(~covered)[0]
-        for cand in candidate_sites:
-            key = (round(cand['lat'], 5), round(cand['lon'], 5))
-            if key in used_keys:
+    if super_fixed_only:
+        max_sites = min(max_sites, len(candidate_sites))
+    if not super_fixed_only:
+        top_k = int(params.get('super_geometry_top_k_demand', 400 if meeting_fast_mode else 1200) or 0)
+        seed_priority = weights.copy()
+        seed_priority[standard_served_mask] *= 0.25
+        candidate_seed_idx = np.argsort(-seed_priority)
+        if top_k > 0:
+            candidate_seed_idx = candidate_seed_idx[:min(top_k, len(candidate_seed_idx))]
+        for rank, demand_idx in enumerate(candidate_seed_idx, start=1):
+            key = (round(float(lats[demand_idx]), 5), round(float(lons[demand_idx]), 5))
+            if key in seen_keys:
                 continue
-            d_cached = _cached_super_cover_array(cand['lat'], cand['lon'])
-            if d_cached is not None:
-                mask_local = np.isfinite(d_cached[uncovered_idx]) & (d_cached[uncovered_idx] <= radius + 1e-5)
-            else:
-                dists = osrm_one_to_many(cand['lat'], cand['lon'], lats[uncovered_idx], lons[uncovered_idx])
-                mask_local = np.isfinite(dists) & (dists <= radius + 1e-5)
-            cover_weight = float(np.sum(weights[uncovered_idx][mask_local]))
-            if cover_weight <= 0:
+            seen_keys.add(key)
+            nearest_standard_km = _nearest_site_distance_km(lats[demand_idx], lons[demand_idx], standard_sites)
+            nearest_mini_km = _nearest_site_distance_km(lats[demand_idx], lons[demand_idx], mini_sites)
+            business_case = _candidate_business_case(lats[demand_idx], lons[demand_idx], 'new_super')
+            if business_case['site_semantics'] == 'rejected':
                 continue
-            candidate = (cover_weight, cand, uncovered_idx, mask_local)
-            if best is None or candidate[0] > best[0]:
-                best = candidate
-        if best is None:
-            break
-        _, cand, uncovered_idx, mask_local = best
-        global_idx = uncovered_idx[mask_local]
-        covered[global_idx] = True
-        used_keys.add((round(cand['lat'], 5), round(cand['lon'], 5)))
+            candidate_sites.append({
+                'id': f'SUPER-SEED-{rank}',
+                'lat': float(lats[demand_idx]),
+                'lon': float(lons[demand_idx]),
+                'site_source': 'new_super',
+                'edge_penalty': business_case['edge_penalty'],
+                'boundary_clearance_km': business_case['boundary_clearance_km'],
+                'cross_tier_penalty': max(0.0, locality_km - nearest_standard_km) + max(0.0, locality_km - nearest_mini_km),
+                'reuse_bonus': 0.0,
+                'gross_orders_per_day': business_case['gross_orders_per_day'],
+                'standard_overlap_orders_per_day': business_case['standard_overlap_orders_per_day'],
+                'standard_overlap_share': business_case['standard_overlap_share'],
+                'estimated_daily_savings': business_case['estimated_daily_savings'],
+                'site_semantics': business_case['site_semantics'],
+                'counts_as_true_super': business_case['counts_as_true_super'],
+            })
+
+    if not candidate_sites:
+        return {
+            'sites': [],
+            'blanket_coverage_pct': 0.0,
+            'reused_existing_standard_count': 0,
+            'reused_new_standard_count': 0,
+            'new_super_site_count': 0,
+            'sample_point_count': len(scope_grid),
+            'uncovered_sample_points': int(len(scope_grid)),
+        }
+
+    coverage_masks = []
+    for idx, cand in enumerate(candidate_sites, start=1):
+        coverage_masks.append(_geo_distance_array(cand['lat'], cand['lon']) <= radius + 1e-5)
+        if progress_cb and idx % 100 == 0:
+            progress_cb(f"Super blanket: evaluated {idx}/{len(candidate_sites)} candidate sites...")
+
+    spacing_km = max(0.0, float(params.get('super_min_store_spacing_km', radius) or radius))
+    spacing_conflicts = defaultdict(set)
+    for i in range(len(candidate_sites)):
+        for j in range(i + 1, len(candidate_sites)):
+            dist = _haversine_km(
+                candidate_sites[i]['lat'],
+                candidate_sites[i]['lon'],
+                candidate_sites[j]['lat'],
+                candidate_sites[j]['lon'],
+            )
+            if dist <= spacing_km + 1e-6:
+                spacing_conflicts[i].add(j)
+                spacing_conflicts[j].add(i)
+
+    tail_preference = str(params.get('super_tail_preference') or 'prefer_standard').lower()
+    standard_overlap_penalty_weight = 0.55 if tail_preference == 'cost_best' else 1.1 if tail_preference == 'super_last_resort' else 0.9
+    edge_penalty_weight = float(params.get('super_edge_penalty_weight', max(150.0, np.percentile(weights, 85) if len(weights) else 150.0)) or 150.0)
+    cross_tier_penalty_weight = float(params.get('super_cross_tier_penalty_weight', max(180.0, float(np.percentile(weights, 70)) if len(weights) else 180.0)) or 180.0)
+    reuse_bonus_weight = float(params.get('super_reuse_bonus_weight', max(120.0, float(np.percentile(weights, 60)) if len(weights) else 120.0)) or 120.0)
+    min_incremental_orders = float(
+        params.get(
+            'super_min_incremental_orders_per_day',
+            max(300.0, float(true_super_min_orders or 0.0) * (0.15 if overlay_only else 0.25)),
+        ) or 300.0
+    )
+
+    selected_candidates = _select_super_blanket_candidates(
+        candidate_sites,
+        coverage_masks,
+        weights,
+        standard_served_mask,
+        max_sites=max_sites,
+        spacing_conflicts=spacing_conflicts,
+        overlap_penalty_weight=float(params.get('super_overlap_penalty_weight', 0.45) or 0.45),
+        standard_overlap_penalty_weight=standard_overlap_penalty_weight,
+        edge_penalty_weight=edge_penalty_weight,
+        cross_tier_penalty_weight=cross_tier_penalty_weight,
+        reuse_bonus_weight=reuse_bonus_weight,
+        min_incremental_orders=min_incremental_orders,
+    )
+
+    sites = []
+    covered = np.zeros(len(scope_grid), dtype=bool)
+    reused_existing = 0
+    reused_new = 0
+    new_super_count = 0
+    for idx, cand in enumerate(selected_candidates, start=1):
+        cover_mask = _geo_distance_array(cand['lat'], cand['lon']) <= radius + 1e-5
+        covered |= cover_mask
         sites.append({
-            'id': cand['id'] or f"SUPER-{len(sites) + 1}",
+            'id': cand['id'] or f'SUPER-{idx}',
             'lat': cand['lat'],
             'lon': cand['lon'],
             'radius_km': radius,
             'type': 'super',
             'site_source': cand['site_source'],
-            'orders_per_day': round(float(np.sum(weights[global_idx])), 2),
-        })
-        if cand['site_source'] == 'existing_standard':
-            reused_existing += 1
-        else:
-            reused_new += 1
-        if progress_cb and len(sites) % 5 == 0:
-            progress_cb(f"Super blanket: re-used {len(sites)} Standard site(s) so far...")
-
-    new_super_count = 0
-    while np.any(~covered) and len(sites) < max_sites:
-        uncovered_idx = np.where(~covered)[0]
-        seed_idx = int(uncovered_idx[np.argmax(weights[uncovered_idx])])
-        d_seed_full = _cached_super_cover_array(float(lats[seed_idx]), float(lons[seed_idx]))
-        if d_seed_full is not None:
-            member_local = np.isfinite(d_seed_full[uncovered_idx]) & (d_seed_full[uncovered_idx] <= radius + 1e-5)
-        else:
-            d_seed = osrm_one_to_many(float(lats[seed_idx]), float(lons[seed_idx]), lats[uncovered_idx], lons[uncovered_idx])
-            member_local = np.isfinite(d_seed) & (d_seed <= radius + 1e-5)
-        member_idx = uncovered_idx[member_local]
-        if len(member_idx) == 0:
-            member_idx = np.array([seed_idx], dtype=np.int64)
-        center_lat = float(np.average(lats[member_idx], weights=weights[member_idx]))
-        center_lon = float(np.average(lons[member_idx], weights=weights[member_idx]))
-        if cached_context is not None and sample_demand_idx is not None and len(member_idx) > 0:
-            local_lats = lats[member_idx]
-            local_lons = lons[member_idx]
-            deltas = (local_lats - center_lat) ** 2 + (local_lons - center_lon) ** 2
-            snap_idx = int(member_idx[int(np.argmin(deltas))])
-            center_lat = float(lats[snap_idx])
-            center_lon = float(lons[snap_idx])
-        d_full = _cached_super_cover_array(center_lat, center_lon)
-        if d_full is None:
-            d_full = osrm_one_to_many(center_lat, center_lon, lats, lons)
-        cover_mask = np.isfinite(d_full) & (d_full <= radius + 1e-5)
-        covered |= cover_mask
-        new_super_count += 1
-        sites.append({
-            'id': f'SUPER-{len(sites) + 1}',
-            'lat': center_lat,
-            'lon': center_lon,
-            'radius_km': radius,
-            'type': 'super',
-            'site_source': 'new_super',
+            'site_role': (
+                'super_overlay_reuse'
+                if str(cand.get('site_semantics') or '').strip().lower() == 'overlay_support'
+                else 'super_tier_physical'
+            ),
+            'site_role_family': 'super',
+            'selection_provenance': 'super_blanket',
+            'site_semantics': cand.get('site_semantics', 'true_super_physical'),
+            'counts_as_true_super': bool(cand.get('counts_as_true_super', True)),
+            'physical_site_status': (
+                'reused_fixed_standard'
+                if cand['site_source'] == 'existing_standard' else
+                'reused_new_standard'
+                if cand['site_source'] == 'proposed_standard' else
+                'new_physical_site'
+            ),
             'orders_per_day': round(float(np.sum(weights[cover_mask])), 2),
+            'gross_orders_per_day': round(float(cand.get('gross_orders_per_day', np.sum(weights[cover_mask])) or 0.0), 2),
+            'incremental_orders_per_day': round(float(cand.get('incremental_orders_per_day', 0.0) or 0.0), 2),
+            'selection_score': round(float(cand.get('score', 0.0) or 0.0), 2),
+            'standard_overlap_orders_per_day': round(float(cand.get('standard_overlap_orders_per_day', 0.0) or 0.0), 2),
+            'standard_overlap_share': round(float(cand.get('standard_overlap_share', 0.0) or 0.0), 3),
+            'estimated_daily_savings': round(float(cand.get('estimated_daily_savings', 0.0) or 0.0), 2),
+            'edge_penalty': round(float(cand.get('edge_penalty', 0.0) or 0.0), 3),
+            'boundary_clearance_km': round(float(cand.get('boundary_clearance_km', np.inf) or 0.0), 3),
         })
-        if progress_cb and new_super_count % 5 == 0:
-            progress_cb(f"Super blanket: added {new_super_count} new blanket site(s)...")
+        if bool(cand.get('counts_as_true_super', True)):
+            if cand['site_source'] == 'existing_standard':
+                reused_existing += 1
+            elif cand['site_source'] == 'proposed_standard':
+                reused_new += 1
+            else:
+                new_super_count += 1
 
+    overlay_super_count = sum(1 for site in sites if not bool(site.get('counts_as_true_super', True)))
+    true_super_site_count = len(sites) - overlay_super_count
     blanket_pct = 100.0 * float(np.sum(weights[covered])) / max(float(np.sum(weights)), 1e-9)
     return {
         'sites': sites,
+        'site_count': int(true_super_site_count),
+        'overlay_super_count': int(overlay_super_count),
         'blanket_coverage_pct': round(blanket_pct, 2),
         'reused_existing_standard_count': reused_existing,
         'reused_new_standard_count': reused_new,
         'new_super_site_count': new_super_count,
-        'sample_point_count': len(sample_points),
+        'sample_point_count': len(scope_grid),
         'uncovered_sample_points': int(np.sum(~covered)),
+        'coverage_basis': 'full_demand_grid_geodesic',
     }
 
 
@@ -13501,11 +16279,26 @@ def _build_meeting_quality_summary(params, standard_plan, mini_summary, super_pl
         notes.append(
             f"{int(standard_plan.get('rescue_count', 0) or 0)} rescue Standard site(s) were added with relaxed spacing to close tail demand after the core Standard plan."
         )
-    if int(super_plan.get('site_count', 0) or 0) > 0 or int(super_plan.get('sample_point_count', 0) or 0) > 0:
+    true_super_count = int(
+        super_plan.get('site_count', 0)
+        or len([site for site in (super_plan.get('sites') or []) if bool(site.get('counts_as_true_super', True))])
+        or 0
+    )
+    overlay_super_count = int(
+        super_plan.get('overlay_super_count', 0)
+        or len([site for site in (super_plan.get('sites') or []) if not bool(site.get('counts_as_true_super', True))])
+        or 0
+    )
+    if true_super_count > 0 or overlay_super_count > 0 or int(super_plan.get('sample_point_count', 0) or 0) > 0:
         verification_pending_layers.append('Super blanket')
-        notes.append(
-            "Super blanket is fast sampled geometry in meeting mode. Use it as directional coverage guidance, not exact blanket proof."
-        )
+        if true_super_count > 0:
+            notes.append(
+                f"{true_super_count} Super site(s) cleared the throughput, savings, overlap, and setback gates as true physical Super tier candidates."
+            )
+        if overlay_super_count > 0:
+            notes.append(
+                f"{overlay_super_count} Super site(s) are overlay-support reuse only and are not counted as a true Super tier."
+            )
     if int(mini_summary.get('site_count', 0) or 0) == 0:
         notes.append("No Mini sites qualified under the current Mini radius and min-orders gate.")
     return {
@@ -13618,15 +16411,35 @@ def _prepare_bangalore_multilayer_core_context(params, progress_cb=None, publish
         progress_cb("Bangalore planner reset: building strict Standard base network...")
     strict_base_params = _strict_standard_base_params(params)
     strict_base_plan = _plan_standard_network(in_scope_grid, strict_base_params, progress_cb=progress_cb)
+    if progress_cb:
+        progress_cb("Bangalore planner reset: computing provisional Super relief on top of the Standard backbone...")
+    provisional_fixed_super_relief_mask, provisional_fixed_super_sites = _provisional_fixed_super_relief(
+        in_scope_grid,
+        strict_base_plan.get('covered_mask'),
+        (strict_base_plan.get('fixed_sites') or []) + (strict_base_plan.get('new_sites') or []),
+        params,
+        fixed_context=strict_base_plan.get('cached_fixed_site_context'),
+        cached_context=strict_base_plan.get('cached_demand_candidate_context'),
+        progress_cb=(lambda msg: progress_cb(f"Bangalore planner reset: {msg}") if progress_cb else None),
+    )
+    strict_base_plan = dict(strict_base_plan)
+    strict_base_plan['provisional_fixed_super_relief_mask'] = provisional_fixed_super_relief_mask
+    strict_base_plan['provisional_fixed_super_sites'] = provisional_fixed_super_sites
     active_fixed_stores = list(strict_base_plan.get('fixed_sites') or [])
 
     standard_eval_params = dict(params)
     standard_eval_params['super_role'] = 'overlay_core_only'
+    standard_eval_params['overlay_super_counts_as_hard_coverage'] = False
+    standard_eval_params['mini_counts_as_hard_coverage'] = bool(
+        params.get('mini_counts_as_hard_coverage', False)
+    )
     if strict_base_plan.get('cached_demand_candidate_context') is not None:
         standard_eval_params['_cached_demand_candidate_context'] = strict_base_plan.get('cached_demand_candidate_context')
     if strict_base_plan.get('cached_fixed_site_context') is not None:
         standard_eval_params['_cached_fixed_site_context'] = strict_base_plan.get('cached_fixed_site_context')
     baseline_stores = active_fixed_stores if active_fixed_stores else list(state.existing_stores or [])
+    if progress_cb:
+        progress_cb("Bangalore planner reset: preparing current-baseline cache for decision-grade cost comparison...")
     standard_eval_params['_precomputed_current_baseline'] = _compute_current_baseline_cache(
         in_scope_grid,
         baseline_stores,
@@ -13648,6 +16461,34 @@ def _prepare_bangalore_multilayer_core_context(params, progress_cb=None, publish
     exception_first_plan = None
     scenario_views = {}
     scenario_order = []
+    defer_super = bool(params.get('meeting_fast_mode', True)) and bool(params.get('meeting_fast_defer_super', True))
+    core_super_mode = str(
+        params.get(
+            'meeting_fast_core_super_mode',
+            'fixed_only' if bool(params.get('meeting_fast_mode', True)) else 'full',
+        ) or 'fixed_only'
+    ).lower()
+
+    def _provisional_super_sites_for_plan(plan):
+        if core_super_mode == 'fixed_only':
+            return _copy_site_records((plan or {}).get('provisional_fixed_super_sites'))
+        if defer_super or core_super_mode in {'none', 'deferred'}:
+            return []
+        try:
+            super_plan = _plan_super_blanket(
+                in_scope_grid,
+                business_regions,
+                excluded_islands,
+                list((plan or {}).get('all_sites') or []),
+                params,
+                progress_cb=None,
+                mini_sites=[],
+            )
+            return list(super_plan.get('sites') or [])
+        except Exception as exc:
+            if progress_cb:
+                progress_cb(f"Bangalore planner reset: provisional Super blanket skipped during live evaluation ({exc}).")
+            return []
 
     def _core_context_for_views(current_views, current_order, active_key, active_standard_key, active_plan, active_eval_bundle):
         return {
@@ -13678,33 +16519,60 @@ def _prepare_bangalore_multilayer_core_context(params, progress_cb=None, publish
             'candidate_universe_label': candidate_universe_label,
         }
 
+    try:
+        decision_grade_publish_pct = float(
+            params.get(
+                'meeting_core_publish_coverage_pct',
+                params.get('meeting_fast_publish_coverage_pct', DEFAULT_MEETING_CORE_PUBLISH_COVERAGE_PCT),
+            ) or DEFAULT_MEETING_CORE_PUBLISH_COVERAGE_PCT
+        )
+    except (TypeError, ValueError):
+        decision_grade_publish_pct = DEFAULT_MEETING_CORE_PUBLISH_COVERAGE_PCT
+
     def _publish_rescue_first_live(partial_plan):
         nonlocal rescue_first_plan, rescue_eval
-        rescue_first_plan = partial_plan
-        if progress_cb:
-            progress_cb(
-                f"Bangalore planner reset: publishing rescue-first live packet at "
-                f"{float(partial_plan.get('coverage_pct', 0.0) or 0.0):.2f}% coverage..."
-            )
-        rescue_eval = _evaluate_meeting_standard_branch(
+        provisional_super_sites = _provisional_super_sites_for_plan(partial_plan)
+        candidate_eval = _evaluate_meeting_standard_branch(
             in_scope_grid,
             baseline_stores,
-            rescue_first_plan,
+            partial_plan,
             [],
             standard_eval_params,
             params,
-            progress_label='Rescue-first live evaluation',
+            progress_label='Rescue-first live validation',
             progress_cb=progress_cb,
+            super_sites=provisional_super_sites,
         )
+        candidate_hard_coverage_pct = float(
+            ((candidate_eval.get('combined_metrics') or {}).get('proposed_hard_coverage_pct', 0.0) or 0.0)
+        )
+        if candidate_hard_coverage_pct + 1e-9 < decision_grade_publish_pct:
+            if progress_cb:
+                progress_cb(
+                    "Bangalore planner reset: rescue-first crossed the raw handoff band, "
+                    f"but decision-grade hard coverage is only {candidate_hard_coverage_pct:.2f}% "
+                    f"(needs {decision_grade_publish_pct:.2f}%). "
+                    "Continuing with exception cleanup and deeper rescue correction; "
+                    "this is still active work, not a hung run."
+                )
+            return False
+        rescue_first_plan = partial_plan
+        rescue_eval = candidate_eval
+        if progress_cb:
+            progress_cb(
+                "Bangalore planner reset: publishing rescue-first live packet at "
+                f"{candidate_hard_coverage_pct:.2f}% decision-grade hard coverage..."
+            )
         live_views = {
             'rescue_first_standard_100': _build_meeting_scenario_view(
                 'rescue_first_standard_100',
                 'Rescue-Standard-First',
                 rescue_first_plan,
-                rescue_eval['standard_only_metrics'],
+                rescue_eval['combined_metrics'],
                 params,
                 mini_sites=[],
                 mini_summary=zero_mini_summary,
+                super_sites=provisional_super_sites,
                 candidate_universe_label=candidate_universe_label,
                 spacing_mode_label='rescue_relaxed' if int(rescue_first_plan.get('rescue_count', 0) or 0) > 0 else 'strict',
             )
@@ -13720,9 +16588,90 @@ def _prepare_bangalore_multilayer_core_context(params, progress_cb=None, publish
                     rescue_eval,
                 )
             )
+        return True
 
     if progress_cb:
         progress_cb("Bangalore planner reset: completing rescue-first Standard branch...")
+    publish_backbone_only = bool(params.get('meeting_fast_publish_backbone_only', True))
+    if bool(params.get('meeting_fast_mode', True)):
+        if publish_backbone_only:
+            provisional_backbone_super_sites = _provisional_super_sites_for_plan(strict_base_plan)
+            if progress_cb:
+                progress_cb(
+                    "Bangalore planner reset: evaluating Standard backbone + provisional Super relief "
+                    f"[{_standard_plan_progress_summary(strict_base_plan)}]..."
+                )
+            strict_base_eval = _evaluate_meeting_standard_branch(
+                in_scope_grid,
+                baseline_stores,
+                strict_base_plan,
+                [],
+                standard_eval_params,
+                params,
+                progress_label='Strict Standard backbone evaluation',
+                progress_cb=progress_cb,
+                super_sites=provisional_backbone_super_sites,
+            )
+            scenario_views['strict_standard_base'] = _build_meeting_scenario_view(
+                'strict_standard_base',
+                'Standard Backbone + Super Relief',
+                strict_base_plan,
+                strict_base_eval['combined_metrics'],
+                params,
+                mini_sites=[],
+                mini_summary=zero_mini_summary,
+                super_sites=provisional_backbone_super_sites,
+                candidate_universe_label=candidate_universe_label,
+                spacing_mode_label='strict',
+            )
+            scenario_order = ['strict_standard_base']
+            active_view_key = 'strict_standard_base'
+            active_standard_only_key = 'strict_standard_base'
+            active_branch_plan = strict_base_plan
+            active_eval_bundle = strict_base_eval
+            if publish_cb:
+                publish_cb(
+                    _core_context_for_views(
+                        scenario_views,
+                        scenario_order,
+                        active_view_key,
+                        active_standard_only_key,
+                        active_branch_plan,
+                        active_eval_bundle,
+                    )
+                )
+            return {
+                'params': params,
+                'in_scope_grid': in_scope_grid,
+                'out_scope_grid': out_scope_grid,
+                'business_regions': business_regions,
+                'excluded_islands': excluded_islands,
+                'scope_summary': scope_summary,
+                'strict_base_plan': strict_base_plan,
+                'rescue_first_plan': None,
+                'exception_first_plan': None,
+                'active_branch_plan': active_branch_plan,
+                'active_fixed_stores': active_fixed_stores,
+                'baseline_stores': baseline_stores,
+                'standard_eval_params': standard_eval_params,
+                'mini_sites': [],
+                'strict_base_eval': strict_base_eval,
+                'rescue_eval': None,
+                'exception_eval': None,
+                'active_eval_bundle': active_eval_bundle,
+                'scenario_views': scenario_views,
+                'scenario_order': scenario_order,
+                'scenario_summaries': _meeting_scenario_summaries(scenario_order, scenario_views, active_view_key),
+                'active_view_key': active_view_key,
+                'active_standard_only_key': active_standard_only_key,
+                'active_view': dict(scenario_views.get(active_view_key) or {}),
+                'candidate_universe_label': candidate_universe_label,
+            }
+        if progress_cb:
+            progress_cb(
+                "Bangalore planner reset: backbone summary ready; moving directly into rescue-first completion "
+                "without a separate backbone-only scoring pass."
+            )
     rescue_first_plan = _complete_standard_branch_from_base(
         in_scope_grid,
         strict_base_plan,
@@ -13743,16 +16692,18 @@ def _prepare_bangalore_multilayer_core_context(params, progress_cb=None, publish
         params,
         progress_label='Rescue-first Standard evaluation',
         progress_cb=progress_cb,
+        super_sites=_provisional_super_sites_for_plan(rescue_first_plan),
     )
 
     scenario_views['rescue_first_standard_100'] = _build_meeting_scenario_view(
         'rescue_first_standard_100',
         'Rescue-Standard-First',
         rescue_first_plan,
-        rescue_eval['standard_only_metrics'],
+        rescue_eval['combined_metrics'],
         params,
         mini_sites=[],
         mini_summary=zero_mini_summary,
+        super_sites=_provisional_super_sites_for_plan(rescue_first_plan),
         candidate_universe_label=candidate_universe_label,
         spacing_mode_label='rescue_relaxed' if int(rescue_first_plan.get('rescue_count', 0) or 0) > 0 else 'strict',
     )
@@ -13769,71 +16720,85 @@ def _prepare_bangalore_multilayer_core_context(params, progress_cb=None, publish
             )
         )
 
-    if progress_cb:
-        progress_cb("Bangalore planner reset: completing exception-first Standard branch...")
-    exception_first_plan = _complete_standard_branch_from_base(
-        in_scope_grid,
-        strict_base_plan,
-        params,
-        branch_type='exception_first',
-        progress_cb=progress_cb,
-        incumbent_plan=rescue_first_plan,
+    defer_exception_branch = bool(params.get('meeting_fast_mode', True)) and bool(
+        params.get('meeting_fast_defer_exception_branch', True)
     )
+    if defer_exception_branch:
+        if progress_cb:
+            progress_cb("Meeting fast mode: deferring exception-first Standard comparison branch.")
+        exception_first_plan = None
+        exception_eval = None
+    else:
+        if progress_cb:
+            progress_cb("Bangalore planner reset: completing exception-first Standard branch...")
+        exception_first_plan = _complete_standard_branch_from_base(
+            in_scope_grid,
+            strict_base_plan,
+            params,
+            branch_type='exception_first',
+            progress_cb=progress_cb,
+            incumbent_plan=rescue_first_plan,
+        )
 
-    if progress_cb:
-        progress_cb("Bangalore planner reset: evaluating exception-first Standard branch...")
-    exception_eval = _evaluate_meeting_standard_branch(
-        in_scope_grid,
-        baseline_stores,
-        exception_first_plan,
-        [],
-        standard_eval_params,
-        params,
-        progress_label='Exception-first Standard evaluation',
-        progress_cb=progress_cb,
-    )
+        if progress_cb:
+            progress_cb("Bangalore planner reset: evaluating exception-first Standard branch...")
+        exception_eval = _evaluate_meeting_standard_branch(
+            in_scope_grid,
+            baseline_stores,
+            exception_first_plan,
+            [],
+            standard_eval_params,
+            params,
+            progress_label='Exception-first Standard evaluation',
+            progress_cb=progress_cb,
+            super_sites=_provisional_super_sites_for_plan(exception_first_plan),
+        )
 
-    if progress_cb:
-        progress_cb("Bangalore planner reset: evaluating strict Standard base...")
-    strict_base_eval = _evaluate_meeting_standard_branch(
-        in_scope_grid,
-        baseline_stores,
-        strict_base_plan,
-        [],
-        standard_eval_params,
-        params,
-        progress_label='Strict Standard base evaluation',
-        progress_cb=progress_cb,
-    )
-    scenario_views['strict_standard_base'] = _build_meeting_scenario_view(
-        'strict_standard_base',
-        'Strict Standard Base',
-        strict_base_plan,
-        strict_base_eval['combined_metrics'],
-        params,
-        mini_sites=[],
-        mini_summary=zero_mini_summary,
-        candidate_universe_label=candidate_universe_label,
-        spacing_mode_label='strict',
-    )
-    scenario_views['exception_first_standard_100'] = _build_meeting_scenario_view(
-        'exception_first_standard_100',
-        'Exception-First',
-        exception_first_plan,
-        exception_eval['standard_only_metrics'],
-        params,
-        mini_sites=[],
-        mini_summary=zero_mini_summary,
-        candidate_universe_label=candidate_universe_label,
-        spacing_mode_label='rescue_relaxed' if int(exception_first_plan.get('rescue_count', 0) or 0) > 0 else 'strict',
-    )
-    scenario_order = [
-        'strict_standard_base',
-        'rescue_first_standard_100',
-        'exception_first_standard_100',
-    ]
+    include_strict_base_comparison = not bool(params.get('meeting_fast_mode', True))
+    if include_strict_base_comparison:
+        if progress_cb:
+            progress_cb("Bangalore planner reset: evaluating strict Standard base...")
+        strict_base_eval = _evaluate_meeting_standard_branch(
+            in_scope_grid,
+            baseline_stores,
+            strict_base_plan,
+            [],
+            standard_eval_params,
+            params,
+            progress_label='Strict Standard base evaluation',
+            progress_cb=progress_cb,
+        )
+        scenario_views['strict_standard_base'] = _build_meeting_scenario_view(
+            'strict_standard_base',
+            'Strict Standard Base',
+            strict_base_plan,
+            strict_base_eval['combined_metrics'],
+            params,
+            mini_sites=[],
+            mini_summary=zero_mini_summary,
+            candidate_universe_label=candidate_universe_label,
+            spacing_mode_label='strict',
+        )
+    if exception_first_plan is not None and exception_eval is not None:
+        scenario_views['exception_first_standard_100'] = _build_meeting_scenario_view(
+            'exception_first_standard_100',
+            'Exception-First',
+            exception_first_plan,
+            exception_eval['combined_metrics'],
+            params,
+            mini_sites=[],
+            mini_summary=zero_mini_summary,
+            super_sites=_provisional_super_sites_for_plan(exception_first_plan),
+            candidate_universe_label=candidate_universe_label,
+            spacing_mode_label='rescue_relaxed' if int(exception_first_plan.get('rescue_count', 0) or 0) > 0 else 'strict',
+        )
+        scenario_order = ['rescue_first_standard_100', 'exception_first_standard_100']
+    else:
+        scenario_order = ['rescue_first_standard_100']
+    if 'strict_standard_base' in scenario_views and not bool(params.get('meeting_fast_mode', True)):
+        scenario_order.insert(0, 'strict_standard_base')
 
-    active_view_key = _pick_active_meeting_view_key(scenario_views) or 'rescue_first_standard_100'
+    active_view_key = _pick_active_meeting_view_key(scenario_views, params) or 'rescue_first_standard_100'
     active_view = dict(scenario_views.get(active_view_key) or scenario_views['rescue_first_standard_100'])
     if active_view_key.startswith('exception_first'):
         active_branch_plan = exception_first_plan
@@ -13881,7 +16846,7 @@ def _build_meeting_core_quality_summary(params, scenario_views, active_view_key,
     active_view = dict((scenario_views or {}).get(active_view_key) or {})
     coverage_pct = float(active_view.get('proposed_hard_coverage_pct', 0.0) or 0.0)
     fixed_mode = _effective_fixed_store_source_mode(params)
-    overall_label = 'Decision-grade' if coverage_pct >= DEFAULT_MEETING_CORE_PUBLISH_COVERAGE_PCT else 'Review carefully'
+    overall_label = 'Provisional preview' if coverage_pct >= DEFAULT_MEETING_CORE_PUBLISH_COVERAGE_PCT else 'Preview carefully'
     decision_layers = []
     if 'strict_standard_base' in (scenario_views or {}):
         decision_layers.append('Strict Standard Base')
@@ -13890,7 +16855,7 @@ def _build_meeting_core_quality_summary(params, scenario_views, active_view_key,
     if 'exception_first_standard_100' in (scenario_views or {}):
         decision_layers.append('Exception-first 100%')
     notes = [
-        f"Decision-grade layer is aligned to the active {fixed_mode} fixed-store world and current service-radius policy."
+        f"This preview is aligned to the active {fixed_mode} fixed-store world and current service-radius policy, but it is not the final decision packet."
     ]
     rescue_view = (scenario_views or {}).get('rescue_first_standard_100')
     exception_view = (scenario_views or {}).get('exception_first_standard_100')
@@ -13912,9 +16877,11 @@ def _build_meeting_core_quality_summary(params, scenario_views, active_view_key,
         notes.append(
             f"{int(active_view.get('rescue_standard_count', 0) or 0)} rescue Standard site(s) are active in the currently mapped branch."
         )
-    notes.append("Mini overlay is deferred from the first decision packet so the Standard answer lands faster.")
-    if defer_super:
-        notes.append("Super blanket is deferred from the decision packet in meeting-fast mode.")
+    notes.append("Mini overlay is intentionally deferred from the preview; the final packet must still evaluate Mini before the active branch is accepted.")
+    if int(active_view.get('super_count', 0) or 0) > 0:
+        notes.append("Any Super shown here is provisional support only; the final packet must either justify true Super throughput or label the layer as overlay support.")
+    elif defer_super:
+        notes.append("Full Super evaluation is deferred from the preview in meeting-fast mode.")
     return {
         'mode': 'meeting_fast_core',
         'overall_label': overall_label,
@@ -13936,6 +16903,8 @@ def _build_bangalore_multilayer_core_result(core_ctx, elapsed_s):
     scope_summary = core_ctx['scope_summary']
     defer_super = bool(params.get('meeting_fast_mode', True)) and bool(params.get('meeting_fast_defer_super', True))
     active_fixed_stores = list(core_ctx.get('active_fixed_stores') or [])
+    active_super_sites = list(active_view.get('super_ds') or [])
+    active_super_count = _meeting_view_true_super_count(active_view)
     stores_json = [{
         'id': s['id'],
         'lat': s['lat'],
@@ -13943,26 +16912,13 @@ def _build_bangalore_multilayer_core_result(core_ctx, elapsed_s):
         'orders_per_day': s['orders_per_day'],
         'polygon_coords': s.get('polygon_coords', []),
     } for s in active_fixed_stores]
-    decision_grade_result = {
-        'active_view_key': active_view_key,
-        'fixed_standard_count': int(active_view.get('fixed_standard_count', 0) or 0),
-        'new_standard_count': int(active_view.get('base_new_standard_count', 0) or 0) + int(active_view.get('rescue_standard_count', 0) or 0),
-        'base_new_standard_count': int(active_view.get('base_new_standard_count', 0) or 0),
-        'rescue_standard_count': int(active_view.get('rescue_standard_count', 0) or 0),
-        'gap_fill_standard_count': int(active_view.get('gap_fill_standard_count', 0) or 0),
-        'spacing_relaxed_standard_count': int(active_view.get('spacing_relaxed_standard_count', 0) or 0),
-        'total_physical_standard_count': int(active_view.get('total_physical_standard_count', 0) or 0),
-        'exception_hub_count': int(active_view.get('exception_override_count', 0) or 0),
-        'mini_count': 0,
-        'proposed_hard_coverage_pct': float(active_view.get('proposed_hard_coverage_pct', 0.0) or 0.0),
-        'proposed_avg_cost': float(active_view.get('proposed_avg_cost', 0.0) or 0.0),
-        'proposed_avg_dist': float(active_view.get('proposed_avg_dist', 0.0) or 0.0) if active_view.get('proposed_avg_dist') is not None else None,
-        'current_avg_cost': float(active_view.get('current_avg_cost', 0.0) or 0.0),
-        'current_avg_dist': float(active_view.get('current_avg_dist', 0.0) or 0.0),
-        'daily_savings': float(active_view.get('daily_savings', 0.0) or 0.0),
-        'monthly_savings': float(active_view.get('monthly_savings', 0.0) or 0.0),
-        **_meeting_context_fields(params),
-    }
+    decision_grade_result = _build_meeting_decision_grade_result(
+        active_view_key,
+        active_view,
+        params,
+        mini_count=0,
+        super_count=active_super_count,
+    )
     layer_status = {
         'standard': 'computed',
         'exception_standard': 'computed' if int(active_view.get('exception_override_count', 0) or 0) > 0 else 'not_needed',
@@ -13970,7 +16926,7 @@ def _build_bangalore_multilayer_core_result(core_ctx, elapsed_s):
         'standard_only_comparison': 'computed',
         'branch_comparison': 'computed' if 'exception_first_standard_100' in scenario_views else 'deferred',
         'uncovered_analysis': 'deferred',
-        'super': 'deferred' if defer_super else 'pending',
+        'super': 'computed' if active_super_count > 0 else ('deferred' if defer_super else 'pending'),
     }
     comparison_layers = {
         'current_network': {
@@ -13993,9 +16949,11 @@ def _build_bangalore_multilayer_core_result(core_ctx, elapsed_s):
             'deferred': True,
         },
         'super': {
-            'sites': [],
-            'site_count': 0,
-            'deferred': defer_super,
+            'sites': _copy_site_records(active_super_sites),
+            'site_count': active_super_count,
+            'overlay_super_count': int(active_view.get('overlay_super_count', 0) or 0),
+            'deferred': bool(defer_super and active_super_count == 0),
+            'mode': 'decision_grade_provisional' if active_super_count > 0 else 'deferred',
         },
         'comparison': comparison_layers,
     }
@@ -14016,12 +16974,19 @@ def _build_bangalore_multilayer_core_result(core_ctx, elapsed_s):
         )
     if active_view_key in scenario_views:
         core_recommendations.append(
-            f"Map and hub table currently follow {active_view.get('label', active_view_key)} because it is the stronger branch under the shared coverage-first, cost-second business objective."
+            f"Map and hub table currently follow {active_view.get('label', active_view_key)} as a provisional preview only. Final branch selection is cost-led after Mini and full branch comparison complete."
         )
     return {
         'success': True,
         'response_version': 2,
         'result_contract': 'decision_plus_deferred',
+        'result_state': {
+            'status': 'provisional_preview',
+            'label': 'Provisional Preview',
+            'is_final': False,
+            'can_be_saved_as_latest': False,
+            'pending_layers': [layer for layer, status in layer_status.items() if status in {'deferred', 'pending'}],
+        },
         'decision_grade_result': decision_grade_result,
         'deferred_result': {
             'ready': False,
@@ -14043,7 +17008,7 @@ def _build_bangalore_multilayer_core_result(core_ctx, elapsed_s):
         **_meeting_context_fields(params),
         'mini_ds': [],
         'standard_ds': list(active_view.get('standard_ds') or []),
-        'super_ds': [],
+        'super_ds': _copy_site_records(active_super_sites),
         'metrics': dict(active_view.get('metrics') or {}),
         'analysis': {
             'service_gap_polygons': [],
@@ -14072,15 +17037,15 @@ def _build_bangalore_multilayer_core_result(core_ctx, elapsed_s):
             'phase': 'core_decision_packet',
             'active_view_key': active_view_key,
             'fixed_standard_count': int(active_view.get('fixed_standard_count', 0) or 0),
-            'new_standard_count': int(active_view.get('base_new_standard_count', 0) or 0) + int(active_view.get('rescue_standard_count', 0) or 0),
+            'new_standard_count': _meeting_view_new_standard_count(active_view),
             'mini_count': 0,
-            'super_count': 0,
+            'super_count': active_super_count,
         },
         'quality_summary': _build_meeting_core_quality_summary(params, scenario_views, active_view_key, defer_super),
         'pipeline_warnings': (
-            ['Deferred enrichment still pending: Mini overlay, uncovered-gap analysis, and optional Super blanket.']
+            ['This is a provisional preview only. Deferred enrichment is still pending: Mini overlay, uncovered-gap analysis, and optional Super blanket.']
             + (
-                ['Super blanket is deferred in meeting-fast mode.']
+                ['Any Super shown in the preview is not final proof of a true Super tier.']
                 if defer_super else
                 ['Super blanket remains pending in meeting mode.']
             )
@@ -14104,62 +17069,285 @@ def _finalize_bangalore_multilayer_result_from_core(core_ctx, progress_cb=None):
     baseline_stores = core_ctx['baseline_stores']
     standard_eval_params = dict(core_ctx['standard_eval_params'])
     candidate_universe_label = core_ctx.get('candidate_universe_label') or _standard_candidate_universe_label(params)
+    meeting_fast_mode = bool(params.get('meeting_fast_mode', True))
+    active_branch_only = meeting_fast_mode and bool(
+        params.get('meeting_fast_finalize_active_branch_only', True)
+    )
+    skip_uncovered_analysis = meeting_fast_mode and bool(
+        params.get('meeting_fast_skip_uncovered_analysis', True)
+    )
+    compute_super_in_finalize = bool(
+        params.get('meeting_fast_finalize_super', meeting_fast_mode)
+    )
+    zero_mini_summary = {
+        'site_count': 0,
+        'orders_shifted_from_standard_per_day': 0.0,
+        'avg_cost_reduction_per_order': 0.0,
+        'daily_cost_reduction': 0.0,
+    }
+    scenario_eval_payloads = {}
 
-    if progress_cb:
-        progress_cb("Mini overlay: scanning dense in-scope clusters...")
-    mini_sites = _plan_mini_overlay(in_scope_grid, params, progress_cb=progress_cb)
+    if meeting_fast_mode and rescue_first_plan is None:
+        if progress_cb:
+            progress_cb(
+                "Meeting fast mode: completing deferred rescue on top of the Standard backbone "
+                f"[{_standard_plan_progress_summary(strict_base_plan)}]..."
+            )
+        rescue_first_plan = _complete_standard_branch_from_base(
+            in_scope_grid,
+            strict_base_plan,
+            params,
+            branch_type='rescue_first',
+            progress_cb=progress_cb,
+        )
+        if progress_cb:
+            progress_cb(
+                "Meeting fast mode: evaluating Standard + Super + true-tail rescue branch "
+                f"[{_standard_plan_progress_summary(rescue_first_plan)}]..."
+            )
+        rescue_eval = _evaluate_meeting_standard_branch(
+            in_scope_grid,
+            baseline_stores,
+            rescue_first_plan,
+            [],
+            standard_eval_params,
+            params,
+            progress_label='Deferred rescue-first Standard evaluation',
+            progress_cb=progress_cb,
+            super_sites=list(rescue_first_plan.get('provisional_fixed_super_sites') or []),
+        )
+        scenario_views['rescue_first_standard_100'] = _build_meeting_scenario_view(
+            'rescue_first_standard_100',
+            'Standard + Super + Rescue',
+            rescue_first_plan,
+            rescue_eval['combined_metrics'],
+            params,
+            mini_sites=[],
+            mini_summary=zero_mini_summary,
+            super_sites=list(rescue_first_plan.get('provisional_fixed_super_sites') or []),
+            candidate_universe_label=candidate_universe_label,
+            spacing_mode_label='rescue_relaxed' if int(rescue_first_plan.get('rescue_count', 0) or 0) > 0 else 'strict',
+        )
+        active_view_key = 'rescue_first_standard_100'
+        active_standard_only_key = 'rescue_first_standard_100'
+        active_branch_plan = rescue_first_plan
 
-    if progress_cb:
-        progress_cb("Bangalore planner reset: evaluating rescue-first Standard + Mini...")
-    rescue_mini_eval = _evaluate_meeting_standard_branch(
-        in_scope_grid,
-        baseline_stores,
-        rescue_first_plan,
-        mini_sites,
-        standard_eval_params,
-        params,
-        progress_label='Rescue-first Standard+Mini evaluation',
-        progress_cb=progress_cb,
+    active_view = dict(scenario_views.get(active_view_key) or core_ctx.get('active_view') or {})
+    required_coverage_pct = _required_decision_grade_coverage_pct(params)
+    current_branch_coverage_pct = float(active_view.get('proposed_hard_coverage_pct', 0.0) or 0.0)
+    if meeting_fast_mode and active_branch_only and current_branch_coverage_pct + 1e-9 < required_coverage_pct:
+        active_branch_only = False
+        if progress_cb:
+            progress_cb(
+                "Meeting fast mode: forcing full rescue/Exception comparison before Mini because the active "
+                f"branch is still below the required decision-grade floor ({current_branch_coverage_pct:.2f}% < "
+                f"{required_coverage_pct:.2f}%)."
+            )
+
+    if not active_branch_only and exception_first_plan is None:
+        if progress_cb:
+            progress_cb(
+                "Meeting fast mode: completing deferred exception-first Standard branch because rescue-first "
+                f"is still below the required decision-grade floor ({current_branch_coverage_pct:.2f}% < "
+                f"{required_coverage_pct:.2f}%)."
+            )
+        exception_first_plan = _complete_standard_branch_from_base(
+            in_scope_grid,
+            strict_base_plan,
+            params,
+            branch_type='exception_first',
+            progress_cb=progress_cb,
+            incumbent_plan=rescue_first_plan,
+        )
+        if progress_cb:
+            progress_cb("Meeting fast mode: evaluating deferred exception-first Standard branch...")
+        exception_eval = _evaluate_meeting_standard_branch(
+            in_scope_grid,
+            baseline_stores,
+            exception_first_plan,
+            [],
+            standard_eval_params,
+            params,
+            progress_label='Deferred exception-first Standard evaluation',
+            progress_cb=progress_cb,
+            super_sites=list(exception_first_plan.get('provisional_fixed_super_sites') or []),
+        )
+        scenario_views['exception_first_standard_100'] = _build_meeting_scenario_view(
+            'exception_first_standard_100',
+            'Exception-First',
+            exception_first_plan,
+            exception_eval['combined_metrics'],
+            params,
+            mini_sites=[],
+            mini_summary=zero_mini_summary,
+            super_sites=list(exception_first_plan.get('provisional_fixed_super_sites') or []),
+            candidate_universe_label=candidate_universe_label,
+            spacing_mode_label='rescue_relaxed' if int(exception_first_plan.get('rescue_count', 0) or 0) > 0 else 'strict',
+        )
+
+    active_view_key = _pick_active_meeting_view_key(scenario_views, params) or active_view_key
+    active_standard_only_key = (
+        active_view_key.removesuffix('_plus_mini')
+        if active_view_key.endswith('_plus_mini')
+        else active_view_key
     )
-    if progress_cb:
-        progress_cb("Bangalore planner reset: evaluating exception-first Standard + Mini...")
-    exception_mini_eval = _evaluate_meeting_standard_branch(
-        in_scope_grid,
-        baseline_stores,
-        exception_first_plan,
-        mini_sites,
-        standard_eval_params,
-        params,
-        progress_label='Exception-first Standard+Mini evaluation',
-        progress_cb=progress_cb,
+    active_view = dict(scenario_views.get(active_view_key) or active_view)
+    active_branch_plan = (
+        exception_first_plan
+        if active_view_key.startswith('exception_first') and exception_first_plan is not None
+        else rescue_first_plan
+        if active_view_key.startswith('rescue_first') and rescue_first_plan is not None
+        else core_ctx['active_branch_plan']
     )
 
-    scenario_views['rescue_first_standard_100_plus_mini'] = _build_meeting_scenario_view(
-        'rescue_first_standard_100_plus_mini',
-        'Rescue-Standard-First + Mini',
-        rescue_first_plan,
-        rescue_mini_eval['combined_metrics'],
-        params,
-        mini_sites=mini_sites,
-        mini_summary=rescue_mini_eval['mini_summary'],
-        candidate_universe_label=candidate_universe_label,
-        spacing_mode_label='rescue_relaxed' if int(rescue_first_plan.get('rescue_count', 0) or 0) > 0 else 'strict',
-    )
-    scenario_views['exception_first_standard_100_plus_mini'] = _build_meeting_scenario_view(
-        'exception_first_standard_100_plus_mini',
-        'Exception-First + Mini',
-        exception_first_plan,
-        exception_mini_eval['combined_metrics'],
-        params,
-        mini_sites=mini_sites,
-        mini_summary=exception_mini_eval['mini_summary'],
-        candidate_universe_label=candidate_universe_label,
-        spacing_mode_label='rescue_relaxed' if int(exception_first_plan.get('rescue_count', 0) or 0) > 0 else 'strict',
-    )
-    for view_key, parent_key in (
-        ('rescue_first_standard_100_plus_mini', 'rescue_first_standard_100'),
-        ('exception_first_standard_100_plus_mini', 'exception_first_standard_100'),
-    ):
+    mini_gate_pct = required_coverage_pct
+    current_branch_coverage_pct = float(active_view.get('proposed_hard_coverage_pct', 0.0) or 0.0)
+    can_run_mini = current_branch_coverage_pct + 1e-9 >= mini_gate_pct
+    if can_run_mini:
+        if progress_cb:
+            progress_cb("Mini overlay: scanning dense in-scope clusters...")
+        mini_sites = _plan_mini_overlay(in_scope_grid, params, progress_cb=progress_cb)
+    else:
+        mini_sites = []
+        if progress_cb:
+            progress_cb(
+                "Mini overlay deferred because the active Standard branch is still below the required coverage floor "
+                f"({current_branch_coverage_pct:.2f}% < {mini_gate_pct:.2f}%)."
+            )
+    defer_super = meeting_fast_mode and bool(params.get('meeting_fast_defer_super', True)) and not compute_super_in_finalize
+    rescue_super_plan = {'sites': [], 'site_count': 0, 'blanket_coverage_pct': 0.0, 'deferred': True}
+    exception_super_plan = {'sites': [], 'site_count': 0, 'blanket_coverage_pct': 0.0, 'deferred': True}
+    if not defer_super:
+        if active_branch_only:
+            active_super_branch_plan = rescue_first_plan if active_view_key.startswith('rescue_first') and rescue_first_plan is not None else core_ctx['active_branch_plan']
+            if progress_cb:
+                progress_cb("Meeting fast mode: building active-branch Super blanket layer...")
+            active_super_plan = _plan_super_blanket(
+                in_scope_grid,
+                business_regions,
+                excluded_islands,
+                list(active_super_branch_plan.get('all_sites') or []),
+                params,
+                progress_cb=progress_cb,
+                mini_sites=mini_sites,
+            )
+            if active_view_key.startswith('rescue_first'):
+                rescue_super_plan = active_super_plan
+            else:
+                exception_super_plan = active_super_plan
+        else:
+            if progress_cb:
+                progress_cb("Bangalore planner reset: building rescue-first Super blanket layer...")
+            rescue_super_plan = _plan_super_blanket(
+                in_scope_grid, business_regions, excluded_islands, list(rescue_first_plan.get('all_sites') or []), params, progress_cb=progress_cb, mini_sites=mini_sites
+            )
+            if exception_first_plan is not None:
+                if progress_cb:
+                    progress_cb("Bangalore planner reset: building exception-first Super blanket layer...")
+                exception_super_plan = _plan_super_blanket(
+                    in_scope_grid, business_regions, excluded_islands, list(exception_first_plan.get('all_sites') or []), params, progress_cb=progress_cb, mini_sites=mini_sites
+                )
+    rescue_super_sites = list(rescue_super_plan.get('sites') or [])
+    exception_super_sites = list(exception_super_plan.get('sites') or [])
+
+    active_view = dict(scenario_views.get(active_view_key) or {})
+    active_standard_only_view = dict(scenario_views.get(active_standard_only_key) or {})
+    active_mini_view_key = f"{active_view_key}_plus_mini"
+    active_mini_eval = None
+    exception_mini_eval = None
+    mini_view_pairs = []
+    if can_run_mini and active_branch_only:
+        if progress_cb:
+            progress_cb(f"Meeting fast mode: evaluating active branch {active_view_key} + Mini...")
+        active_mini_eval = _evaluate_meeting_standard_branch(
+            in_scope_grid,
+            baseline_stores,
+            active_branch_plan,
+            mini_sites,
+            standard_eval_params,
+            params,
+            progress_label=f'{active_view_key} Standard+Mini evaluation',
+            progress_cb=progress_cb,
+            super_sites=rescue_super_sites if active_view_key.startswith('rescue_first') else exception_super_sites,
+        )
+        scenario_views[active_mini_view_key] = _build_meeting_scenario_view(
+            active_mini_view_key,
+            f"{active_view.get('label', active_view_key)} + Mini",
+            active_branch_plan,
+            active_mini_eval['combined_metrics'],
+            params,
+            mini_sites=mini_sites,
+            mini_summary=active_mini_eval['mini_summary'],
+            super_sites=rescue_super_sites if active_view_key.startswith('rescue_first') else exception_super_sites,
+            candidate_universe_label=candidate_universe_label,
+            spacing_mode_label='rescue_relaxed' if int(active_branch_plan.get('rescue_count', 0) or 0) > 0 else 'strict',
+        )
+        scenario_eval_payloads[active_mini_view_key] = active_mini_eval
+        mini_view_pairs = [(active_mini_view_key, active_view_key)]
+    elif can_run_mini:
+        if progress_cb:
+            progress_cb("Bangalore planner reset: evaluating rescue-first Standard + Mini...")
+        rescue_mini_eval = _evaluate_meeting_standard_branch(
+            in_scope_grid,
+            baseline_stores,
+            rescue_first_plan,
+            mini_sites,
+            standard_eval_params,
+            params,
+            progress_label='Rescue-first Standard+Mini evaluation',
+            progress_cb=progress_cb,
+            super_sites=rescue_super_sites,
+        )
+        if exception_first_plan is not None:
+            if progress_cb:
+                progress_cb("Bangalore planner reset: evaluating exception-first Standard + Mini...")
+            exception_mini_eval = _evaluate_meeting_standard_branch(
+                in_scope_grid,
+                baseline_stores,
+                exception_first_plan,
+                mini_sites,
+                standard_eval_params,
+                params,
+                progress_label='Exception-first Standard+Mini evaluation',
+                progress_cb=progress_cb,
+                super_sites=exception_super_sites,
+            )
+
+        scenario_views['rescue_first_standard_100_plus_mini'] = _build_meeting_scenario_view(
+            'rescue_first_standard_100_plus_mini',
+            'Rescue-Standard-First + Mini',
+            rescue_first_plan,
+            rescue_mini_eval['combined_metrics'],
+            params,
+            mini_sites=mini_sites,
+            mini_summary=rescue_mini_eval['mini_summary'],
+            super_sites=rescue_super_sites,
+            candidate_universe_label=candidate_universe_label,
+            spacing_mode_label='rescue_relaxed' if int(rescue_first_plan.get('rescue_count', 0) or 0) > 0 else 'strict',
+        )
+        scenario_eval_payloads['rescue_first_standard_100_plus_mini'] = rescue_mini_eval
+        if exception_first_plan is not None and exception_mini_eval is not None:
+            scenario_views['exception_first_standard_100_plus_mini'] = _build_meeting_scenario_view(
+                'exception_first_standard_100_plus_mini',
+                'Exception-First + Mini',
+                exception_first_plan,
+                exception_mini_eval['combined_metrics'],
+                params,
+                mini_sites=mini_sites,
+                mini_summary=exception_mini_eval['mini_summary'],
+                super_sites=exception_super_sites,
+                candidate_universe_label=candidate_universe_label,
+                spacing_mode_label='rescue_relaxed' if int(exception_first_plan.get('rescue_count', 0) or 0) > 0 else 'strict',
+            )
+            scenario_eval_payloads['exception_first_standard_100_plus_mini'] = exception_mini_eval
+        mini_view_pairs = [
+            ('rescue_first_standard_100_plus_mini', 'rescue_first_standard_100'),
+        ]
+        if exception_first_plan is not None and exception_mini_eval is not None:
+            mini_view_pairs.append(
+                ('exception_first_standard_100_plus_mini', 'exception_first_standard_100')
+            )
+    for view_key, parent_key in mini_view_pairs:
         mini_view = scenario_views[view_key]
         parent_view = scenario_views[parent_key]
         mini_view['avg_cost_delta_vs_parent'] = round(
@@ -14176,23 +17364,88 @@ def _finalize_bangalore_multilayer_result_from_core(core_ctx, progress_cb=None):
         mini_view['orders_shifted_from_standard_per_day'] = float(
             ((mini_view.get('mini_overlay_summary') or {}).get('orders_shifted_from_standard_per_day', 0.0) or 0.0)
         )
-    scenario_order = [
-        'strict_standard_base',
-        'rescue_first_standard_100',
-        'exception_first_standard_100',
-        'rescue_first_standard_100_plus_mini',
-        'exception_first_standard_100_plus_mini',
-    ]
-    active_view = dict(scenario_views.get(active_view_key) or {})
-    active_standard_only_view = dict(scenario_views.get(active_standard_only_key) or {})
-    active_mini_view_key = f"{active_view_key}_plus_mini" if f"{active_view_key}_plus_mini" in scenario_views else None
+    if active_branch_only:
+        scenario_order = [active_view_key]
+        if 'strict_standard_base' in scenario_views and not meeting_fast_mode:
+            scenario_order.insert(0, 'strict_standard_base')
+        if can_run_mini and active_mini_view_key in scenario_views:
+            scenario_order.append(active_mini_view_key)
+    else:
+        scenario_order = ['rescue_first_standard_100']
+        if can_run_mini:
+            scenario_order.append('rescue_first_standard_100_plus_mini')
+        if 'strict_standard_base' in scenario_views and not meeting_fast_mode:
+            scenario_order.insert(0, 'strict_standard_base')
+        if exception_first_plan is not None and 'exception_first_standard_100' in scenario_views:
+            scenario_order.append('exception_first_standard_100')
+            if can_run_mini and exception_mini_eval is not None:
+                scenario_order.append('exception_first_standard_100_plus_mini')
+    if not defer_super:
+        refresh_targets = []
+        if active_branch_only:
+            refresh_targets.append(
+                (
+                    active_standard_only_key,
+                    active_branch_plan,
+                    rescue_super_sites if active_view_key.startswith('rescue_first') else exception_super_sites,
+                )
+            )
+        else:
+            if rescue_first_plan is not None and 'rescue_first_standard_100' in scenario_views:
+                refresh_targets.append(
+                    ('rescue_first_standard_100', rescue_first_plan, rescue_super_sites)
+                )
+            if exception_first_plan is not None and 'exception_first_standard_100' in scenario_views:
+                refresh_targets.append(
+                    ('exception_first_standard_100', exception_first_plan, exception_super_sites)
+                )
+        for branch_view_key, branch_plan, branch_super_sites in refresh_targets:
+            if progress_cb:
+                progress_cb(f"Meeting fast mode: refreshing {branch_view_key} with final Super layer...")
+            branch_super_eval = _evaluate_meeting_standard_branch(
+                in_scope_grid,
+                baseline_stores,
+                branch_plan,
+                [],
+                standard_eval_params,
+                params,
+                progress_label=f'{branch_view_key} Standard+Super refresh',
+                progress_cb=progress_cb,
+                super_sites=branch_super_sites,
+            )
+            scenario_views[branch_view_key] = _build_meeting_scenario_view(
+                branch_view_key,
+                dict(scenario_views.get(branch_view_key) or {}).get('label', branch_view_key),
+                branch_plan,
+                branch_super_eval['combined_metrics'],
+                params,
+                mini_sites=[],
+                mini_summary=zero_mini_summary,
+                super_sites=branch_super_sites,
+                candidate_universe_label=candidate_universe_label,
+                spacing_mode_label='rescue_relaxed' if int(branch_plan.get('rescue_count', 0) or 0) > 0 else 'strict',
+            )
+            scenario_eval_payloads[branch_view_key] = branch_super_eval
+    selected_active_view_key = _pick_active_meeting_view_key(scenario_views, params) or active_view_key
+    selected_active_view = dict(scenario_views.get(selected_active_view_key) or {})
+    selected_standard_only_key = (
+        selected_active_view_key.removesuffix('_plus_mini')
+        if selected_active_view_key.endswith('_plus_mini')
+        else selected_active_view_key
+    )
+    active_view_key = selected_active_view_key
+    active_view = selected_active_view
+    active_standard_only_key = selected_standard_only_key
+    active_standard_only_view = dict(scenario_views.get(active_standard_only_key) or active_view)
+    active_mini_view_key = active_view_key if active_view_key.endswith('_plus_mini') else None
     active_mini_view = dict(scenario_views.get(active_mini_view_key) or {})
-    standard_plan = core_ctx['active_branch_plan']
-    standard_sites = list(standard_plan.get('all_sites') or [])
-    combined_metrics = dict(active_mini_view.get('metrics') or active_view.get('metrics') or {})
-    standard_only_metrics = dict(active_standard_only_view.get('metrics') or {})
-
-    defer_super = bool(params.get('meeting_fast_mode', True)) and bool(params.get('meeting_fast_defer_super', True))
+    active_branch_plan = (
+        exception_first_plan
+        if active_view_key.startswith('exception_first') and exception_first_plan is not None
+        else rescue_first_plan
+        if active_view_key.startswith('rescue_first') and rescue_first_plan is not None
+        else core_ctx['active_branch_plan']
+    )
     if defer_super:
         if progress_cb:
             progress_cb("Meeting fast mode: Super blanket remains deferred during enrichment.")
@@ -14212,35 +17465,130 @@ def _finalize_bangalore_multilayer_result_from_core(core_ctx, progress_cb=None):
             'order_coverage_pct_if_super_serves': 0.0,
         }
     else:
-        if progress_cb:
-            progress_cb("Bangalore planner reset: building separate Super blanket layer...")
-        super_plan = _plan_super_blanket(
-            in_scope_grid, business_regions, excluded_islands, standard_sites, params, progress_cb=progress_cb
-        )
-        super_sites = super_plan['sites']
+        super_plan = rescue_super_plan if active_view_key.startswith('rescue_first') else exception_super_plan
+        super_sites = list(super_plan.get('sites') or [])
         super_cost_summary = _summarize_super_blanket_order_cost(in_scope_grid, super_sites, params)
-    mini_summary = dict(active_mini_view.get('mini_overlay_summary') or {})
-    mini_summary['site_count'] = len(mini_sites)
-    super_plan['site_count'] = len(super_sites)
+    super_plan['site_count'] = int(super_plan.get('site_count', len([site for site in super_sites if bool(site.get('counts_as_true_super', True))])) or 0)
+    super_plan['overlay_super_count'] = int(super_plan.get('overlay_super_count', len([site for site in super_sites if not bool(site.get('counts_as_true_super', True))])) or 0)
+    effective_mini_sites = list(mini_sites) if active_mini_view_key else []
+    mini_summary = dict((active_view.get('mini_overlay_summary') or {}) if active_mini_view_key else {})
+    mini_summary['site_count'] = len(effective_mini_sites)
+    standard_plan = active_branch_plan
+    standard_sites = list(standard_plan.get('all_sites') or [])
+    selected_eval_payload = (
+        scenario_eval_payloads.get(active_view_key)
+        or scenario_eval_payloads.get(active_standard_only_key)
+        or {}
+    )
+    combined_metrics = dict(active_view.get('metrics') or {})
+    standard_only_metrics = dict(active_standard_only_view.get('metrics') or {})
+    baseline_hard_coverage_pct = float(active_standard_only_view.get('proposed_hard_coverage_pct', 0.0) or 0.0)
+    baseline_full_hard_coverage_pct = float(
+        active_standard_only_view.get('full_hard_coverage_pct', baseline_hard_coverage_pct) or baseline_hard_coverage_pct
+    )
+    baseline_addressable_hard_coverage_pct = float(
+        active_standard_only_view.get('addressable_hard_coverage_pct', baseline_hard_coverage_pct) or baseline_hard_coverage_pct
+    )
+    if combined_metrics:
+        combined_metrics['proposed_hard_coverage_pct'] = max(
+            baseline_hard_coverage_pct,
+            float(combined_metrics.get('proposed_hard_coverage_pct', 0.0) or 0.0),
+        )
+        combined_metrics['full_hard_coverage_pct'] = max(
+            baseline_full_hard_coverage_pct,
+            float(combined_metrics.get('full_hard_coverage_pct', 0.0) or 0.0),
+        )
+        combined_metrics['addressable_hard_coverage_pct'] = max(
+            baseline_addressable_hard_coverage_pct,
+            float(combined_metrics.get('addressable_hard_coverage_pct', 0.0) or 0.0),
+        )
 
-    uncovered_mask = ~standard_plan['covered_mask']
     uncovered_pockets = []
     gap_polygons = []
-    if np.any(uncovered_mask):
-        clat = in_scope_grid['cell_lat'].values.astype(np.float64)
-        clon = in_scope_grid['cell_lon'].values.astype(np.float64)
-        weights = in_scope_grid['orders_per_day'].values.astype(np.float64)
-        uncovered_pockets = _group_uncovered_pockets(
-            clat[uncovered_mask], clon[uncovered_mask], weights[uncovered_mask],
-            pocket_radius_km=float(params.get('uncovered_pocket_radius_km', 3.0) or 3.0),
-            include_cell_indices=True,
-            progress_cb=progress_cb,
-        )
-        remaining_idx = np.where(uncovered_mask)[0]
-        for pocket in uncovered_pockets:
-            local_idx = [int(x) for x in pocket.get('cell_indices', [])]
-            pocket['cell_indices'] = [int(remaining_idx[j]) for j in local_idx if 0 <= int(j) < len(remaining_idx)]
-        gap_polygons = _build_service_gap_polygons(uncovered_pockets, in_scope_grid, stage_label='standard_base')
+    uncovered_analysis = None
+    if skip_uncovered_analysis:
+        if progress_cb:
+            progress_cb("Meeting fast mode: skipping uncovered-pocket geometry build during deferred enrichment.")
+    else:
+        uncovered_mask = ~standard_plan['covered_mask']
+        if np.any(uncovered_mask):
+            if progress_cb:
+                progress_cb("Deferred uncovered analysis: grouping uncovered demand pockets...")
+            clat = in_scope_grid['cell_lat'].values.astype(np.float64)
+            clon = in_scope_grid['cell_lon'].values.astype(np.float64)
+            weights = in_scope_grid['orders_per_day'].values.astype(np.float64)
+            uncovered_pockets = _group_uncovered_pockets(
+                clat[uncovered_mask], clon[uncovered_mask], weights[uncovered_mask],
+                pocket_radius_km=float(params.get('uncovered_pocket_radius_km', 3.0) or 3.0),
+                include_cell_indices=True,
+                progress_cb=progress_cb,
+            )
+            remaining_idx = np.where(uncovered_mask)[0]
+            for pocket in uncovered_pockets:
+                local_idx = [int(x) for x in pocket.get('cell_indices', [])]
+                pocket['cell_indices'] = [int(remaining_idx[j]) for j in local_idx if 0 <= int(j) < len(remaining_idx)]
+            gap_polygons = _build_service_gap_polygons(uncovered_pockets, in_scope_grid, stage_label='standard_base')
+        selected_debug = dict((selected_eval_payload or {}).get('combined_debug') or {})
+        if selected_debug:
+            if progress_cb:
+                progress_cb("Deferred uncovered analysis: assembling radius and override audit...")
+            debug_weights = np.asarray(
+                selected_debug.get('weights', in_scope_grid['orders_per_day'].values.astype(np.float64)),
+                dtype=np.float64,
+            )
+            debug_current_costs = np.asarray(selected_debug.get('current_costs', np.zeros(len(debug_weights))), dtype=np.float64)
+            debug_proposed_costs = np.asarray(
+                selected_debug.get('proposed_costs', np.array(debug_current_costs, copy=True)),
+                dtype=np.float64,
+            )
+            debug_proposed_dists = np.asarray(
+                selected_debug.get('proposed_dists', np.full(len(debug_weights), np.nan, dtype=np.float64)),
+                dtype=np.float64,
+            )
+            hard_served_mask = np.asarray(
+                selected_debug.get('hard_served_mask', np.zeros(len(debug_weights), dtype=bool)),
+                dtype=bool,
+            )
+            debug_d_std = np.minimum(
+                np.asarray(selected_debug.get('d_std', np.full(len(debug_weights), np.inf)), dtype=np.float64),
+                np.asarray(selected_debug.get('d_std_exception', np.full(len(debug_weights), np.inf)), dtype=np.float64),
+            )
+            uncovered_analysis = _build_uncovered_analysis(
+                uncovered_pockets,
+                params,
+                in_scope_grid,
+                debug_weights,
+                debug_current_costs,
+                debug_proposed_costs,
+                debug_proposed_dists,
+                hard_served_mask,
+                selected_debug.get('exception_bucket_usage') or {},
+                np.asarray(selected_debug.get('d_mini', np.full(len(debug_weights), np.inf)), dtype=np.float64),
+                debug_d_std,
+                np.asarray(selected_debug.get('d_sup', np.full(len(debug_weights), np.inf)), dtype=np.float64),
+                effective_mini_sites,
+                standard_sites,
+                super_sites,
+            )
+            uncovered_analysis['uncovered_pocket_radius_km'] = float(
+                params.get('uncovered_pocket_radius_km', 3.0) or 3.0
+            )
+        else:
+            uncovered_analysis = {
+                'summary': {
+                    'pocket_count': len(uncovered_pockets),
+                    'largest_pocket_orders_per_day': max([float(p.get('orders_per_day', 0.0) or 0.0) for p in uncovered_pockets] or [0.0]),
+                    'median_pocket_orders_per_day': float(np.median([float(p.get('orders_per_day', 0.0) or 0.0) for p in uncovered_pockets])) if uncovered_pockets else 0.0,
+                    'pockets_at_or_above_mini_min_orders': 0,
+                },
+                'recommendations': [
+                    "Deferred uncovered-pocket geometry completed, but the detailed uncovered analysis audit could not be reconstructed from cached branch debug data."
+                ],
+                'fixed_radius_scenarios': [],
+                'radius_override_recommendations': {'recommendations': [], 'summary': {'override_count': 0}},
+                'service_gap_polygons': gap_polygons,
+                'uncovered_pocket_radius_km': float(params.get('uncovered_pocket_radius_km', 3.0) or 3.0),
+            }
 
     metrics = dict(combined_metrics)
     metrics.update({
@@ -14258,14 +17606,14 @@ def _finalize_bangalore_multilayer_result_from_core(core_ctx, progress_cb=None):
     exception_summary = scenario_views.get('exception_first_standard_100')
     rescue_mini_summary = scenario_views.get('rescue_first_standard_100_plus_mini')
     exception_mini_summary = scenario_views.get('exception_first_standard_100_plus_mini')
-    if rescue_summary:
+    if rescue_summary and not active_branch_only:
         recommendations.append(
             f"Rescue-first 100% path: {int(rescue_summary.get('total_physical_standard_count', 0) or 0)} physical Standard sites, "
             f"{int(rescue_summary.get('rescue_standard_count', 0) or 0)} rescue Standard site(s), "
             f"{int(rescue_summary.get('exception_override_count', 0) or 0)} Exception override(s), "
             f"₹{float(rescue_summary.get('proposed_avg_cost', 0.0) or 0.0):.2f}/order."
         )
-    if exception_summary:
+    if exception_summary and not active_branch_only:
         recommendations.append(
             f"Exception-first 100% path: {int(exception_summary.get('total_physical_standard_count', 0) or 0)} physical Standard sites, "
             f"{int(exception_summary.get('rescue_standard_count', 0) or 0)} rescue Standard site(s), "
@@ -14310,11 +17658,11 @@ def _finalize_bangalore_multilayer_result_from_core(core_ctx, progress_cb=None):
         )
     else:
         recommendations.append(
-            f"Super blanket uses {len(super_sites)} sites to cover {super_plan['blanket_coverage_pct']:.2f}% of the in-scope geometry sample."
+            f"Super blanket uses {len(super_sites)} sites to cover {super_plan['blanket_coverage_pct']:.2f}% of the full in-scope demand grid."
         )
     if bool(params.get('meeting_fast_mode', True)) and not defer_super:
         recommendations.append(
-            "Super blanket is running in fast sampled-geometry mode for meeting use. Treat Super coverage as sample-validated and keep Standard/Exception decisions as the primary decision-grade layer."
+            "Super blanket is modeled from the full in-scope demand grid with geographic-distance optimization. Keep Standard/Exception decisions as the primary decision-grade opening layer."
         )
     if excluded_islands:
         recommendations.append(
@@ -14334,9 +17682,10 @@ def _finalize_bangalore_multilayer_result_from_core(core_ctx, progress_cb=None):
         **dict(active_view.get('planning_layers') or {}),
         'mini': {
             **mini_summary,
-            'site_count': len(mini_sites),
-            'sites': _copy_site_records(mini_sites),
+            'site_count': len(effective_mini_sites),
+            'sites': _copy_site_records(effective_mini_sites),
         },
+        'uncovered_analysis': uncovered_analysis if uncovered_analysis is not None else {},
         'super': {
             'sites': super_sites,
             **super_plan,
@@ -14360,16 +17709,38 @@ def _finalize_bangalore_multilayer_result_from_core(core_ctx, progress_cb=None):
             },
             'meeting_views': _meeting_scenario_summaries(scenario_order, scenario_views, active_view_key),
             'super_blanket': {
-                'site_count': len(super_sites),
+                'site_count': int(super_plan.get('site_count', len([site for site in super_sites if bool(site.get('counts_as_true_super', True))])) or 0),
+                'overlay_super_count': int(super_plan.get('overlay_super_count', len([site for site in super_sites if not bool(site.get('counts_as_true_super', True))])) or 0),
                 'blanket_coverage_pct': super_plan['blanket_coverage_pct'],
                 'deferred': bool(super_plan.get('deferred', False)),
                 **super_cost_summary,
             },
+            'branch_comparison_ready': not active_branch_only,
         },
     }
 
+    deferred_layer_status = {
+        'standard': 'computed',
+        'exception_standard': 'computed' if int((planning_layers.get('standard', {}) or {}).get('exception_hub_count', 0) or 0) > 0 else 'not_needed',
+        'mini': 'computed',
+        'standard_only_comparison': 'computed',
+        'branch_comparison': 'skipped' if active_branch_only else 'computed',
+        'uncovered_analysis': 'skipped' if skip_uncovered_analysis else 'computed',
+        'super': 'deferred' if bool(super_plan.get('deferred', False)) else 'computed',
+    }
+    deferred_completed_layers = [
+        'standard_only_comparison',
+        'mini',
+    ]
+    if not active_branch_only:
+        deferred_completed_layers.append('branch_comparison')
+    if not skip_uncovered_analysis:
+        deferred_completed_layers.append('uncovered_analysis')
+    if not bool(super_plan.get('deferred', False)):
+        deferred_completed_layers.append('super')
+
     return {
-        'mini_ds': mini_sites,
+        'mini_ds': effective_mini_sites,
         'standard_ds': standard_plan['new_sites'],
         'super_ds': super_sites,
         'metrics': metrics,
@@ -14385,6 +17756,7 @@ def _finalize_bangalore_multilayer_result_from_core(core_ctx, progress_cb=None):
                 'gap_count': len(uncovered_pockets),
                 'largest_gap_orders_per_day': max([float(p.get('orders_per_day', 0) or 0) for p in uncovered_pockets] or [0.0]),
             },
+            'uncovered_analysis': uncovered_analysis if uncovered_analysis is not None else {},
         },
         'planning_layers': planning_layers,
         'scenario_views': scenario_views,
@@ -14399,8 +17771,8 @@ def _finalize_bangalore_multilayer_result_from_core(core_ctx, progress_cb=None):
             'meeting_mode': bool(params.get('meeting_fast_mode', True)),
             'active_view_key': active_view_key,
             'fixed_standard_count': standard_plan['fixed_count'],
-            'new_standard_count': standard_plan['new_count'],
-            'mini_count': len(mini_sites),
+            'new_standard_count': _meeting_view_new_standard_count(active_view),
+            'mini_count': len(effective_mini_sites),
             'super_count': len(super_sites),
         },
         'quality_summary': meeting_quality,
@@ -14408,11 +17780,13 @@ def _finalize_bangalore_multilayer_result_from_core(core_ctx, progress_cb=None):
             (
                 ['Super blanket was deferred in fast meeting mode so the Standard/Exception/Mini answer could return first.']
                 if defer_super
-                else ['Super blanket is sample-validated in fast meeting mode; exact polygon blanket verification pending.']
+                else ['Super blanket is modeled from the full in-scope demand grid with geographic-distance optimization and anti-overlap penalties.']
             )
             if bool(params.get('meeting_fast_mode', True))
             else []
         ),
+        'deferred_layer_status': deferred_layer_status,
+        'deferred_completed_layers': deferred_completed_layers,
         **scenario_views,
     }
 
@@ -14441,6 +17815,7 @@ class Handler(SimpleHTTPRequestHandler):
             current_result = state.optimization_result if isinstance(state.optimization_result, dict) else {}
             budget = current_result.get('budget', {}) if isinstance(current_result, dict) else {}
             pipeline = current_result.get('pipeline', {}) if isinstance(current_result, dict) else {}
+            decision = dict(current_result.get('decision_grade_result') or {}) if isinstance(current_result, dict) else {}
             resp = {
                 'data_loaded': state.data_loaded,
                 'load_progress': state.load_progress,
@@ -14456,7 +17831,11 @@ class Handler(SimpleHTTPRequestHandler):
                 'optimization_running': state.optimization_running,
                 'optimization_deferred_running': state.optimization_deferred_running,
                 'optimization_progress': state.optimization_progress,
+                'optimization_progress_updated_at': state.optimization_progress_updated_at,
                 'optimization_run_id': state.optimization_run_id,
+                'service_area_prewarm_running': state.service_area_prewarm_running,
+                'service_area_prewarm_error': state.service_area_prewarm_error,
+                'service_area_cache_entries': len(state.service_area_payload_cache),
                 'optimization_core_ready': bool(budget.get('core_ready', False)),
                 'optimization_deferred_ready': bool(budget.get('deferred_ready', False)),
                 'optimization_phase': pipeline.get('phase'),
@@ -14466,8 +17845,39 @@ class Handler(SimpleHTTPRequestHandler):
                 'meeting_prewarm_progress': state.meeting_prewarm_progress,
                 'meeting_prewarm_error': state.meeting_prewarm_error,
             }
+            if current_result:
+                resp['result_state'] = current_result.get('result_state')
+                resp['result_summary'] = {
+                    'selected_view': decision.get('active_view_key') or pipeline.get('active_view_key'),
+                    'hard_coverage_pct': decision.get('proposed_hard_coverage_pct', current_result.get('proposed_hard_coverage_pct')),
+                    'avg_cost': decision.get('proposed_avg_cost', current_result.get('proposed_avg_cost')),
+                    'avg_dist': decision.get('proposed_avg_dist', current_result.get('proposed_avg_dist')),
+                    'fixed_standard_count': decision.get('fixed_standard_count', current_result.get('fixed_standard_count')),
+                    'new_standard_count': decision.get('new_standard_count', current_result.get('new_standard_count')),
+                    'base_new_standard_count': decision.get('base_new_standard_count'),
+                    'gap_fill_standard_count': decision.get('gap_fill_standard_count'),
+                    'rescue_standard_count': decision.get('rescue_standard_count', current_result.get('rescue_standard_count')),
+                    'mini_count': decision.get('mini_count', current_result.get('mini_count')),
+                    'super_count': decision.get('super_count', current_result.get('super_count')),
+                    'overlay_super_count': decision.get('overlay_super_count', current_result.get('overlay_super_count')),
+                    'reused_super_on_standard_count': decision.get('reused_super_on_standard_count', current_result.get('reused_super_on_standard_count')),
+                    'new_physical_super_count': decision.get('new_physical_super_count', current_result.get('new_super_count')),
+                    'total_unique_physical_store_count': decision.get('total_unique_physical_store_count', current_result.get('total_physical_stores')),
+                    'exception_count': decision.get('exception_hub_count', current_result.get('exception_hub_count')),
+                    'total_physical_standard_count': decision.get('total_physical_standard_count'),
+                }
             if state.local_load_result is not None:
                 resp['local_load_result'] = state.local_load_result
+            if state.optimization_progress_updated_at is not None:
+                age_s = max(0.0, time.time() - float(state.optimization_progress_updated_at))
+                resp['optimization_progress_age_s'] = round(age_s, 1)
+                if state.optimization_running or state.optimization_deferred_running:
+                    if age_s >= 180:
+                        resp['optimization_health'] = 'quiet_too_long'
+                    elif age_s >= 60:
+                        resp['optimization_health'] = 'quiet'
+                    else:
+                        resp['optimization_health'] = 'active'
             self._json(resp)
         elif path == '/api/data':
             if not state.data_loaded:
@@ -14494,6 +17904,7 @@ class Handler(SimpleHTTPRequestHandler):
             current_result = state.optimization_result if isinstance(state.optimization_result, dict) else {}
             budget = current_result.get('budget', {}) if isinstance(current_result, dict) else {}
             pipeline = current_result.get('pipeline', {}) if isinstance(current_result, dict) else {}
+            decision = dict(current_result.get('decision_grade_result') or {}) if isinstance(current_result, dict) else {}
             resp = {
                 'data_loaded': state.data_loaded,
                 'load_progress': state.load_progress,
@@ -14510,7 +17921,11 @@ class Handler(SimpleHTTPRequestHandler):
                 'optimization_running': state.optimization_running,
                 'optimization_deferred_running': state.optimization_deferred_running,
                 'optimization_progress': state.optimization_progress,
+                'optimization_progress_updated_at': state.optimization_progress_updated_at,
                 'optimization_run_id': state.optimization_run_id,
+                'service_area_prewarm_running': state.service_area_prewarm_running,
+                'service_area_prewarm_error': state.service_area_prewarm_error,
+                'service_area_cache_entries': len(state.service_area_payload_cache),
                 'optimization_core_ready': bool(budget.get('core_ready', False)),
                 'optimization_deferred_ready': bool(budget.get('deferred_ready', False)),
                 'optimization_phase': pipeline.get('phase'),
@@ -14520,8 +17935,39 @@ class Handler(SimpleHTTPRequestHandler):
                 'meeting_prewarm_progress': state.meeting_prewarm_progress,
                 'meeting_prewarm_error': state.meeting_prewarm_error,
             }
+            if current_result:
+                resp['result_state'] = current_result.get('result_state')
+                resp['result_summary'] = {
+                    'selected_view': decision.get('active_view_key') or pipeline.get('active_view_key'),
+                    'hard_coverage_pct': decision.get('proposed_hard_coverage_pct', current_result.get('proposed_hard_coverage_pct')),
+                    'avg_cost': decision.get('proposed_avg_cost', current_result.get('proposed_avg_cost')),
+                    'avg_dist': decision.get('proposed_avg_dist', current_result.get('proposed_avg_dist')),
+                    'fixed_standard_count': decision.get('fixed_standard_count', current_result.get('fixed_standard_count')),
+                    'new_standard_count': decision.get('new_standard_count', current_result.get('new_standard_count')),
+                    'base_new_standard_count': decision.get('base_new_standard_count'),
+                    'gap_fill_standard_count': decision.get('gap_fill_standard_count'),
+                    'rescue_standard_count': decision.get('rescue_standard_count', current_result.get('rescue_standard_count')),
+                    'mini_count': decision.get('mini_count', current_result.get('mini_count')),
+                    'super_count': decision.get('super_count', current_result.get('super_count')),
+                    'overlay_super_count': decision.get('overlay_super_count', current_result.get('overlay_super_count')),
+                    'reused_super_on_standard_count': decision.get('reused_super_on_standard_count', current_result.get('reused_super_on_standard_count')),
+                    'new_physical_super_count': decision.get('new_physical_super_count', current_result.get('new_super_count')),
+                    'total_unique_physical_store_count': decision.get('total_unique_physical_store_count', current_result.get('total_physical_stores')),
+                    'exception_count': decision.get('exception_hub_count', current_result.get('exception_hub_count')),
+                    'total_physical_standard_count': decision.get('total_physical_standard_count'),
+                }
             if state.local_load_result is not None:
                 resp['local_load_result'] = state.local_load_result
+            if state.optimization_progress_updated_at is not None:
+                age_s = max(0.0, time.time() - float(state.optimization_progress_updated_at))
+                resp['optimization_progress_age_s'] = round(age_s, 1)
+                if state.optimization_running or state.optimization_deferred_running:
+                    if age_s >= 180:
+                        resp['optimization_health'] = 'quiet_too_long'
+                    elif age_s >= 60:
+                        resp['optimization_health'] = 'quiet'
+                    else:
+                        resp['optimization_health'] = 'active'
             if state.data_loaded:
                 resp['existing_stores'] = [{
                     'id': s['id'],
@@ -14541,9 +17987,53 @@ class Handler(SimpleHTTPRequestHandler):
                 self._json(state.optimization_result)
             else:
                 self._json({'error': 'No optimization result'}, 404)
+        elif path == '/api/bangalore-solver-result':
+            try:
+                self._json(_enrich_bangalore_solver_result(_load_latest_bangalore_solver_result()))
+            except Exception as e:
+                self._json({'error': str(e)}, 404)
+        elif path == '/api/solver-workbench-status':
+            payload = None
+            summary = {}
+            try:
+                payload = _solver_workbench_result_payload()
+                summary = _solver_workbench_summary(payload)
+            except Exception:
+                payload = None
+                summary = {}
+            resp = {
+                'running': bool(state.solver_workbench_running),
+                'progress': state.solver_workbench_progress,
+                'progress_updated_at': state.solver_workbench_progress_updated_at,
+                'run_id': state.solver_workbench_run_id,
+                'result_source': _solver_workbench_result_source(),
+                'result_available': bool(payload),
+                'result_summary': summary,
+            }
+            self._json(resp)
+        elif path == '/api/solver-workbench-result':
+            try:
+                payload = _solver_workbench_result_payload()
+            except Exception as e:
+                self._json({'error': str(e)}, 404)
+                return
+            status_code = 500 if payload.get('error') else 200
+            self._json(payload, status=status_code)
+        elif path == '/api/service-area-polygons':
+            if not state.optimization_result:
+                self._json({'available': False, 'error': 'No optimization result'}, 404)
+                return
+            try:
+                payload = _service_area_payload_for_result(state.optimization_result)
+                self._json(payload)
+            except Exception as e:
+                logger.error(f"Service-area polygon error: {traceback.format_exc()}")
+                self._json({'available': False, 'error': str(e)}, 500)
         elif path == '/api/load-latest-decision-packet':
             try:
                 state.optimization_result = _load_latest_decision_packet()
+                if state.data_loaded:
+                    _start_service_area_prewarm_async(force=False)
                 self._json({
                     'ok': True,
                     'loaded': True,
@@ -14563,6 +18053,8 @@ class Handler(SimpleHTTPRequestHandler):
                 return
             try:
                 state.optimization_result = _load_latest_exact_benchmark_app_result()
+                if state.data_loaded:
+                    _start_service_area_prewarm_async(force=False)
                 self._json({
                     'ok': True,
                     'loaded': True,
@@ -14601,6 +18093,8 @@ class Handler(SimpleHTTPRequestHandler):
             self._handle_optimize_exact_benchmark()
         elif path == '/api/optimize-target':
             self._handle_optimize_target()
+        elif path == '/api/solver-workbench-run':
+            self._handle_solver_workbench_run()
         elif path == '/api/reset':
             state.reset()
             self._json({'ok': True})
@@ -14662,6 +18156,8 @@ class Handler(SimpleHTTPRequestHandler):
                         state.load_progress = "Orders loaded successfully"
                         if state.store_regions and _auto_prewarm_meeting_enabled():
                             _start_meeting_prewarm_async(force=False)
+                        if state.optimization_result:
+                            _start_service_area_prewarm_async(force=False)
                     except Exception as e:
                         logger.error(f"Local load error: {traceback.format_exc()}")
                         state.local_load_result = {'error': str(e)}
@@ -14688,6 +18184,8 @@ class Handler(SimpleHTTPRequestHandler):
                 state.data_loaded = True
                 if state.grid_data is not None and _auto_prewarm_meeting_enabled():
                     _start_meeting_prewarm_async(force=False)
+                if state.optimization_result:
+                    _start_service_area_prewarm_async(force=False)
                 self._json({
                     'ok': True,
                     'filename': filename,
@@ -14817,6 +18315,8 @@ class Handler(SimpleHTTPRequestHandler):
                 mapping = load_order_csv(save_path)
                 if state.store_regions and _auto_prewarm_meeting_enabled():
                     _start_meeting_prewarm_async(force=False)
+                if state.optimization_result:
+                    _start_service_area_prewarm_async(force=False)
                 self._json({
                     'ok': True,
                     'filename': filename,
@@ -14833,6 +18333,8 @@ class Handler(SimpleHTTPRequestHandler):
                 state.data_loaded = True  # Both files now loaded
                 if state.grid_data is not None and _auto_prewarm_meeting_enabled():
                     _start_meeting_prewarm_async(force=False)
+                if state.optimization_result:
+                    _start_service_area_prewarm_async(force=False)
                 self._json({
                     'ok': True,
                     'filename': filename,
@@ -15018,6 +18520,12 @@ class Handler(SimpleHTTPRequestHandler):
             params = json.loads(body) if body else {}
         except Exception:
             params = {}
+        if not bool((params or {}).get('meeting_fast_mode', True)) and 'standard_rescue_enable' not in params:
+            params['standard_rescue_enable'] = True
+        if not bool((params or {}).get('meeting_fast_mode', True)) and 'mini_counts_as_hard_coverage' not in params:
+            params['mini_counts_as_hard_coverage'] = False
+        if not bool((params or {}).get('meeting_fast_mode', True)) and 'overlay_super_counts_as_hard_coverage' not in params:
+            params['overlay_super_counts_as_hard_coverage'] = False
 
         state.osrm_available = check_osrm()
         if not state.osrm_available:
@@ -15035,7 +18543,7 @@ class Handler(SimpleHTTPRequestHandler):
         state.optimization_run_id = run_id
         state.optimization_running = True
         state.optimization_deferred_running = False
-        state.optimization_progress = "Bangalore multilayer planner starting..."
+        _set_optimization_progress("Bangalore multilayer planner starting...")
         state.optimization_result = None
 
         def _is_latest_run():
@@ -15062,7 +18570,7 @@ class Handler(SimpleHTTPRequestHandler):
                     _require_fixed_store_super_metadata(normalized_params)
                 def progress_setter(msg):
                     if _is_latest_run():
-                        state.optimization_progress = msg
+                        _set_optimization_progress(msg)
 
                 skip_shared_prewarm_wait = (
                     bool(normalized_params.get('meeting_skip_shared_prewarm_wait', False)) or
@@ -15096,6 +18604,9 @@ class Handler(SimpleHTTPRequestHandler):
                 elif bool(normalized_params.get('meeting_fast_mode', True)) and skip_shared_prewarm_wait:
                     progress_setter("Skipping shared meeting prewarm wait; using run-local cached graph path.")
 
+                def _required_decision_grade_coverage_pct_for_run():
+                    return _required_decision_grade_coverage_pct(normalized_params)
+
                 def release_core_handoff(core_result_obj, progress_message=None):
                     nonlocal core_published
                     if not _is_latest_run():
@@ -15105,8 +18616,17 @@ class Handler(SimpleHTTPRequestHandler):
                         _save_latest_decision_packet(core_result_obj)
                     except Exception as save_exc:
                         logger.warning("Could not save latest Bangalore decision packet: %s", save_exc)
-                    if progress_message:
-                        state.optimization_progress = progress_message
+                    decision = dict((core_result_obj or {}).get('decision_grade_result') or {})
+                    decision_coverage_pct = float(decision.get('proposed_hard_coverage_pct', 0.0) or 0.0)
+                    required_coverage_pct = _required_decision_grade_coverage_pct_for_run()
+                    if decision_coverage_pct + 1e-9 < required_coverage_pct:
+                        _set_optimization_progress(
+                            "Core preview is below the required decision-grade target "
+                            f"({decision_coverage_pct:.2f}% < {required_coverage_pct:.2f}%). "
+                            "Continuing deeper optimization in background; do not treat this preview as leadership-safe."
+                        )
+                    elif progress_message:
+                        _set_optimization_progress(progress_message)
                     state.optimization_running = False
                     state.optimization_deferred_running = True
                     core_published = True
@@ -15118,6 +18638,7 @@ class Handler(SimpleHTTPRequestHandler):
                         _build_bangalore_multilayer_core_result(partial_core_ctx, time.time() - t0),
                         phase='core_decision_packet',
                     )
+                    _validate_meeting_packet(partial_result)
                     release_core_handoff(
                         partial_result,
                         progress_message=(
@@ -15136,6 +18657,7 @@ class Handler(SimpleHTTPRequestHandler):
                     _build_bangalore_multilayer_core_result(core_ctx, core_elapsed),
                     phase='core_decision_packet',
                 )
+                _validate_meeting_packet(core_result)
                 if not _is_latest_run():
                     return
                 release_core_handoff(
@@ -15167,27 +18689,55 @@ class Handler(SimpleHTTPRequestHandler):
                             'orders_per_day': s['orders_per_day'],
                             'polygon_coords': s.get('polygon_coords', [])
                         } for s in active_fixed_stores]
+                        final_active_view_key = str(
+                            ((result.get('pipeline') or {}).get('active_view_key'))
+                            or ((core_result.get('decision_grade_result') or {}).get('active_view_key'))
+                            or ''
+                        )
+                        final_scenario_views = dict(result.get('scenario_views', core_result.get('scenario_views', {})) or {})
+                        final_active_view = dict(final_scenario_views.get(final_active_view_key) or {})
+                        final_metrics = dict(result.get('metrics') or {})
+                        final_decision_grade_result = _build_meeting_decision_grade_result(
+                            final_active_view_key,
+                            final_active_view,
+                            normalized_params,
+                            mini_count=int(((result.get('planning_layers', {}).get('mini', {}) or {}).get('site_count', 0) or 0)),
+                            super_count=int(((result.get('planning_layers', {}).get('super', {}) or {}).get('site_count', 0) or 0)),
+                            proposed_avg_cost=final_metrics.get('proposed_avg_cost'),
+                            proposed_avg_dist=final_metrics.get('proposed_avg_dist'),
+                            current_avg_cost=final_metrics.get('current_avg_cost'),
+                            current_avg_dist=final_metrics.get('current_avg_dist'),
+                            daily_savings=final_metrics.get('daily_savings'),
+                            monthly_savings=final_metrics.get('monthly_savings'),
+                        )
+                        final_required_coverage_pct = _required_decision_grade_coverage_pct(normalized_params)
+                        final_decision_coverage_pct = float(
+                            final_decision_grade_result.get('proposed_hard_coverage_pct', 0.0) or 0.0
+                        )
+                        if final_decision_coverage_pct + 1e-9 < final_required_coverage_pct:
+                            raise RuntimeError(
+                                "Final decision-grade hard coverage "
+                                f"{final_decision_coverage_pct:.2f}% is below the required "
+                                f"{final_required_coverage_pct:.2f}% target."
+                            )
 
                         full_result = _annotate_run({
                             'success': True,
                             'response_version': 2,
                             'result_contract': 'decision_plus_deferred',
-                            'decision_grade_result': core_result.get('decision_grade_result', {}),
+                            'result_state': {
+                                'status': 'final',
+                                'label': 'Final Decision Packet',
+                                'is_final': True,
+                                'can_be_saved_as_latest': True,
+                                'pending_layers': [],
+                            },
+                            'decision_grade_result': final_decision_grade_result,
                             'deferred_result': {
                                 'ready': True,
-                                'completed_layers': ['standard_only_comparison', 'branch_comparison', 'uncovered_analysis'] + (
-                                    ['super'] if not bool((result.get('planning_layers', {}).get('super', {}) or {}).get('deferred', False)) else []
-                                ),
+                                'completed_layers': list(result.get('deferred_completed_layers', [])),
                             },
-                            'layer_status': {
-                                'standard': 'computed',
-                                'exception_standard': 'computed' if int(((result.get('planning_layers', {}).get('standard', {}) or {}).get('exception_hub_count', 0) or 0) > 0) else 'not_needed',
-                                'mini': 'computed',
-                                'standard_only_comparison': 'computed',
-                                'branch_comparison': 'computed',
-                                'uncovered_analysis': 'computed',
-                                'super': 'deferred' if bool((result.get('planning_layers', {}).get('super', {}) or {}).get('deferred', False)) else 'computed',
-                            },
+                            'layer_status': dict(result.get('deferred_layer_status', {})),
                             'budget': {
                                 'target_seconds': int(float(normalized_params.get('meeting_target_seconds', 600) or 600)),
                                 'elapsed_seconds': round(elapsed, 1),
@@ -15206,7 +18756,7 @@ class Handler(SimpleHTTPRequestHandler):
                             'metrics': result['metrics'],
                             'analysis': result.get('analysis', {}),
                             'planning_layers': result.get('planning_layers', {}),
-                            'scenario_views': result.get('scenario_views', core_result.get('scenario_views', {})),
+                            'scenario_views': final_scenario_views,
                             'scenario_order': result.get('scenario_order', core_result.get('scenario_order', [])),
                             'scenario_summaries': result.get('analysis', {}).get('scenario_summaries', core_result.get('scenario_summaries', [])),
                             'scope_summary': result.get('scope_summary', state.scope_summary),
@@ -15223,6 +18773,7 @@ class Handler(SimpleHTTPRequestHandler):
                             'pipeline_warnings': result.get('pipeline_warnings', []),
                             **result.get('scenario_views', {}),
                         }, phase='complete')
+                        _validate_meeting_packet(full_result)
                         if not _is_latest_run():
                             logger.info("Discarding deferred publish for superseded run %s", run_id)
                             return
@@ -15231,7 +18782,7 @@ class Handler(SimpleHTTPRequestHandler):
                             _save_latest_decision_packet(full_result)
                         except Exception as save_exc:
                             logger.warning("Could not save latest Bangalore decision packet: %s", save_exc)
-                        state.optimization_progress = "Complete"
+                        _set_optimization_progress("Complete")
                     except Exception as deferred_error:
                         logger.error(f"Deferred constrained enrichment error: {traceback.format_exc()}")
                         if not _is_latest_run():
@@ -15250,7 +18801,7 @@ class Handler(SimpleHTTPRequestHandler):
                             state.optimization_result = _annotate_run(current_result, phase='core_decision_packet')
                         else:
                             state.optimization_result = _annotate_run({'success': False, 'error': str(deferred_error)}, phase='error')
-                        state.optimization_progress = f"Deferred enrichment error: {deferred_error}"
+                        _set_optimization_progress(f"Deferred enrichment error: {deferred_error}")
                     finally:
                         if _is_latest_run():
                             state.optimization_deferred_running = False
@@ -15273,7 +18824,7 @@ class Handler(SimpleHTTPRequestHandler):
                         state.optimization_result = _annotate_run(current_result, phase='core_decision_packet')
                     else:
                         state.optimization_result = _annotate_run({'success': False, 'error': str(e)}, phase='error')
-                    state.optimization_progress = f"Error: {e}"
+                    _set_optimization_progress(f"Error: {e}")
             finally:
                 if _is_latest_run() and not core_published:
                     state.optimization_running = False
@@ -15371,9 +18922,9 @@ class Handler(SimpleHTTPRequestHandler):
                     params['fixed_store_override_source_mode'] = str(ui_params.get('fixed_store_override_source_mode')).strip()
                 if params.get('exact_benchmark_profile') == 'demo_fast':
                     if ui_params.get('exact_candidate_cap') in (None, ''):
-                        params['exact_candidate_cap'] = 1200
+                        params['exact_candidate_cap'] = 600
                     if ui_params.get('exact_model_candidate_cap') in (None, ''):
-                        params['exact_model_candidate_cap'] = 600
+                        params['exact_model_candidate_cap'] = 250
                     if ui_params.get('allow_full_exact_candidate_pool') in (None, ''):
                         params['allow_full_exact_candidate_pool'] = False
                     if ui_params.get('exact_include_near_full_scenario') in (None, ''):
@@ -15828,6 +19379,35 @@ class Handler(SimpleHTTPRequestHandler):
         thread = threading.Thread(target=run, daemon=True)
         thread.start()
         self._json({'started': True, 'message': 'Target optimization started. Poll /api/status for progress.'})
+
+    def _handle_solver_workbench_run(self):
+        try:
+            content_length = int(self.headers.get('Content-Length', 0))
+            body = self.rfile.read(content_length)
+            params = json.loads(body) if body else {}
+        except Exception:
+            params = {}
+
+        try:
+            run_id, request = _start_solver_workbench_run(params)
+        except RuntimeError as exc:
+            self._json({'error': str(exc)}, 409)
+            return
+        except ValueError as exc:
+            self._json({'error': str(exc)}, 400)
+            return
+        except Exception as exc:
+            self._json({'error': str(exc)}, 500)
+            return
+
+        self._json(
+            {
+                'started': True,
+                'run_id': run_id,
+                'message': 'Solver workbench run started. Poll /api/solver-workbench-status for progress.',
+                'solver_workbench_request': request,
+            }
+        )
 
     def _serve_file(self, rel_path, content_type):
         try:

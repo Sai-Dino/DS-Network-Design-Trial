@@ -1,0 +1,10 @@
+{
+  "statusChip": "Solver ready · exact total 200",
+  "pipelineNote": "Bangalore solver lane: this map is reading bangalore_solver_v1 from the solver workbench result path, not the legacy meeting packet.Run mode: constrained · exact total 200.Scope: 151 Bangalore business polygons from /Users/thota/Downloads/DS-Network-Design-Trial-main/Store details - 151 polygons with stores.csv.Fixed stores: 103 benchmark fixed stores remain open from /Users/thota/Downloads/DS-Network-Design-Trial-main/Store details - 103 old stores.csv.Mini trigger: 1212 orders/day within 1 km.Standard realism: 73 boundary-hugging, 60 near fixed stores, and 15 close Standard pairs under the active solver diagnostics.Super core coverage: Super core demand-cell guard is off.Semantics: Mini markers only appear when the solver-lane density stage selected them; hard coverage remains 99.75%.Map truth: store markers are solver-selected sites against the 151-polygon Bangalore scope. Demand-cell territories stay explicitly labeled as unavailable until the solver lane emits them.",
+  "lowDensityPanel": "Scope + truth noteThe solver map is showing store selections against the 151-polygon Bangalore scope. Demand-cell territories and legacy service-gap polygons are not emitted by this solver endpoint yet, so they remain explicitly unavailable rather than simulated.Standard realism diagnostics73 boundary-hugging, 60 near fixed stores, and 15 close Standard pairs under the active solver diagnostics.Super coverage definitionSuper core demand-cell guard is off.",
+  "rescuePanel": "Solver statusReturned a feasible solver network for exact total 200.\n        Selected site mix103 fixed Standard + 97 new Standard + 10 fixed Super upgrades + 3 new Super + 19 Mini.\n        Policy notesNo additional solver-policy violations were reported.",
+  "mapHud": "Selected decision branch • final packet • Scope comes from /Users/thota/Downloads/DS-Network-Design-Trial-main/Store details - 151 polygons with stores.csv.",
+  "fixedRows": 103,
+  "newRows": 97,
+  "solverSectionVisible": true
+}

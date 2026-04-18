@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Flipkart 3-Tier Network Optimizer</title>
+<title>Bangalore Solver Workbench</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
 <style>
@@ -17,6 +17,7 @@
   --shadow-lg:0 4px 6px -1px rgba(0,0,0,0.1),0 2px 4px -2px rgba(0,0,0,0.1);
 }
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--gray-50);color:var(--gray-900);overflow:hidden;height:100vh}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid rgba(26,86,219,.45);outline-offset:2px}
 
 /* Leaflet map interaction fixes */
 .leaflet-heatmap-layer{pointer-events:none!important}
@@ -30,6 +31,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .header{background:linear-gradient(135deg,var(--blue-dark),var(--blue));color:#fff;padding:10px 20px;display:flex;justify-content:space-between;align-items:center;box-shadow:var(--shadow-lg);z-index:100;position:relative}
 .header h1{font-size:16px;font-weight:600;letter-spacing:-.3px}
 .header-right{display:flex;align-items:center;gap:12px}
+.lane-switch{display:flex;align-items:center;gap:6px;padding:4px;border-radius:999px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.18)}
+.lane-btn{border:none;border-radius:999px;padding:6px 12px;background:transparent;color:rgba(255,255,255,.76);font-size:11px;font-weight:700;cursor:pointer;transition:background .18s ease,color .18s ease}
+.lane-btn.active{background:#fff;color:var(--blue-dark);box-shadow:0 1px 2px rgba(15,23,42,.16)}
 .osrm-badge{font-size:11px;padding:4px 10px;border-radius:20px;font-weight:600;display:flex;align-items:center;gap:6px}
 .osrm-badge .dot{width:7px;height:7px;border-radius:50%;display:inline-block}
 .osrm-badge.ok{background:rgba(5,150,105,.2);color:#6ee7b7}.osrm-badge.ok .dot{background:#34d399}
@@ -46,6 +50,21 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;b
 .sidebar-section:last-child{border-bottom:none}
 .section-header{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--blue);margin-bottom:12px;display:flex;align-items:center;gap:6px}
 .section-header .icon{font-size:14px}
+
+/* BRIEFING */
+.briefing-section{position:sticky;top:0;z-index:40;background:linear-gradient(180deg,rgba(255,255,255,.98),rgba(255,255,255,.94));backdrop-filter:blur(10px)}
+.briefing-card{background:linear-gradient(145deg,#0f2746,#1a56db);color:#fff;border-radius:16px;padding:16px 16px 14px;box-shadow:0 16px 34px rgba(15,39,70,.22)}
+.briefing-kicker{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.16em;color:rgba(255,255,255,.72)}
+.briefing-title{font-size:20px;font-weight:800;line-height:1.12;margin-top:8px}
+.briefing-subtitle{font-size:12px;line-height:1.5;color:rgba(255,255,255,.82);margin-top:6px}
+.briefing-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:14px}
+.briefing-metric{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.14);border-radius:12px;padding:10px 11px}
+.briefing-metric .k{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:rgba(255,255,255,.68)}
+.briefing-metric .v{font-size:18px;font-weight:800;line-height:1.1;margin-top:4px}
+.briefing-metric .s{font-size:10px;line-height:1.35;color:rgba(255,255,255,.72);margin-top:4px}
+.briefing-tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+.briefing-tag{display:inline-flex;align-items:center;padding:4px 8px;border-radius:999px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.18);font-size:10px;font-weight:700;color:#fff}
+.briefing-tag.warn{background:rgba(245,158,11,.16);border-color:rgba(253,230,138,.38);color:#fef3c7}
 
 /* UPLOAD AREA */
 .upload-zone{border:2px dashed var(--gray-300);border-radius:var(--radius);padding:20px;text-align:center;cursor:pointer;transition:all .2s;background:var(--gray-50);margin-bottom:10px}
@@ -92,13 +111,15 @@ input[type=range]::-moz-range-thumb{width:18px;height:18px;border-radius:50%;bac
 .metric.highlight .value{color:var(--green);font-size:20px}
 
 /* HUB COUNTS */
-.hub-counts{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.hub-counts{display:grid;grid-template-columns:repeat(auto-fit,minmax(96px,1fr));gap:8px}
 .hub-chip{border-radius:var(--radius);padding:8px;text-align:center;color:#fff;font-weight:700}
 .hub-chip .cnt{font-size:20px}
 .hub-chip .lbl{font-size:9px;text-transform:uppercase;opacity:.9;letter-spacing:.4px}
 .hub-chip.mini{background:linear-gradient(135deg,#c2410c,var(--orange))}
 .hub-chip.standard{background:linear-gradient(135deg,#047857,var(--green))}
 .hub-chip.super{background:linear-gradient(135deg,#5b21b6,var(--purple))}
+.hub-chip.reuse{background:linear-gradient(135deg,#1d4ed8,#2563eb)}
+.hub-chip.unique{background:linear-gradient(135deg,#475569,#334155)}
 
 /* MEETING CONTROLS */
 .meeting-control-grid{display:grid;gap:10px}
@@ -118,6 +139,34 @@ input[type=range]::-moz-range-thumb{width:18px;height:18px;border-radius:50%;bac
 .meeting-field-row.hidden{display:none}
 .meeting-card .mini-text{margin-top:8px;line-height:1.4}
 .hidden{display:none!important}
+.solver-shell{display:grid;gap:12px}
+.solver-banner{border:1px solid #bfdbfe;background:linear-gradient(135deg,#eff6ff,#f8fafc);border-radius:16px;padding:14px 16px;line-height:1.5}
+.solver-banner strong{color:var(--blue-dark)}
+.solver-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.solver-mode-switch{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.solver-mode-card{display:flex;flex-direction:column;gap:4px;padding:10px 11px;border:1px solid var(--gray-300);border-radius:12px;background:#fff;cursor:pointer;transition:all .18s ease}
+.solver-mode-card input{display:none}
+.solver-mode-card.active{border-color:var(--blue);background:#eff6ff;box-shadow:0 0 0 1px rgba(26,86,219,.08)}
+.solver-mode-title{font-size:12px;font-weight:800;color:var(--gray-900)}
+.solver-mode-copy{font-size:11px;color:var(--gray-600);line-height:1.45}
+.solver-card-title{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--gray-700)}
+.solver-hint{font-size:11px;color:var(--gray-600);line-height:1.5}
+.solver-unsupported{display:grid;gap:6px;font-size:11px;color:var(--gray-600)}
+.solver-unsupported-row{display:flex;justify-content:space-between;gap:10px;padding:8px 10px;border:1px dashed var(--gray-300);border-radius:10px;background:var(--gray-50)}
+.solver-unsupported-row span:last-child{font-weight:700;color:var(--gray-500)}
+.solver-progress{display:grid;gap:6px}
+.solver-run-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.solver-status-chip{display:inline-flex;align-items:center;padding:4px 8px;border-radius:999px;background:#eff6ff;border:1px solid #bfdbfe;font-size:10px;font-weight:700;color:#1d4ed8}
+
+body[data-workbench="solver"] #uploadSection,
+body[data-workbench="solver"] #costSection,
+body[data-workbench="solver"] #legacyPlanningSection,
+body[data-workbench="solver"] #legacyRunSection,
+body[data-workbench="solver"] #legacyFirstRunSection,
+body[data-workbench="solver"] #targetSection{display:none}
+
+body[data-workbench="legacy"] #solverWorkbenchSection,
+body[data-workbench="legacy"] #solverResultsNote{display:none}
 
 /* DASHBOARD */
 .decision-strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px}
@@ -218,7 +267,22 @@ details.target-details .inner{padding-top:4px}
 .map-legend .leg-row{display:flex;align-items:center;gap:8px}
 .map-legend .leg-dot{width:12px;height:12px;border-radius:50%;flex-shrink:0;border:2px solid rgba(0,0,0,.15)}
 .map-legend .leg-ring{width:12px;height:12px;border-radius:50%;flex-shrink:0;border:3px solid;background:transparent}
+.map-legend .leg-swatch{width:12px;height:12px;border-radius:3px;flex-shrink:0;border:1px solid rgba(0,0,0,.1)}
 .map-legend .leg-label{color:var(--gray-700);font-weight:500}
+
+/* MAP HUD */
+.map-hud{position:absolute;top:18px;left:18px;max-width:420px;background:rgba(255,255,255,.92);border:1px solid rgba(255,255,255,.65);border-radius:18px;padding:14px 16px 13px;box-shadow:0 20px 40px rgba(15,23,42,.16);backdrop-filter:blur(14px);z-index:650}
+.map-hud-kicker{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.16em;color:var(--blue)}
+.map-hud-title{font-size:22px;font-weight:800;line-height:1.08;color:var(--gray-900);margin-top:6px}
+.map-hud-meta{font-size:12px;line-height:1.5;color:var(--gray-700);margin-top:6px}
+.map-hud-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:12px}
+.map-hud-stat{background:linear-gradient(180deg,#fff,#f8fafc);border:1px solid var(--gray-200);border-radius:12px;padding:9px 10px}
+.map-hud-stat .k{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:var(--gray-500)}
+.map-hud-stat .v{font-size:17px;font-weight:800;color:var(--gray-900);margin-top:4px}
+.map-hud-tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+.map-hud-tag{display:inline-flex;align-items:center;padding:4px 8px;border-radius:999px;background:#eff6ff;border:1px solid #bfdbfe;font-size:10px;font-weight:700;color:#1d4ed8}
+.map-hud-tag.warn{background:#fffbeb;border-color:#fde68a;color:#92400e}
+.map-hud-tag.ok{background:#ecfdf5;border-color:#a7f3d0;color:#065f46}
 
 /* SCROLLBAR */
 .sidebar::-webkit-scrollbar{width:6px}
@@ -238,13 +302,32 @@ details.target-details .inner{padding-top:4px}
 /* TOAST */
 .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--gray-900);color:#fff;padding:10px 20px;border-radius:var(--radius);font-size:13px;font-weight:600;z-index:9999;box-shadow:var(--shadow-lg);opacity:0;transition:opacity .3s}
 .toast.show{opacity:1}
+
+@media (prefers-reduced-motion: reduce){
+  *{animation:none!important;transition:none!important;scroll-behavior:auto!important}
+}
+
+@media (max-width: 980px){
+  body{overflow:auto;height:auto;min-height:100vh}
+  .header{padding:12px 14px;align-items:flex-start;gap:10px;flex-wrap:wrap}
+  .header-right{width:100%;justify-content:space-between;flex-wrap:wrap}
+  .app{flex-direction:column;height:auto;min-height:calc(100vh - 44px)}
+  .sidebar{width:100%;min-width:0;max-height:none}
+  .map-area{min-height:56vh}
+  .solver-grid,.briefing-grid,.map-hud-grid{grid-template-columns:1fr}
+  .map-hud{left:12px;right:12px;max-width:none}
+}
 </style>
 </head>
 <body>
 
 <div class="header">
-  <h1>Flipkart 3-Tier Dark Store Network Optimizer</h1>
+  <h1>Bangalore Solver Workbench</h1>
   <div class="header-right">
+    <div class="lane-switch" id="laneSwitch">
+      <button type="button" class="lane-btn" id="solverLaneBtn" onclick="switchWorkbenchView('solver')">Solver Workbench</button>
+      <button type="button" class="lane-btn" id="legacyLaneBtn" onclick="switchWorkbenchView('legacy')">Legacy Meeting Lane</button>
+    </div>
     <div class="osrm-badge fail" id="osrmBadge"><span class="dot"></span><span id="osrmText">Checking OSRM...</span></div>
   </div>
 </div>
@@ -252,8 +335,149 @@ details.target-details .inner{padding-top:4px}
 <div class="app">
   <div class="sidebar">
 
+    <div class="sidebar-section briefing-section">
+      <div class="briefing-card" id="briefingCard">
+        <div class="briefing-kicker">Solver-Native Bangalore Workbench</div>
+        <div class="briefing-title" id="briefingTitle">Awaiting Bangalore 103 packet</div>
+        <div class="briefing-subtitle" id="briefingSubtitle">Bring up the saved decision packet or load Bangalore inputs to inspect truthful tier territories.</div>
+        <div class="briefing-grid">
+          <div class="briefing-metric"><div class="k">Hard Coverage</div><div class="v" id="briefingCoverage">—</div><div class="s">selected network view</div></div>
+          <div class="briefing-metric"><div class="k">Avg Cost</div><div class="v" id="briefingCost">—</div><div class="s">weighted last-mile</div></div>
+          <div class="briefing-metric"><div class="k">Avg Distance</div><div class="v" id="briefingDistance">—</div><div class="s">km per order</div></div>
+          <div class="briefing-metric"><div class="k">Physical Standard</div><div class="v" id="briefingStandard">—</div><div class="s">fixed + new</div></div>
+        </div>
+        <div class="briefing-tags" id="briefingTags">
+          <span class="briefing-tag">No saved result in view</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="sidebar-section" id="solverWorkbenchSection">
+      <div class="section-header"><span class="icon">S</span> Solver Workbench</div>
+      <div class="solver-shell">
+        <div class="solver-banner" id="solverWorkbenchBanner">
+          <strong>Solver lane only.</strong> This surface drives the existing Bangalore policy solver (`bangalore_solver_v1` / `bangalore_first_milp`) and never routes through the meeting planner. Bangalore is fixed to the verified 151-polygon scope and `benchmark_103` brownfield world.
+        </div>
+
+        <div class="solver-grid">
+          <div class="meeting-card">
+            <div class="solver-card-title" style="margin-bottom:8px">Run Mode</div>
+            <div class="solver-mode-switch">
+              <label class="solver-mode-card active">
+                <input type="radio" name="solverMode" value="exploratory" checked>
+                <span class="solver-mode-title">Exploratory Free-Play</span>
+                <span class="solver-mode-copy">Keep the published Bangalore envelope and vary solver-wired radii or Mini density triggers without forcing an exact target.</span>
+              </label>
+              <label class="solver-mode-card">
+                <input type="radio" name="solverMode" value="constrained">
+                <span class="solver-mode-title">Constrained Planning</span>
+                <span class="solver-mode-copy">Add an exact total, store band, or cost cap on top of the same solver lane. Unsupported constraints stay blocked.</span>
+              </label>
+            </div>
+            <div class="solver-hint" style="margin-top:8px">Published Bangalore anchor: 99.75% hard coverage, ₹37.8022 avg last-mile cost, 200 unique physical sites.</div>
+          </div>
+
+          <div class="meeting-card">
+            <div class="solver-card-title" style="margin-bottom:8px">Solver-Wired Inputs</div>
+            <div class="solver-grid" style="grid-template-columns:repeat(3,minmax(0,1fr));gap:12px">
+              <div>
+                <div class="solver-card-title" style="margin-bottom:6px">Standard</div>
+                <div class="param">
+                  <div class="param-label"><span>Min orders / day</span></div>
+                  <input type="number" class="scenario-input" id="solverStdMinOrders" min="1" step="10" placeholder="Optional; blank keeps Bangalore default" style="width:100%">
+                </div>
+                <div class="param">
+                  <div class="param-label"><span>Service radius (km)</span><span class="param-val" id="solverStdRadiusVal">3.0</span></div>
+                  <input type="range" id="solverStdRadius" min="1" max="6" value="3.0" step="0.1">
+                </div>
+              </div>
+              <div>
+                <div class="solver-card-title" style="margin-bottom:6px">Super</div>
+                <div class="param">
+                  <div class="param-label"><span>Min orders / day</span></div>
+                  <input type="number" class="scenario-input" id="solverSuperMinOrders" min="1" step="10" value="300" style="width:100%">
+                </div>
+                <div class="param">
+                  <div class="param-label"><span>Service radius (km)</span><span class="param-val" id="solverSuperRadiusVal">5.5</span></div>
+                  <input type="range" id="solverSuperRadius" min="3" max="8" value="5.5" step="0.1">
+                </div>
+              </div>
+              <div>
+                <div class="solver-card-title" style="margin-bottom:6px">Mini</div>
+                <div class="param">
+                  <div class="param-label"><span>Min orders / day</span></div>
+                  <input type="number" class="scenario-input" id="solverMiniMinOrders" min="1" step="10" value="1212" style="width:100%">
+                </div>
+                <div class="param">
+                  <div class="param-label"><span>Service radius (km)</span><span class="param-val" id="solverMiniRadiusVal">1.0</span></div>
+                  <input type="range" id="solverMiniRadius" min="0.5" max="2.5" value="1.0" step="0.1">
+                </div>
+              </div>
+            </div>
+            <div class="solver-hint" style="margin-top:8px">Mini’s separate density-trigger radius is intentionally not a solver-workbench knob in this lane. It follows the Mini service radius here so the business surface stays limited to the main variables.</div>
+            <label class="layer-item" style="margin-top:8px">
+              <input type="checkbox" id="solverRequireSuperCoreCoverage">
+              <span style="font-size:12px;color:var(--gray-700)">Super core / fallback coverage policy: require the explicit solver-cell proxy guard when no core-city GeoJSON is supplied</span>
+            </label>
+            <label class="layer-item" style="margin-top:6px">
+              <input type="checkbox" id="solverPreferFixedSuperUpgrades" checked>
+              <span style="font-size:12px;color:var(--gray-700)">Prefer eligible fixed-store upgrades to Super before opening more new Super sites</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="meeting-card">
+          <div class="solver-card-title" style="margin-bottom:8px">Total Target Stores And Cost Target</div>
+          <div class="solver-grid">
+            <div>
+              <div class="param">
+                <div class="param-label"><span>Total target stores: exact (optional)</span></div>
+                <input type="number" class="scenario-input" id="solverExactTotalStores" min="1" step="1" placeholder="Example: 200" style="width:100%">
+              </div>
+              <div class="param">
+                <div class="param-label"><span>Total target stores: band min (optional)</span></div>
+                <input type="number" class="scenario-input" id="solverBandMinStores" min="1" step="1" placeholder="Example: 150" style="width:100%">
+              </div>
+              <div class="param">
+                <div class="param-label"><span>Total target stores: band max (optional)</span></div>
+                <input type="number" class="scenario-input" id="solverBandMaxStores" min="1" step="1" placeholder="Example: 200" style="width:100%">
+              </div>
+            </div>
+            <div>
+              <div class="param">
+                <div class="param-label"><span>Target last-mile cost (optional cap)</span></div>
+                <input type="number" class="scenario-input" id="solverCostCap" min="1" step="0.1" placeholder="Example: 35.0" style="width:100%">
+              </div>
+              <div class="solver-hint">Leave all constrained fields empty in exploratory mode. In constrained mode, use one of: exact total, band, or target last-mile cost. Solver feasibility is reported truthfully; impossible caps stay blocked as infeasible.</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="meeting-card">
+          <div class="solver-card-title" style="margin-bottom:8px">Explicitly Outside The Solver Lane</div>
+          <div class="solver-unsupported">
+            <div class="solver-unsupported-row"><span>Per-tier max orders/day and exact tier counts</span><span>Not solver-wired</span></div>
+            <div class="solver-unsupported-row"><span>Mini density-trigger radius as a separate user knob</span><span>Internal only in solver mode</span></div>
+            <div class="solver-unsupported-row"><span>Uploaded-current or clean-slate worlds</span><span>Legacy-only</span></div>
+            <div class="solver-unsupported-row"><span>Meeting rescue/exception tuning knobs</span><span>Legacy-only</span></div>
+            <div class="solver-unsupported-row"><span>Base / variable cost curve tuning</span><span>Hidden in solver lane</span></div>
+            <div class="solver-unsupported-row"><span>Legacy packet outputs via /api/result</span><span>Blocked in solver view</span></div>
+          </div>
+        </div>
+
+        <div class="solver-progress">
+          <div class="solver-run-actions">
+            <button class="btn-primary" id="solverRunBtn" onclick="runSolverWorkbench()">Run Solver Workbench</button>
+            <span class="solver-status-chip" id="solverStatusChip">Published Bangalore anchor loaded</span>
+          </div>
+          <div class="progress-bar" id="solverProgressBar" style="display:none"><div class="progress-fill" id="solverProgressFill"></div></div>
+          <div class="progress-text" id="solverProgressText" style="display:none"></div>
+        </div>
+      </div>
+    </div>
+
     <!-- STEP 1: UPLOAD -->
-    <div class="sidebar-section">
+    <div class="sidebar-section" id="uploadSection">
       <div class="section-header"><span class="icon">1</span> Upload Data</div>
       <div class="upload-row">
         <div class="upload-zone" id="orderZone" onclick="document.getElementById('orderFile').click()">
@@ -290,7 +514,7 @@ details.target-details .inner{padding-top:4px}
     </div>
 
     <!-- STEP 2: COST FUNCTION -->
-    <div class="sidebar-section">
+    <div class="sidebar-section" id="costSection">
       <div class="section-header"><span class="icon">2</span> Cost Function</div>
       <p class="target-hint" style="margin-bottom:8px"><strong>Current network</strong> (vs existing stores) uses one curve. <strong>Proposed</strong> uses tier-specific base + rate by assignment (Mini → Standard → Super).</p>
       <div style="background:var(--gray-50);border:1px solid var(--gray-200);border-radius:var(--radius);padding:8px 12px;font-size:11px;font-family:'Courier New',monospace;color:var(--blue-dark);margin-bottom:10px;line-height:1.5">
@@ -343,7 +567,7 @@ details.target-details .inner{padding-top:4px}
     </div>
 
     <!-- STEP 3: TIER PARAMS -->
-    <div class="sidebar-section">
+    <div class="sidebar-section" id="legacyPlanningSection">
       <div class="section-header"><span class="icon">3</span> Bangalore Planning Layers</div>
       <p class="target-hint" style="margin-bottom:10px">Standard is the base serving tier: all <strong>in-scope Bangalore demand</strong> should be closed primarily through Standard + exception logic. Mini is a dense-cluster cost layer. Super is a full serving tier with a longer radius, and some fixed stores may qualify for Super only when their area is above the configured square-foot threshold.</p>
 
@@ -516,7 +740,7 @@ details.target-details .inner{padding-top:4px}
     </div>
 
     <!-- STEP 4: RUN -->
-    <div class="sidebar-section">
+    <div class="sidebar-section" id="legacyRunSection">
       <div class="section-header"><span class="icon">4</span> Meeting Controls</div>
       <div class="meeting-control-grid">
         <div class="meeting-card">
@@ -555,7 +779,7 @@ details.target-details .inner{padding-top:4px}
       <div class="progress-text" id="progressText" style="display:none"></div>
     </div>
 
-    <div class="sidebar-section workflow-hint">
+    <div class="sidebar-section workflow-hint" id="legacyFirstRunSection">
       <div class="section-header"><span class="icon">ℹ️</span> First run</div>
       <p class="target-hint" style="margin:0">Load the Bangalore inputs, choose the fixed-store source you want to analyze, then click <strong>Run Meeting Scenario (Fast)</strong>. This is the bounded live scenario path for the meeting. Anything still approximate will be labeled explicitly.</p>
     </div>
@@ -600,6 +824,11 @@ details.target-details .inner{padding-top:4px}
 
     <!-- RESULTS (placeholders until first optimization completes) -->
     <div id="resultsPanel">
+      <div class="sidebar-section workflow-hint" id="solverResultsNote">
+        <div class="section-header"><span class="icon">ℹ️</span> Solver Result Lane</div>
+        <p class="target-hint" style="margin:0">Map, counts, and scenario saves in this lane are sourced from the Bangalore solver workbench result, not from the legacy meeting packet. Unsupported map details stay explicitly labeled as scope-only or unavailable.</p>
+      </div>
+
       <div class="sidebar-section">
         <div id="targetSearchBanner" class="target-banner" style="display:none"></div>
         <div id="exactScenarioPanel" style="display:none;margin-bottom:12px">
@@ -633,9 +862,11 @@ details.target-details .inner{padding-top:4px}
       <div class="sidebar-section">
         <div class="section-header"><span class="icon">🏗</span> Planning Layers</div>
         <div class="hub-counts">
-          <div class="hub-chip mini"><div class="cnt" id="cntMini">0</div><div class="lbl">Mini DS</div></div>
-          <div class="hub-chip standard"><div class="cnt" id="cntStd">0</div><div class="lbl">Standard Total</div></div>
-          <div class="hub-chip super"><div class="cnt" id="cntSuper">0</div><div class="lbl">Super Blanket</div></div>
+          <div class="hub-chip standard"><div class="cnt" id="cntStd">0</div><div class="lbl">Physical Standard</div></div>
+          <div class="hub-chip mini"><div class="cnt" id="cntMini">0</div><div class="lbl">Mini</div></div>
+          <div class="hub-chip super"><div class="cnt" id="cntSuper">0</div><div class="lbl">True Super</div></div>
+          <div class="hub-chip reuse"><div class="cnt" id="cntSuperReuse">0</div><div class="lbl">Super Overlay</div></div>
+          <div class="hub-chip unique"><div class="cnt" id="cntUnique">0</div><div class="lbl">Unique Physical</div></div>
         </div>
         <div class="pipeline-note" id="pipelineNote"><strong>Layered planner</strong> — fixed existing Standards stay open, new Standards are added only to guarantee in-scope coverage, Minis sit on dense clusters to lower cost, and Super is planned as a separate city blanket.</div>
       </div>
@@ -675,6 +906,7 @@ details.target-details .inner{padding-top:4px}
           <div class="layer-item"><input type="checkbox" id="lStd" checked onchange="toggleLayer('standard')"><div class="layer-dot" style="background:#059669"></div><label for="lStd">Standard DS (proposed)</label></div>
           <div class="layer-item"><input type="checkbox" id="lMini" checked onchange="toggleLayer('mini')"><div class="layer-dot" style="background:#ea580c"></div><label for="lMini">Mini DS (proposed)</label></div>
           <div class="layer-item"><input type="checkbox" id="lSuper" checked onchange="toggleLayer('super')"><div class="layer-dot" style="background:#7c3aed"></div><label for="lSuper">Super DS (proposed)</label></div>
+          <div class="layer-item"><input type="checkbox" id="lTerritory" onchange="toggleLayer('territory')"><div class="layer-dot" style="background:linear-gradient(135deg,#059669,#7c3aed)"></div><label for="lTerritory">Demand-cell territories</label></div>
           <div class="mini-text" style="margin:8px 0 4px 22px;font-weight:700;color:var(--gray-500);text-transform:uppercase;letter-spacing:.4px">Range overlays</div>
           <div class="layer-item"><input type="checkbox" id="lRings" onchange="toggleServiceRings()"><div class="layer-dot" style="background:rgba(100,116,139,.12);border:2px solid #64748b"></div><label for="lRings">Service radius rings</label></div>
           <div class="mini-text" style="margin:8px 0 4px 22px;font-weight:700;color:var(--gray-500);text-transform:uppercase;letter-spacing:.4px">Reference layers</div>
@@ -684,7 +916,7 @@ details.target-details .inner{padding-top:4px}
         </div>
       </div>
 
-      <div class="sidebar-section">
+      <div class="sidebar-section" id="decisionDashboardSection">
         <div class="section-header"><span class="icon">🧾</span> Decision Dashboard</div>
         <div class="decision-strip" id="decisionDashboard">
           <div class="decision-card"><div class="k">Fixed Standard</div><div class="v" id="dashFixedStandard">—</div><div class="s">open stores</div></div>
@@ -700,7 +932,7 @@ details.target-details .inner{padding-top:4px}
       <div class="sidebar-section" id="hubTableSection" style="display:none">
         <div class="section-header"><span class="icon">📋</span> Standard Detail Tables</div>
         <div class="table-stack">
-          <div class="table-panel">
+          <div class="table-panel" id="fixedStandardPanel">
             <div class="panel-head">
               <div>
                 <div class="panel-title">Fixed Standard</div>
@@ -715,7 +947,7 @@ details.target-details .inner{padding-top:4px}
               </table>
             </div>
           </div>
-          <div class="table-panel">
+          <div class="table-panel" id="newStandardPanel">
             <div class="panel-head">
               <div>
                 <div class="panel-title">New Standard</div>
@@ -730,7 +962,7 @@ details.target-details .inner{padding-top:4px}
               </table>
             </div>
           </div>
-          <div class="table-panel">
+          <div class="table-panel" id="rescueStandardPanel">
             <div class="panel-head">
               <div>
                 <div class="panel-title">Rescue Standard</div>
@@ -745,7 +977,7 @@ details.target-details .inner{padding-top:4px}
               </table>
             </div>
           </div>
-          <div class="table-panel">
+          <div class="table-panel" id="exceptionStandardPanel">
             <div class="panel-head">
               <div>
                 <div class="panel-title">Exception Overrides</div>
@@ -761,10 +993,10 @@ details.target-details .inner{padding-top:4px}
             </div>
           </div>
         </div>
-        <div class="panel-foot table-mini" style="border:1px solid var(--gray-200);border-top:none;border-radius:0 0 var(--radius) var(--radius)">
+        <div class="panel-foot table-mini" id="hubTableFoot" style="border:1px solid var(--gray-200);border-top:none;border-radius:0 0 var(--radius) var(--radius)">
           Rows flagged as <strong>spacing relaxed</strong> are the new Standards that only appear because the radius/spacing gate was loosened.
         </div>
-        <button class="btn-secondary" onclick="exportCSV()">Export Hub Locations as CSV</button>
+        <button class="btn-secondary" id="exportCsvButton" onclick="exportCSV()">Export Hub Locations as CSV</button>
       </div>
 
       <!-- OVERLAY COMPARISON -->
@@ -789,6 +1021,20 @@ details.target-details .inner{padding-top:4px}
 
   <div class="map-area">
     <div id="map"></div>
+    <div class="map-hud" id="mapHud">
+      <div class="map-hud-kicker">Active Network View</div>
+      <div class="map-hud-title" id="mapHudTitle">Awaiting Bangalore result</div>
+      <div class="map-hud-meta" id="mapHudMeta">The map will highlight the selected decision branch, its economics, and whether truthful demand-cell territories are available.</div>
+      <div class="map-hud-grid">
+        <div class="map-hud-stat"><div class="k">Coverage</div><div class="v" id="mapHudCoverage">—</div></div>
+        <div class="map-hud-stat"><div class="k">Cost</div><div class="v" id="mapHudCost">—</div></div>
+        <div class="map-hud-stat"><div class="k">Mini</div><div class="v" id="mapHudMini">—</div></div>
+        <div class="map-hud-stat"><div class="k">Super</div><div class="v" id="mapHudSuper">—</div></div>
+      </div>
+      <div class="map-hud-tags" id="mapHudTags">
+        <span class="map-hud-tag warn">Radius rings only</span>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -801,19 +1047,23 @@ details.target-details .inner{padding-top:4px}
 // STATE
 // =====================================================================
 let map, heatLayer, costChart, distChart;
-let layers = {existing:L.featureGroup(),mini:L.featureGroup(),standard:L.featureGroup(),super:L.featureGroup(),lowdensity:L.featureGroup(),polygon:L.featureGroup()};
+let layers = {existing:L.featureGroup(),mini:L.featureGroup(),standard:L.featureGroup(),super:L.featureGroup(),territory:L.featureGroup(),lowdensity:L.featureGroup(),polygon:L.featureGroup()};
 let uploaded = {orders:false, stores:false};
 let pollTimer = null;
 let hasUserMovedMap = false;
 let suppressParamDirty = false;
 let savedScenarios = [];
 let meetingPrewarm = {running:false, ready:false, progress:'', error:''};
+let activeWorkbenchView = 'solver';
 window._activeRunId = null;
+window._serviceAreaPayload = null;
 
 // =====================================================================
 // INIT
 // =====================================================================
 function init(){
+  activeWorkbenchView = currentWorkbenchView();
+  document.body.dataset.workbench = activeWorkbenchView;
   map = L.map('map',{
     zoomControl:true,
     scrollWheelZoom:false,
@@ -836,7 +1086,7 @@ function init(){
   // ALL custom panes need pointer-events:none so they don't block map drag;
   // individual markers inside get pointer-events:auto via .leaflet-interactive
   var panes = [
-    ['heatPane', 350], ['polygonPane', 360], ['radiusPane', 370],
+    ['heatPane', 350], ['polygonPane', 360], ['territoryPane', 365], ['radiusPane', 370],
     ['existingPane', 400], ['miniPane', 450], ['standardPane', 500], ['superPane', 550]
   ];
   panes.forEach(function(p){
@@ -864,7 +1114,15 @@ function init(){
       <div class="leg-row"><div class="leg-dot" style="background:#0891b2"></div><span class="leg-label">Rescue Standard DS</span></div>
       <div class="leg-row"><div class="leg-dot" style="background:#b45309"></div><span class="leg-label">Exception-lifted Standard DS</span></div>
       <div class="leg-row"><div class="leg-dot" style="background:#ea580c"></div><span class="leg-label">Mini DS (New)</span></div>
-      <div class="leg-row"><div class="leg-dot" style="background:#7c3aed"></div><span class="leg-label">Super DS (30k)</span></div>
+      <div class="leg-row"><div class="leg-dot" style="background:#7c3aed"></div><span class="leg-label">True Super physical site</span></div>
+      <div class="leg-row"><div class="leg-dot" style="background:#ede9fe;border-style:dashed"></div><span class="leg-label">Super overlay support on Standard</span></div>
+      <div class="leg-subhead">Polygons</div>
+      <div class="leg-row"><div class="leg-swatch" style="background:rgba(147,197,253,.28);border-color:#2563eb"></div><span class="leg-label">Fixed store polygon</span></div>
+      <div class="leg-row"><div class="leg-swatch" style="background:rgba(148,163,184,.06);border-color:#64748b"></div><span class="leg-label">Business polygon</span></div>
+      <div class="leg-subhead">Demand-cell territories</div>
+      <div class="leg-row"><div class="leg-swatch" style="background:rgba(234,88,12,.22)"></div><span class="leg-label">Mini territory</span></div>
+      <div class="leg-row"><div class="leg-swatch" style="background:rgba(5,150,105,.2)"></div><span class="leg-label">Standard territory</span></div>
+      <div class="leg-row"><div class="leg-swatch" style="background:rgba(124,58,237,.18)"></div><span class="leg-label">Super territory</span></div>
       <div class="leg-subhead">View-only overlays</div>
       <div class="leg-row"><div class="leg-ring" style="border-color:#059669"></div><span class="leg-label">Standard Radius</span></div>
       <div class="leg-row"><div class="leg-ring" style="border-color:#ea580c"></div><span class="leg-label">Mini Radius</span></div>
@@ -878,6 +1136,8 @@ function init(){
 
   // Bind slider displays
   bindSliders();
+  bindSolverWorkbenchControls();
+  applyWorkbenchLaneUI();
   checkOSRM();
   const fixedStoreModeEl = document.getElementById('fixedStoreMode');
   if(fixedStoreModeEl){
@@ -902,6 +1162,45 @@ function init(){
   refreshRunReadiness();
   setTimeout(()=>restoreServerState(), 250);
   setTimeout(()=>restoreServerState(), 1500);
+}
+
+function currentWorkbenchView(){
+  try{
+    const url = new URL(window.location.href);
+    const view = String(url.searchParams.get('view') || '').trim().toLowerCase();
+    return (view === 'legacy' || view === 'meeting') ? 'legacy' : 'solver';
+  }catch(_e){
+    return 'solver';
+  }
+}
+
+function wantsSolverView(){
+  return currentWorkbenchView() === 'solver';
+}
+
+function switchWorkbenchView(view){
+  try{
+    const url = new URL(window.location.href);
+    if(view === 'legacy'){
+      url.searchParams.set('view', 'legacy');
+    }else{
+      url.searchParams.delete('view');
+    }
+    window.location.href = url.toString();
+  }catch(_e){
+    window.location.reload();
+  }
+}
+
+function applyWorkbenchLaneUI(){
+  activeWorkbenchView = currentWorkbenchView();
+  document.body.dataset.workbench = activeWorkbenchView;
+  const solverBtn = document.getElementById('solverLaneBtn');
+  const legacyBtn = document.getElementById('legacyLaneBtn');
+  if(solverBtn) solverBtn.classList.toggle('active', activeWorkbenchView === 'solver');
+  if(legacyBtn) legacyBtn.classList.toggle('active', activeWorkbenchView === 'legacy');
+  const title = document.querySelector('.header h1');
+  if(title) title.textContent = activeWorkbenchView === 'solver' ? 'Bangalore Solver Workbench' : 'Bangalore Legacy Meeting Lane';
 }
 
 function bindSliders(){
@@ -941,6 +1240,57 @@ function bindSliders(){
     superFixedPenalty.addEventListener('input', refreshTierCostDisp);
   }
   refreshTierCostDisp();
+}
+
+function bindSolverWorkbenchControls(){
+  const pairs = [
+    ['solverStdRadius','solverStdRadiusVal',1],
+    ['solverSuperRadius','solverSuperRadiusVal',1],
+    ['solverMiniRadius','solverMiniRadiusVal',1],
+  ];
+  pairs.forEach(([id, displayId, decimals]) => {
+    const input = document.getElementById(id);
+    const display = document.getElementById(displayId);
+    if(!input || !display) return;
+    const sync = () => {
+      display.textContent = Number(input.value).toFixed(decimals);
+    };
+    input.addEventListener('input', sync);
+    input.addEventListener('change', () => markResultStale('Solver workbench inputs changed. Rerun the solver to refresh the displayed result.'));
+    sync();
+  });
+  document.querySelectorAll('input[name="solverMode"]').forEach(radio => {
+    radio.addEventListener('change', syncSolverModeUI);
+    radio.addEventListener('change', () => markResultStale('Solver mode changed. Rerun the solver to refresh the displayed result.'));
+  });
+  [
+    'solverStdMinOrders',
+    'solverSuperMinOrders',
+    'solverMiniMinOrders',
+    'solverExactTotalStores',
+    'solverBandMinStores',
+    'solverBandMaxStores',
+    'solverCostCap',
+    'solverRequireSuperCoreCoverage',
+    'solverPreferFixedSuperUpgrades',
+  ].forEach(id => {
+    const el = document.getElementById(id);
+    if(!el) return;
+    el.addEventListener('change', () => markResultStale('Solver workbench inputs changed. Rerun the solver to refresh the displayed result.'));
+  });
+  syncSolverModeUI();
+}
+
+function syncSolverModeUI(){
+  const mode = document.querySelector('input[name="solverMode"]:checked')?.value || 'exploratory';
+  document.querySelectorAll('.solver-mode-card').forEach(card => {
+    const input = card.querySelector('input[name="solverMode"]');
+    card.classList.toggle('active', !!input && input.value === mode);
+  });
+  ['solverExactTotalStores', 'solverBandMinStores', 'solverBandMaxStores', 'solverCostCap'].forEach(id => {
+    const el = document.getElementById(id);
+    if(el) el.disabled = mode !== 'constrained';
+  });
 }
 
 async function checkOSRM(){
@@ -995,6 +1345,117 @@ function formatFixedStoreMode(mode){
   const key = String(mode || '').trim();
   if(key === 'benchmark_103') return '103 fixed-store world';
   return key || '103 fixed-store world';
+}
+
+function parseOptionalInt(id){
+  const el = document.getElementById(id);
+  if(!el) return undefined;
+  const raw = String(el.value || '').trim();
+  if(raw === '') return undefined;
+  const parsed = parseInt(raw, 10);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined;
+}
+
+function parseOptionalFloat(id){
+  const el = document.getElementById(id);
+  if(!el) return undefined;
+  const raw = String(el.value || '').trim();
+  if(raw === '') return undefined;
+  const parsed = parseFloat(raw);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function prettyViewLabel(key){
+  const raw = String(key || '').trim();
+  if(!raw) return 'Awaiting Bangalore 103 packet';
+  const explicit = {
+    rescue_first_standard_100_plus_mini: 'Rescue-first Standard 100 + Mini',
+    rescue_first_standard_100: 'Rescue-first Standard 100',
+    exception_first_standard_100_plus_mini: 'Exception-first Standard 100 + Mini',
+    exception_first_standard_100: 'Exception-first Standard 100',
+    strict_standard_base: 'Strict Standard Base'
+  };
+  if(explicit[raw]) return explicit[raw];
+  return raw.replace(/_/g, ' ').replace(/\b\w/g, c=>c.toUpperCase());
+}
+
+function setBriefingFromSummary(summary, extra = {}){
+  const tags = [];
+  const hasSummary = !!summary;
+  const physicalStandardCount = Number(summary?.total_physical_standard_count || 0);
+  const miniCount = Number(summary?.mini_count || 0);
+  const superCount = Number(summary?.super_count || 0);
+  const overlaySuperCount = Number(summary?.overlay_super_count || 0);
+  const uniquePhysicalCount = Number(summary?.total_unique_physical_store_count || (physicalStandardCount + miniCount + Math.max(0, superCount)) || 0);
+  const siteMix = summary?.proposed_site_mix_summary || null;
+  document.getElementById('briefingTitle').textContent = hasSummary
+    ? prettyViewLabel(summary.selected_view)
+    : 'Awaiting Bangalore 103 packet';
+  document.getElementById('briefingSubtitle').textContent = hasSummary
+    ? `${extra.resultState?.label || 'Published Bangalore packet'} is ${extra.phase || 'available'}${extra.dataLoaded ? ' with live grid inputs loaded' : ' without live grid inputs'}.`
+    : 'Bring up the saved decision packet or load Bangalore inputs to inspect truthful tier territories.';
+  document.getElementById('briefingCoverage').textContent = hasSummary && summary.hard_coverage_pct != null ? `${Number(summary.hard_coverage_pct).toFixed(2)}%` : '—';
+  document.getElementById('briefingCost').textContent = hasSummary && summary.avg_cost != null ? `₹${Number(summary.avg_cost).toFixed(2)}` : '—';
+  document.getElementById('briefingDistance').textContent = hasSummary && summary.avg_dist != null ? `${Number(summary.avg_dist).toFixed(3)} km` : '—';
+  document.getElementById('briefingStandard').textContent = hasSummary && summary.total_physical_standard_count != null ? physicalStandardCount.toLocaleString() : '—';
+  if(hasSummary){
+    if(siteMix){
+      tags.push(`<span class="briefing-tag">${Number(siteMix.fixed_standard_remaining_open_count || 0).toLocaleString()} fixed open</span>`);
+      tags.push(`<span class="briefing-tag">${Number(siteMix.net_new_standard_count || 0).toLocaleString()} net-new Standard</span>`);
+      tags.push(`<span class="briefing-tag">${Number(siteMix.fixed_store_upgrades_to_super_count || 0).toLocaleString()} fixed Super upgrades</span>`);
+      tags.push(`<span class="briefing-tag">${Number(siteMix.net_new_super_count || 0).toLocaleString()} net-new Super</span>`);
+      tags.push(`<span class="briefing-tag">${Number(siteMix.net_new_mini_count || 0).toLocaleString()} net-new Mini</span>`);
+    }else{
+      tags.push(`<span class="briefing-tag">${Number(summary.fixed_standard_count || 0).toLocaleString()} fixed</span>`);
+      tags.push(`<span class="briefing-tag">${Number(summary.new_standard_count || 0).toLocaleString()} new Standard</span>`);
+      tags.push(`<span class="briefing-tag">${miniCount.toLocaleString()} Mini</span>`);
+      tags.push(`<span class="briefing-tag">${superCount.toLocaleString()} true Super</span>`);
+      tags.push(`<span class="briefing-tag">${overlaySuperCount.toLocaleString()} Super overlay</span>`);
+    }
+    tags.push(`<span class="briefing-tag">${uniquePhysicalCount.toLocaleString()} unique physical</span>`);
+    tags.push(`<span class="briefing-tag ${extra.territoryMode === 'assigned_demand_cells' ? '' : 'warn'}">${extra.territoryLabel || 'Radius rings only'}</span>`);
+    if(extra.resultState && extra.resultState.is_final === false){
+      tags.push('<span class="briefing-tag warn">Provisional preview</span>');
+    }
+  }else{
+    tags.push('<span class="briefing-tag warn">No saved result in view</span>');
+  }
+  document.getElementById('briefingTags').innerHTML = tags.join('');
+}
+
+function setMapHud(data, opts = {}){
+  const summary = opts.summary || data?.decision_grade_result || null;
+  const overlaySuperCount = Number(summary?.overlay_super_count || 0);
+  const uniquePhysicalCount = Number(summary?.total_unique_physical_store_count || ((Number(summary?.total_physical_standard_count || 0) + Number(summary?.mini_count || 0) + Math.max(0, Number(summary?.super_count || 0))) || 0));
+  const siteMix = summary?.proposed_site_mix_summary || null;
+  document.getElementById('mapHudTitle').textContent = summary
+    ? prettyViewLabel(summary.active_view_key || opts.selectedView)
+    : 'Awaiting Bangalore result';
+  document.getElementById('mapHudMeta').textContent = summary
+    ? `${opts.hudSubtitle || 'Selected decision branch'}${opts.resultState?.is_final === false ? ' • provisional preview' : ' • final packet'}${opts.territoryText ? ` • ${opts.territoryText}` : ''}`
+    : 'The map will highlight the selected decision branch, its economics, and whether truthful demand-cell territories are available.';
+  document.getElementById('mapHudCoverage').textContent = summary?.proposed_hard_coverage_pct != null ? `${Number(summary.proposed_hard_coverage_pct).toFixed(2)}%` : '—';
+  document.getElementById('mapHudCost').textContent = summary?.proposed_avg_cost != null ? `₹${Number(summary.proposed_avg_cost).toFixed(2)}` : '—';
+  document.getElementById('mapHudMini').textContent = summary?.mini_count != null ? Number(summary.mini_count).toLocaleString() : '—';
+  document.getElementById('mapHudSuper').textContent = summary?.super_count != null ? Number(summary.super_count).toLocaleString() : '—';
+  const tags = [];
+  if(summary){
+    if(siteMix){
+      tags.push(`<span class="map-hud-tag">${Number(siteMix.fixed_standard_remaining_open_count || 0).toLocaleString()} fixed open</span>`);
+      tags.push(`<span class="map-hud-tag">${Number(siteMix.net_new_standard_count || 0).toLocaleString()} net-new Standard</span>`);
+      tags.push(`<span class="map-hud-tag">${Number(siteMix.fixed_store_upgrades_to_super_count || 0).toLocaleString()} fixed Super upgrades</span>`);
+      tags.push(`<span class="map-hud-tag">${Number(siteMix.net_new_super_count || 0).toLocaleString()} net-new Super</span>`);
+      tags.push(`<span class="map-hud-tag">${Number(siteMix.net_new_mini_count || 0).toLocaleString()} net-new Mini</span>`);
+    }else{
+      tags.push(`<span class="map-hud-tag">${Number(summary.fixed_standard_count || 0).toLocaleString()} fixed</span>`);
+      tags.push(`<span class="map-hud-tag">${Number(summary.new_standard_count || 0).toLocaleString()} new Standard</span>`);
+      tags.push(`<span class="map-hud-tag">${Number(summary.super_count || 0).toLocaleString()} true Super</span>`);
+      tags.push(`<span class="map-hud-tag">${overlaySuperCount.toLocaleString()} Super overlay</span>`);
+    }
+    tags.push(`<span class="map-hud-tag">${uniquePhysicalCount.toLocaleString()} unique physical</span>`);
+  }
+  tags.push(`<span class="map-hud-tag ${opts.territoryMode === 'assigned_demand_cells' ? 'ok' : 'warn'}">${opts.territoryLabel || 'Radius rings only'}</span>`);
+  document.getElementById('mapHudTags').innerHTML = tags.join('');
 }
 
 function syncFixedStoreWorldUI(){
@@ -1194,6 +1655,10 @@ async function previewFixedStoreSelection(){
 }
 
 async function restoreServerState(){
+  if(wantsSolverView()){
+    await restoreSolverWorkbenchState();
+    return;
+  }
   const statusEl = document.getElementById('uploadStatus');
   if(statusEl) statusEl.textContent = 'Checking server for already loaded Bangalore data...';
   for(let attempt = 0; attempt < 3; attempt++){
@@ -1215,33 +1680,42 @@ async function restoreServerState(){
         if(text) text.textContent = 'OSRM Connected';
       }
 
-      if(!status.data_loaded) return;
+      setBriefingFromSummary(status.result_summary || null, {
+        phase: status.optimization_phase,
+        dataLoaded: !!status.data_loaded,
+        territoryLabel: status.data_loaded ? 'Demand-cell territories available after restore' : 'Radius rings only until Bangalore inputs load',
+        resultState: status.result_state || null,
+      });
 
-      uploaded.orders = true;
-      uploaded.stores = true;
-      refreshRunReadiness();
+      if(status.data_loaded){
+        uploaded.orders = true;
+        uploaded.stores = true;
+        refreshRunReadiness();
 
-      const scope = status.scope_summary || {};
-      const scopeText = scope.in_scope_orders_per_day != null
-        ? ` · in-scope ${Number(scope.in_scope_orders_per_day).toLocaleString()} orders/day`
-        : '';
-      statusEl.textContent = withMeetingPrewarmStatus(
-        `${Number(status.num_grid_cells || 0).toLocaleString()} grid cells · ${Number(status.orders_per_day || 0).toLocaleString()} orders/day${scopeText}`
-      );
-      document.getElementById('orderZone').classList.add('uploaded');
-      document.getElementById('storeZone').classList.add('uploaded');
-      document.getElementById('orderLabel').innerHTML = `<span class="upload-check">✓</span> ${Number(status.total_orders || 0).toLocaleString()} orders`;
-      document.getElementById('storeLabel').innerHTML = `<span class="upload-check">✓</span> ${Number(status.scope_summary?.business_polygon_count || 0).toLocaleString()} polygons · ${Number(status.num_stores || 0).toLocaleString()} uploaded current stores`;
+        const scope = status.scope_summary || {};
+        const scopeText = scope.in_scope_orders_per_day != null
+          ? ` · in-scope ${Number(scope.in_scope_orders_per_day).toLocaleString()} orders/day`
+          : '';
+        statusEl.textContent = withMeetingPrewarmStatus(
+          `${Number(status.num_grid_cells || 0).toLocaleString()} grid cells · ${Number(status.orders_per_day || 0).toLocaleString()} orders/day${scopeText}`
+        );
+        document.getElementById('orderZone').classList.add('uploaded');
+        document.getElementById('storeZone').classList.add('uploaded');
+        document.getElementById('orderLabel').innerHTML = `<span class="upload-check">✓</span> ${Number(status.total_orders || 0).toLocaleString()} orders`;
+        document.getElementById('storeLabel').innerHTML = `<span class="upload-check">✓</span> ${Number(status.scope_summary?.business_polygon_count || 0).toLocaleString()} polygons · ${Number(status.num_stores || 0).toLocaleString()} uploaded current stores`;
 
-      if(Array.isArray(status.existing_stores) && status.existing_stores.length){
-        showExistingStores(status.existing_stores || []);
-        showScopePolygons(status);
-        setTimeout(()=>map.invalidateSize(), 100);
+        if(Array.isArray(status.existing_stores) && status.existing_stores.length){
+          showExistingStores(status.existing_stores || []);
+          showScopePolygons(status);
+          setTimeout(()=>map.invalidateSize(), 100);
+        }
+
+        if(statusEl) statusEl.textContent += ' · applying active fixed-store preview...';
+        await previewFixedStoreSelection();
+        await triggerMeetingPrewarm();
+      }else if(statusEl){
+        statusEl.textContent = 'Saved Bangalore packet available. Load Bangalore inputs to unlock truthful demand-cell territories.';
       }
-
-      if(statusEl) statusEl.textContent += ' · applying active fixed-store preview...';
-      await previewFixedStoreSelection();
-      await triggerMeetingPrewarm();
 
       if(statusEl) statusEl.textContent += ' · checking previous Bangalore 103 result...';
       const resultResp = await fetch('/api/result');
@@ -1270,6 +1744,258 @@ async function restoreServerState(){
     }
     await new Promise(r=>setTimeout(r, 500));
   }
+}
+
+function normalizeBangaloreSolverPayload(payload){
+  const counts = payload?.store_counts || {};
+  const config = payload?.config_snapshot || {};
+  const request = payload?.solver_workbench_request || {};
+  const effectivePolicy = config?.resolved_policy || payload?.policy_snapshot || {};
+  const totalSuper = Number(counts.upgraded_super_count || 0) + Number(counts.new_super_count || 0);
+  const siteMixSummary = payload?.proposed_site_mix_summary || {
+    fixed_standard_remaining_open_count: Number(counts.fixed_standard_count || 0),
+    net_new_standard_count: Number(counts.new_standard_count || 0),
+    fixed_store_upgrades_to_super_count: Number(counts.upgraded_super_count || 0),
+    net_new_super_count: Number(counts.new_super_count || 0),
+    net_new_mini_count: Number(counts.mini_count || 0),
+    total_unique_physical_store_count: Number(counts.total_unique_physical_store_count || 0),
+  };
+  return {
+    existing_stores: (payload?.fixed_open_sites || []).map(site => ({
+      ...site,
+      id: site.id || site.site_id,
+    })),
+    standard_ds: (payload?.selected_new_standard_sites || []).map(site => ({
+      ...site,
+      id: site.id || site.site_id,
+      radius_km: Number(site.radius_km ?? config.standard_radius_km ?? 3),
+      site_role: 'solver_selected_new_standard',
+      reason: 'Solver-selected new Standard site',
+    })),
+    mini_ds: (payload?.mini_sites || []).map(site => ({
+      ...site,
+      id: site.id || site.site_id,
+      radius_km: Number(site.radius_km ?? config.mini_service_radius_km ?? 1),
+      cells: Number(site.cells || site.served_cluster_count || 0),
+    })),
+    super_ds: (payload?.selected_super_sites || []).map(site => ({
+      ...site,
+      id: site.id || site.site_id,
+      radius_km: Number(site.radius_km ?? config.super_radius_km ?? 5.5),
+      site_semantics: 'true_super',
+      site_source: site.fixed_open ? 'existing_standard' : 'new_candidate',
+      counts_as_true_super: true,
+    })),
+    business_regions: payload?.business_regions || [],
+    excluded_islands: payload?.excluded_islands || [],
+    city_bounds: payload?.city_bounds || null,
+    scope_summary: payload?.scope_summary || {},
+    params: {
+      fixed_store_mode: payload?.fixed_store_mode,
+      standard_ds_radius: Number(config.standard_radius_km ?? 3),
+      standard_min_orders_per_day: config.effective_standard_min_orders_per_day,
+      standard_min_boundary_clearance_km: config.effective_standard_min_boundary_clearance_km,
+      standard_fixed_store_buffer_km: config.effective_standard_fixed_store_buffer_km,
+      standard_soft_cluster_radius_km: config.effective_standard_soft_cluster_radius_km,
+      super_ds_radius: Number(config.super_radius_km ?? 5.5),
+      super_min_orders_per_day: config.effective_super_min_orders_per_day,
+      mini_ds_radius: Number(config.mini_service_radius_km ?? 1),
+      mini_min_orders_per_day: config.effective_mini_min_orders_per_day,
+      mini_density_radius_km: config.effective_mini_density_radius_km,
+      mini_density_min_orders_per_day: config.effective_mini_density_min_orders_per_day,
+      mini_prefer_existing_physical_site_radius_km: config.effective_mini_prefer_existing_physical_site_radius_km,
+      target_mode: request.solver_mode || 'exploratory',
+      target_total_physical_stores: config.effective_target_total_physical_sites_exact,
+      min_total_physical_sites: effectivePolicy.effective_min_total_physical_sites ?? effectivePolicy.min_total_physical_sites,
+      max_total_physical_sites: effectivePolicy.effective_max_total_physical_sites ?? effectivePolicy.max_total_physical_sites,
+      target_avg_cost: config.effective_avg_last_mile_cost_cap,
+      require_super_core_city_coverage: config.effective_require_super_core_city_coverage,
+      prefer_eligible_fixed_store_upgrades_to_super: config.effective_prefer_eligible_fixed_store_upgrades_to_super,
+    },
+    decision_grade_result: {
+      active_view_key: 'bangalore_solver_v1',
+      result_contract: payload?.result_contract,
+      proposed_hard_coverage_pct: Number(payload?.hard_coverage_pct || 0),
+      proposed_avg_cost: Number(payload?.avg_last_mile_cost || 0),
+      fixed_standard_count: Number(counts.fixed_standard_count || 0),
+      new_standard_count: Number(counts.new_standard_count || 0),
+      upgraded_super_count: Number(counts.upgraded_super_count || 0),
+      new_super_count: Number(counts.new_super_count || 0),
+      mini_count: Number(counts.mini_count || 0),
+      super_count: totalSuper,
+      overlay_super_count: 0,
+      total_physical_standard_count: Number(counts.fixed_standard_count || 0) + Number(counts.new_standard_count || 0),
+      reused_super_on_standard_count: Number(counts.upgraded_super_count || 0),
+      total_unique_physical_store_count: Number(counts.total_unique_physical_store_count || 0),
+      proposed_site_mix_summary: siteMixSummary,
+    },
+    result_state: {
+      label: payload?.result_state?.label || 'Solver artifact',
+      is_final: true,
+    },
+    pipeline: {
+      phase: 'bangalore_solver_v1',
+      active_view_key: 'bangalore_solver_v1',
+    },
+    feasible: payload?.feasible,
+    status: payload?.status,
+    solver_workbench_request: request,
+    proposed_site_mix_summary: siteMixSummary,
+    downloadable_proposed_site_rows: payload?.downloadable_proposed_site_rows || [],
+    _solverArtifact: payload,
+  };
+}
+
+function describeSolverSuperCoverage(payload){
+  const coverage = payload?.policy_evaluation?.super_coverage || {};
+  if(!coverage.active){
+    return 'Super core demand-cell guard is off.';
+  }
+  if(coverage.geojson_supplied){
+    return `Super core demand-cell guard uses the supplied GeoJSON target set and requires ${Number(coverage.required_solver_cell_pct || 100).toFixed(0)}% of the in-geometry solver cells.`;
+  }
+  return `No authoritative core-city GeoJSON was supplied, so the Super fallback is a demand-bearing solver-cell proxy: ${Number(coverage.required_solver_cell_pct || 0).toFixed(0)}% required, ${Number(coverage.achieved_solver_cell_pct || 0).toFixed(2)}% achieved.`;
+}
+
+function describeSolverStandardRealism(payload){
+  const diagnostics = payload?.realism_diagnostics || {};
+  if(!Number(diagnostics.selected_new_standard_count || 0)){
+    return 'No new Standard sites were selected.';
+  }
+  const metric = diagnostics.incremental_value_metric || {};
+  const thresholdText = Number(metric.weak_threshold_orders_per_day || 0) > 0
+    ? `${Number(metric.weak_threshold_orders_per_day).toFixed(0)} orders/day weak threshold`
+    : 'blunt threshold disabled';
+  return `${Number(diagnostics.clustered_standard_pair_count || 0)} close Standard pairs, ${Number(diagnostics.weak_incremental_boundary_hugging_standard_count || 0)} weak boundary sites out of ${Number(diagnostics.boundary_hugging_standard_count || 0)}, and ${Number(diagnostics.weak_incremental_near_fixed_store_standard_count || 0)} weak near-fixed sites out of ${Number(diagnostics.near_fixed_store_standard_count || 0)} (${thresholdText}).`;
+}
+
+function setSolverMetricCardValues(payload){
+  const counts = payload?.store_counts || {};
+  const totalSuper = Number(counts.upgraded_super_count || 0) + Number(counts.new_super_count || 0);
+  const setText = (id, value) => {
+    const el = document.getElementById(id);
+    if(el) el.textContent = value;
+  };
+  setText('mCurDist', '—');
+  setText('mPropDist', '—');
+  setText('mPropDistUnw', '—');
+  setText('mCurCost', '—');
+  setText('mPropCost', Number.isFinite(Number(payload?.avg_last_mile_cost)) ? `₹${Number(payload.avg_last_mile_cost).toFixed(1)}` : '—');
+  setText('mCurOperational', '—');
+  setText('mCurPolicy', '—');
+  setText('mPropHard', Number.isFinite(Number(payload?.hard_coverage_pct)) ? Number(payload.hard_coverage_pct).toFixed(2) : '—');
+  setText('mPropHybrid', '—');
+  setText('mAddrHard', Number.isFinite(Number(payload?.hard_coverage_pct)) ? Number(payload.hard_coverage_pct).toFixed(2) : '—');
+  setText('mAddrHybrid', '—');
+  setText('mPolicyBreach', '—');
+  setText('mExcludedLowDensity', '—');
+  setText('mSuperPenalty', '—');
+  setText('mCov', '—');
+  setText('mCovUnit', '%');
+  setText('mOutTier', '—');
+  setText('mSavings', '—');
+  setText('mSavingsNote', `Solver lane artifact · ${Number(payload?.scope_summary?.business_polygon_count || 0).toLocaleString()} scope polygons · fixed world ${formatFixedStoreMode(payload?.fixed_store_mode)}`);
+  setText('cntMini', Number(counts.mini_count || 0).toLocaleString());
+  setText('cntStd', (Number(counts.fixed_standard_count || 0) + Number(counts.new_standard_count || 0)).toLocaleString());
+  setText('cntSuper', totalSuper.toLocaleString());
+  setText('cntSuperReuse', '0');
+  setText('cntUnique', Number(counts.total_unique_physical_store_count || 0).toLocaleString());
+}
+
+function displayBangaloreSolverResult(payload){
+  const displayData = normalizeBangaloreSolverPayload(payload);
+  const request = payload?.solver_workbench_request || {};
+  const summaryText = request.constraint_summary || 'published Bangalore free-play envelope';
+  window._exactBenchmarkRoot = null;
+  window._lastResultStale = false;
+  window._lastResult = displayData;
+  window._serviceAreaPayload = {
+    available: false,
+    mode: 'solver_scope_only',
+    reason: 'Solver view is showing solver-selected sites against the 151-polygon Bangalore scope. Demand-cell territories are not yet derived for the solver artifact endpoint.',
+  };
+  const targetBanner = document.getElementById('targetSearchBanner');
+  if(targetBanner){
+    targetBanner.style.display = 'block';
+    targetBanner.className = payload?.feasible === false ? 'target-banner warn' : 'target-banner ok';
+    targetBanner.innerHTML = payload?.feasible === false
+      ? `<strong>Solver returned ${payload?.status || 'blocked'}.</strong> ${summaryText}. Hard coverage ${Number(payload?.hard_coverage_pct || 0).toFixed(2)}% and avg last-mile cost ${Number.isFinite(Number(payload?.avg_last_mile_cost)) ? `₹${Number(payload.avg_last_mile_cost).toFixed(2)}` : '—'}.`
+      : `<strong>Solver workbench result.</strong> ${summaryText}. Hard coverage ${Number(payload?.hard_coverage_pct || 0).toFixed(2)}% and avg last-mile cost ${Number.isFinite(Number(payload?.avg_last_mile_cost)) ? `₹${Number(payload.avg_last_mile_cost).toFixed(2)}` : '—'}.`;
+  }
+  const exactPanel = document.getElementById('exactScenarioPanel');
+  if(exactPanel) exactPanel.style.display = 'none';
+  setSolverMetricCardValues(payload);
+  renderOptimizationResult(displayData);
+  renderDecisionDashboard(displayData);
+  renderRescueRecommendations(displayData);
+  renderLowDensityZones(displayData);
+  renderLastRunParams(displayData.params || {});
+  populateHubTable(displayData);
+  renderScenarioComparison();
+  setMapHud(displayData, {
+    summary: displayData.decision_grade_result,
+    territoryMode: 'solver_scope_only',
+    territoryLabel: `${Number(payload?.scope_summary?.business_polygon_count || 0).toLocaleString()} solver-scope polygons`,
+    territoryText: `Scope comes from ${payload?.scope_summary?.scope_source_path || 'the solver scope file'}.`,
+    resultState: displayData.result_state,
+  });
+  setBriefingFromSummary({
+    selected_view: 'bangalore_solver_v1',
+    hard_coverage_pct: payload?.hard_coverage_pct,
+    avg_cost: payload?.avg_last_mile_cost,
+    fixed_standard_count: payload?.store_counts?.fixed_standard_count,
+    new_standard_count: payload?.store_counts?.new_standard_count,
+    upgraded_super_count: payload?.store_counts?.upgraded_super_count,
+    new_super_count: payload?.store_counts?.new_super_count,
+    mini_count: payload?.store_counts?.mini_count,
+    super_count: Number(payload?.store_counts?.upgraded_super_count || 0) + Number(payload?.store_counts?.new_super_count || 0),
+    overlay_super_count: 0,
+    total_physical_standard_count: Number(payload?.store_counts?.fixed_standard_count || 0) + Number(payload?.store_counts?.new_standard_count || 0),
+    reused_super_on_standard_count: payload?.store_counts?.upgraded_super_count,
+    total_unique_physical_store_count: payload?.store_counts?.total_unique_physical_store_count,
+    proposed_site_mix_summary: payload?.proposed_site_mix_summary,
+  }, {
+    phase: 'bangalore_solver_v1',
+    dataLoaded: false,
+    territoryMode: 'solver_scope_only',
+    territoryLabel: `${Number(payload?.scope_summary?.business_polygon_count || 0).toLocaleString()} solver-scope polygons`,
+    resultState: displayData.result_state,
+  });
+  const note = document.getElementById('pipelineNote');
+  if(note){
+    note.innerHTML =
+      `<strong>Bangalore solver lane:</strong> this map is reading <code>bangalore_solver_v1</code> from the solver workbench result path, not the legacy meeting packet.` +
+      `<br><strong>Run mode:</strong> ${request.solver_mode || 'exploratory'} · ${summaryText}.` +
+      `<br><strong>Scope:</strong> ${Number(payload?.scope_summary?.business_polygon_count || 0).toLocaleString()} Bangalore business polygons from <code>${payload?.scope_summary?.scope_source_path || 'unknown'}</code>.` +
+      `<br><strong>Fixed stores:</strong> ${Number(payload?.store_counts?.fixed_standard_count || 0).toLocaleString()} benchmark fixed stores remain open from <code>${payload?.scope_summary?.fixed_store_source_path || 'unknown'}</code>.` +
+      `<br><strong>Mini trigger:</strong> ${payload?.mini_stage_summary?.trigger_enabled ? `${payload?.mini_stage_summary?.density_min_orders_per_day || 0} orders/day within ${payload?.mini_stage_summary?.density_radius_km || 0} km` : 'disabled'}.` +
+      `<br><strong>Standard realism:</strong> ${describeSolverStandardRealism(payload)}` +
+      `<br><strong>Super core coverage:</strong> ${describeSolverSuperCoverage(payload)}` +
+      `<br><strong>Semantics:</strong> Mini markers only appear when the solver-lane density stage selected them; hard coverage remains ${Number(payload?.hard_coverage_pct || 0).toFixed(2)}%.` +
+      `<br><strong>Map truth:</strong> store markers are solver-selected sites against the 151-polygon Bangalore scope. Demand-cell territories stay explicitly labeled as unavailable until the solver lane emits them.`;
+  }
+  const statusEl = document.getElementById('uploadStatus');
+  if(statusEl){
+    statusEl.textContent = `Solver view loaded · ${summaryText} · ${Number(payload?.scope_summary?.business_polygon_count || 0).toLocaleString()} polygons · ${Number(payload?.store_counts?.total_unique_physical_store_count || 0).toLocaleString()} unique physical sites`;
+  }
+  setSolverStatusChip(
+    payload?.feasible === false
+      ? `Solver ${payload?.status || 'blocked'} · ${summaryText}`
+      : `Solver ready · ${summaryText}`,
+    payload?.feasible === false ? 'warn' : 'info'
+  );
+  applyParamsToSolverWorkbench(payload);
+}
+
+async function restoreSolverWorkbenchState(){
+  const statusEl = document.getElementById('uploadStatus');
+  if(statusEl) statusEl.textContent = 'Loading Bangalore solver workbench...';
+  const resp = await fetch('/api/solver-workbench-result');
+  const payload = await resp.json();
+  if(!resp.ok){
+    throw new Error(payload.error || 'Failed to load Bangalore solver workbench result');
+  }
+  displayBangaloreSolverResult(payload);
 }
 
 function pollLocalLoad(type){
@@ -1385,7 +2111,7 @@ function showExistingStores(stores){
 
     if(s.polygon_coords && s.polygon_coords.length>2){
       const poly = L.polygon(s.polygon_coords,{
-        color:'#2563eb', weight:1.8, fillColor:'#93c5fd', fillOpacity:.16, pane:'polygonPane'
+        color:'#1d4ed8', weight:2.2, fillColor:'#93c5fd', fillOpacity:.28, pane:'polygonPane'
       });
       layers.polygon.addLayer(poly);
     }
@@ -1414,15 +2140,86 @@ function showScopePolygons(data){
   (data.existing_stores || []).forEach(s=>{
     if(!(s.polygon_coords && s.polygon_coords.length > 2)) return;
     L.polygon(s.polygon_coords,{
-      color:'#2563eb', weight:1.8, fillColor:'#93c5fd', fillOpacity:.16, pane:'polygonPane'
+      color:'#1d4ed8', weight:2.2, fillColor:'#93c5fd', fillOpacity:.28, pane:'polygonPane'
     }).bindPopup(`<b>${s.id}</b><br>Fixed Standard store polygon`).addTo(layers.polygon);
   });
+}
+
+function renderServiceAreas(payload){
+  layers.territory.clearLayers();
+  window._serviceAreaPayload = payload || null;
+  if(!payload || !payload.available){
+    return;
+  }
+  const styles = {
+    mini: { color:'#c2410c', fillColor:'#ea580c', fillOpacity:.18 },
+    standard: { color:'#047857', fillColor:'#059669', fillOpacity:.14 },
+    super: { color:'#6d28d9', fillColor:'#7c3aed', fillOpacity:.12 }
+  };
+  (payload.features || []).forEach(feature=>{
+    const style = styles[feature.tier] || styles.standard;
+    const polygonCoords = (feature.polygons && feature.polygons.length) ? feature.polygons : (feature.polygon ? [feature.polygon] : []);
+    L.polygon(polygonCoords,{
+      color:style.color,
+      weight:1.1,
+      opacity:.7,
+      fillColor:style.fillColor,
+      fillOpacity:style.fillOpacity,
+      pane:'territoryPane',
+      interactive:true
+    }).bindPopup(
+      `<b>${String(feature.tier || 'territory').toUpperCase()} territory</b><br>` +
+      `Orders/day: ${Number(feature.orders_per_day || 0).toLocaleString()}<br>` +
+      `Cells: ${Number(feature.num_cells || 0).toLocaleString()}<br>` +
+      `${(feature.site_ids || []).length ? `Sites: ${(feature.site_ids || []).slice(0,8).join(', ')}${(feature.site_ids || []).length > 8 ? '…' : ''}` : 'Derived from assigned demand cells'}`
+    ).addTo(layers.territory);
+  });
+}
+
+async function requestServiceAreaPolygons(){
+  try{
+    const resp = await fetch('/api/service-area-polygons');
+    const payload = await resp.json();
+    renderServiceAreas(payload);
+    const summary = window._lastResult?.decision_grade_result || null;
+    const territoryMode = payload?.mode || 'radius_fallback';
+    const territoryLabel = territoryMode === 'assigned_demand_cells' ? 'Demand-cell territories on' : 'Radius rings fallback';
+    const territoryText = payload?.available
+      ? `Demand-cell territories derived from ${Number(payload.demand_count || 0).toLocaleString()} in-scope cells.`
+      : (payload?.reason || 'Load Bangalore inputs to derive demand-cell territories.');
+    setMapHud(window._lastResult || null, {
+      summary,
+      territoryMode,
+      territoryLabel,
+      territoryText,
+      selectedView: summary?.active_view_key,
+      resultState: window._lastResult?.result_state || null,
+    });
+    const liveSummary = window._lastKnownStatus?.result_summary || null;
+    setBriefingFromSummary(liveSummary, {
+      phase: window._lastKnownStatus?.optimization_phase,
+      dataLoaded: !!window._lastKnownStatus?.data_loaded,
+      territoryMode,
+      territoryLabel,
+      resultState: window._lastKnownStatus?.result_state || null,
+    });
+  }catch(e){
+    console.error('requestServiceAreaPolygons failed', e);
+    setMapHud(window._lastResult || null, {
+      summary: window._lastResult?.decision_grade_result || null,
+      territoryMode: 'radius_fallback',
+      territoryLabel: 'Radius rings fallback',
+      territoryText: 'Service-area polygons could not be derived from the current server state.',
+      resultState: window._lastResult?.result_state || null,
+    });
+  }
 }
 
 function clearProposedLayers(){
   layers.mini.clearLayers();
   layers.standard.clearLayers();
   layers.super.clearLayers();
+  layers.territory.clearLayers();
   layers.lowdensity.clearLayers();
   const panel = document.getElementById('exactScenarioPanel');
   if(panel) panel.style.display = 'none';
@@ -1535,6 +2332,12 @@ function renderOptimizationResult(data){
     const avgDistText = Number.isFinite(Number(h.avg_assigned_distance_km)) ? Number(h.avg_assigned_distance_km).toFixed(2)+' km' : '—';
     const spacingText = siteClass.spacingRelaxed ? 'Relaxed spacing' : 'Strict spacing';
     const reasonText = siteClass.reason || (siteClass.isRescue ? 'Local tail rescue' : (siteClass.isException ? 'Radius lift beyond base service radius' : 'Base coverage fill'));
+    const boundaryClearanceText = Number.isFinite(Number(h.boundary_clearance_km)) ? `${Number(h.boundary_clearance_km).toFixed(2)} km` : '—';
+    const fixedDistanceText = Number.isFinite(Number(h.nearest_fixed_store_distance_km)) ? `${Number(h.nearest_fixed_store_distance_km).toFixed(2)} km` : '—';
+    const nearestStandardText = Number.isFinite(Number(h.nearest_selected_standard_distance_km)) ? `${Number(h.nearest_selected_standard_distance_km).toFixed(2)} km` : '—';
+    const nearbyStandardsText = Number(h.nearby_selected_standard_count || 0) > 0
+      ? `${Number(h.nearby_selected_standard_count || 0)} nearby (${(h.nearby_selected_standard_ids || []).join(', ')})`
+      : '0';
     if(showServiceRings){
       L.circle([h.lat,h.lon],{
         radius:h.radius_km*1000,color:style.ringColor,weight:1.5,opacity:.4,fill:true,fillColor:style.ringFill,fillOpacity:.08,
@@ -1543,7 +2346,7 @@ function renderOptimizationResult(data){
     }
     L.circleMarker([h.lat,h.lon],{
       radius:style.markerRadius,fillColor:style.markerFill,color:style.markerStroke,weight:3,fillOpacity:1,pane:'standardPane'
-    }).bindPopup(`<b>${style.label}</b><br>${h.id || '—'}<br>Orders/day: ${ordersText}<br>Radius: ${Number(h.radius_km || 0).toFixed(1)}km${h.base_radius_km?` (base ${Number(h.base_radius_km).toFixed(1)}km)`:''}<br>Cells: ${cellsText}<br>Avg assigned distance: ${avgDistText}<br>Spacing: ${spacingText}<br>Reason: ${reasonText}`).addTo(layers.standard);
+    }).bindPopup(`<b>${style.label}</b><br>${h.id || '—'}<br>Orders/day: ${ordersText}<br>Radius: ${Number(h.radius_km || 0).toFixed(1)}km${h.base_radius_km?` (base ${Number(h.base_radius_km).toFixed(1)}km)`:''}<br>Cells: ${cellsText}<br>Avg assigned distance: ${avgDistText}<br>Spacing: ${spacingText}<br>Boundary clearance: ${boundaryClearanceText}<br>Nearest fixed store: ${fixedDistanceText}<br>Nearest selected Standard: ${nearestStandardText}<br>Nearby selected Standards: ${nearbyStandardsText}<br>Reason: ${reasonText}`).addTo(layers.standard);
   });
   ((data.planning_layers?.standard?.exception_sites)||[]).forEach(h=>{
     if((data.standard_ds||[]).some(s=>s.id === h.id)) return;
@@ -1568,9 +2371,26 @@ function renderOptimizationResult(data){
   // Super DS — purple markers (largest, most prominent)
   layers.super.clearLayers();
   (data.super_ds||[]).forEach(h=>{
+    const superClass = classifySuperSite(h);
+    if(showServiceRings){
+      L.circle([h.lat,h.lon],{
+        radius:(Number(h.radius_km || 0))*1000,color:superClass.ringColor,weight:1.4,opacity:.35,fill:true,fillColor:superClass.ringFill,fillOpacity:superClass.isOverlay ? .05 : .08,
+        dashArray:superClass.isOverlay ? '5 4' : null,
+        pane:'radiusPane',interactive:false
+      }).addTo(layers.super);
+    }
     L.circleMarker([h.lat,h.lon],{
-      radius:14,fillColor:'#7c3aed',color:'#fff',weight:3,fillOpacity:1,pane:'superPane'
-    }).bindPopup(`<b>Super DS</b> (30k SKUs)<br>Orders/day: ${h.orders_per_day.toFixed(0)}<br>Cells: ${h.cells!=null?h.cells:'—'}<br>Radius: ${h.radius_km} km`).addTo(layers.super);
+      radius:superClass.markerRadius,fillColor:superClass.markerFill,color:superClass.markerStroke,weight:3,fillOpacity:1,pane:'superPane'
+    }).bindPopup(
+      `<b>${superClass.label}</b><br>${h.id || '—'}<br>` +
+      `Orders/day: ${Number(h.orders_per_day || 0).toFixed(0)}<br>` +
+      `Radius: ${Number(h.radius_km || 0).toFixed(1)} km<br>` +
+      `Gross orders/day: ${Number(h.gross_orders_per_day || h.orders_per_day || 0).toFixed(0)}<br>` +
+      `Incremental/day: ${Number(h.incremental_orders_per_day || 0).toFixed(0)}<br>` +
+      `Standard overlap: ${(Number(h.standard_overlap_share || 0) * 100).toFixed(0)}%<br>` +
+      `Boundary clearance: ${Number(h.boundary_clearance_km || 0).toFixed(2)} km<br>` +
+      `Estimated savings/day: ₹${Number(h.estimated_daily_savings || 0).toFixed(0)}`
+    ).addTo(layers.super);
   });
 
   layers.lowdensity.clearLayers();
@@ -1595,11 +2415,14 @@ function renderOptimizationResult(data){
 }
 
 function toggleLayer(name){
-  const map_layers = {heatmap:heatLayer, existing:layers.existing, mini:layers.mini, standard:layers.standard, super:layers.super, lowdensity:layers.lowdensity, polygon:layers.polygon};
-  const checkboxes = {heatmap:'lHeat',existing:'lExist',mini:'lMini',standard:'lStd',super:'lSuper',lowdensity:'lLowDensity',polygon:'lPoly'};
+  const map_layers = {heatmap:heatLayer, existing:layers.existing, mini:layers.mini, standard:layers.standard, super:layers.super, territory:layers.territory, lowdensity:layers.lowdensity, polygon:layers.polygon};
+  const checkboxes = {heatmap:'lHeat',existing:'lExist',mini:'lMini',standard:'lStd',super:'lSuper',territory:'lTerritory',lowdensity:'lLowDensity',polygon:'lPoly'};
   const checked = document.getElementById(checkboxes[name]).checked;
   const layer = map_layers[name];
   if(!layer) return;
+  if(name === 'territory' && checked && !window._serviceAreaPayload){
+    requestServiceAreaPolygons();
+  }
   checked ? map.addLayer(layer) : map.removeLayer(layer);
 }
 
@@ -1726,6 +2549,123 @@ function collectOptimizationParams(options = {}){
   return params;
 }
 
+function collectSolverWorkbenchParams(){
+  return {
+    solver_mode: document.querySelector('input[name="solverMode"]:checked')?.value || 'exploratory',
+    standard_service_radius_km: parseFloat(document.getElementById('solverStdRadius').value),
+    standard_min_orders_per_day: parseOptionalFloat('solverStdMinOrders'),
+    super_service_radius_km: parseFloat(document.getElementById('solverSuperRadius').value),
+    super_min_orders_per_day: parseOptionalFloat('solverSuperMinOrders'),
+    mini_service_radius_km: parseFloat(document.getElementById('solverMiniRadius').value),
+    mini_min_orders_per_day: parseOptionalFloat('solverMiniMinOrders'),
+    target_total_physical_sites_exact: parseOptionalInt('solverExactTotalStores'),
+    min_total_physical_sites: parseOptionalInt('solverBandMinStores'),
+    max_total_physical_sites: parseOptionalInt('solverBandMaxStores'),
+    target_last_mile_cost: parseOptionalFloat('solverCostCap'),
+    require_super_core_city_coverage: !!document.getElementById('solverRequireSuperCoreCoverage')?.checked,
+    prefer_eligible_fixed_store_upgrades_to_super: !!document.getElementById('solverPreferFixedSuperUpgrades')?.checked,
+  };
+}
+
+function setSolverStatusChip(text, kind = 'info'){
+  const chip = document.getElementById('solverStatusChip');
+  if(!chip) return;
+  chip.textContent = text;
+  chip.style.background = kind === 'warn' ? '#fffbeb' : '#eff6ff';
+  chip.style.borderColor = kind === 'warn' ? '#fde68a' : '#bfdbfe';
+  chip.style.color = kind === 'warn' ? '#92400e' : '#1d4ed8';
+}
+
+function resetSolverWorkbenchRunState(){
+  const btn = document.getElementById('solverRunBtn');
+  if(btn){
+    btn.disabled = false;
+    btn.className = 'btn-primary';
+    btn.textContent = 'Run Solver Workbench';
+  }
+  const bar = document.getElementById('solverProgressBar');
+  const text = document.getElementById('solverProgressText');
+  if(bar) bar.style.display = 'none';
+  if(text) text.style.display = 'none';
+}
+
+async function runSolverWorkbench(){
+  const btn = document.getElementById('solverRunBtn');
+  const bar = document.getElementById('solverProgressBar');
+  const fill = document.getElementById('solverProgressFill');
+  const text = document.getElementById('solverProgressText');
+  const params = collectSolverWorkbenchParams();
+
+  btn.disabled = true;
+  btn.className = 'btn-primary running';
+  btn.textContent = 'Running solver...';
+  if(bar) bar.style.display = 'block';
+  if(text) text.style.display = 'block';
+  if(fill) fill.style.width = '10%';
+  if(text) text.textContent = 'Starting Bangalore solver workbench...';
+  setSolverStatusChip('Solver run in progress');
+
+  try{
+    const resp = await fetch('/api/solver-workbench-run', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(params),
+    });
+    const data = await resp.json();
+    if(!resp.ok) throw new Error(data.error || 'Failed to start solver workbench run');
+    window._solverWorkbenchRunId = data.run_id || null;
+    pollSolverWorkbenchStatus();
+  }catch(e){
+    toast('Solver workbench failed: ' + e.message, 'error');
+    setSolverStatusChip('Solver run failed to start', 'warn');
+    resetSolverWorkbenchRunState();
+  }
+}
+
+async function pollSolverWorkbenchStatus(){
+  const fill = document.getElementById('solverProgressFill');
+  const text = document.getElementById('solverProgressText');
+  try{
+    while(true){
+      const resp = await fetch('/api/solver-workbench-status');
+      const status = await resp.json();
+      if(text) text.textContent = status.progress || 'Running solver workbench...';
+      if(fill){
+        const current = parseFloat(fill.style.width || '10');
+        fill.style.width = `${Math.min(current + 8, status.running ? 92 : 100)}%`;
+      }
+      setSolverStatusChip(status.running ? 'Solver run in progress' : 'Solver run finished');
+      if(!status.running) break;
+      await sleep(1500);
+    }
+
+    const resultResp = await fetch('/api/solver-workbench-result');
+    const result = await resultResp.json();
+    if(!resultResp.ok && result?.error){
+      throw new Error(result.error);
+    }
+    displayBangaloreSolverResult(result);
+    const feasible = result?.feasible !== false;
+    setSolverStatusChip(
+      feasible
+        ? `Solver result ready · ${result?.solver_workbench_request?.constraint_summary || 'published Bangalore free-play envelope'}`
+        : `Solver returned ${result?.status || 'blocked'} · ${result?.solver_workbench_request?.constraint_summary || 'constraint set'}`,
+      feasible ? 'info' : 'warn'
+    );
+    toast(
+      feasible
+        ? 'Solver workbench result updated'
+        : `Solver workbench returned ${result?.status || 'blocked'}`,
+      feasible ? undefined : 'error'
+    );
+  }catch(e){
+    toast('Solver workbench error: ' + e.message, 'error');
+    setSolverStatusChip('Solver run failed', 'warn');
+  }finally{
+    resetSolverWorkbenchRunState();
+  }
+}
+
 async function runOptimization(){
   return runExactBenchmark({ includeTarget: false });
 }
@@ -1826,7 +2766,7 @@ async function maybeDisplayCoreDecisionPacket(status){
     if(!data?.success || data.pipeline?.phase !== 'core_decision_packet') return false;
     displayResults(data);
     window._optimizationCoreDisplayed = true;
-    toast('Core decision packet ready. Deferred enrichment is still running.');
+    toast('Provisional preview ready. Final enrichment is still running.');
     return true;
   }catch(e){
     console.error('maybeDisplayCoreDecisionPacket failed', e);
@@ -1867,7 +2807,7 @@ async function pollStatus(){
     if(!d.optimization_running && d.optimization_core_ready && !d.optimization_deferred_ready){
       document.getElementById('progressFill').style.width = '78%';
       await maybeDisplayCoreDecisionPacket(d);
-      document.getElementById('progressText').textContent = d.optimization_progress || 'Core decision packet ready. Deferred enrichment is still running.';
+      document.getElementById('progressText').textContent = d.optimization_progress || 'Provisional preview ready. Final enrichment is still running.';
       unlockRunControlsDuringDeferred();
       return;
     }
@@ -2439,16 +3379,26 @@ function displayResults(data){
   if(m.metrics_note) note += ' · ' + m.metrics_note;
   document.getElementById('mSavingsNote').textContent = note;
 
-  document.getElementById('cntMini').textContent = (displayData.mini_ds || []).length;
-  document.getElementById('cntStd').textContent = Number(displayData?.decision_grade_result?.total_physical_standard_count ?? layers.standard?.total_standard_sites ?? (displayData.standard_ds || []).length).toLocaleString();
-  document.getElementById('cntSuper').textContent = (displayData.super_ds || []).length;
+  const counts = getCountSemantics(displayData);
+  document.getElementById('cntMini').textContent = counts.miniCount.toLocaleString();
+  document.getElementById('cntStd').textContent = counts.physicalStandardCount.toLocaleString();
+  document.getElementById('cntSuper').textContent = counts.superCount.toLocaleString();
+  document.getElementById('cntSuperReuse').textContent = counts.overlaySuperCount.toLocaleString();
+  document.getElementById('cntUnique').textContent = counts.uniquePhysicalCount.toLocaleString();
 
   const pipe = displayData.pipeline || {};
   const fixedStoreMode = formatFixedStoreMode(displayData.params?.fixed_store_mode || data.params?.fixed_store_mode);
   const quality = data.quality_summary || {};
+  const resultState = data.result_state || displayData.result_state || {};
   let phtml = data.exact_benchmark
     ? `<strong>Exact Bangalore benchmark:</strong> this view is coming from the same exact benchmark deck used in the terminal run, solved over the frozen Bangalore model with <strong>${fixedStoreMode}</strong> as the fixed-store source.`
     : '<strong>Bangalore meeting mode:</strong> fixed-store world, service radii, and min-order thresholds are being evaluated through the bounded live scenario engine so you can compare scenarios in the room.';
+  if(resultState.label){
+    phtml += `<br><strong>Packet state:</strong> ${resultState.label}.`;
+    if(resultState.is_final === false){
+      phtml += ` <span style="color:#b91c1c">This preview is not the canonical final packet and is not saved as the latest decision packet.</span>`;
+    }
+  }
   if(displayData._resolved_active_view_label){
     phtml += `<br><strong>Active branch:</strong> ${displayData._resolved_active_view_label}.`;
   }
@@ -2479,7 +3429,10 @@ function displayResults(data){
     phtml += `<br><strong>Mini overlay:</strong> ${Number(layers.mini.site_count || 0).toLocaleString()} sites shifting ${Number(layers.mini.orders_shifted_from_standard_per_day || 0).toLocaleString()} orders/day away from Standard.`;
   }
   if(!data.exact_benchmark && layers.super){
-    phtml += `<br><strong>Super tier:</strong> ${Number(data.super_ds.length || 0).toLocaleString()} sites cover ${Number(layers.super.blanket_coverage_pct || 0).toFixed(2)}% of the sampled Super service geometry. Islands are excluded from this geometry check only.`;
+    const superCoverageLabel = layers.super.coverage_basis === 'full_demand_grid_geodesic'
+      ? 'of the full in-scope demand grid'
+      : 'of the sampled Super service geometry';
+    phtml += `<br><strong>Super layer:</strong> ${Number(data?.decision_grade_result?.super_count || 0).toLocaleString()} true Super site(s) and ${Number(data?.decision_grade_result?.overlay_super_count || 0).toLocaleString()} overlay-support site(s) cover ${Number(layers.super.blanket_coverage_pct || 0).toFixed(2)}% ${superCoverageLabel}. Islands are excluded from this geometry check only.`;
   }
   if(Array.isArray(m.policy_breach_hubs) && m.policy_breach_hubs.length){
     const top = m.policy_breach_hubs[0];
@@ -2513,6 +3466,35 @@ function displayResults(data){
   populateHubTable(displayData);
   showOverlayComparison(displayData);
   window._lastResult = displayData;
+  setMapHud(displayData, {
+    summary: displayData.decision_grade_result || null,
+    territoryMode: window._serviceAreaPayload?.mode || 'radius_fallback',
+    territoryLabel: window._serviceAreaPayload?.available ? 'Demand-cell territories on' : 'Radius rings fallback',
+    territoryText: window._serviceAreaPayload?.available
+      ? `Demand-cell territories derived from ${Number(window._serviceAreaPayload?.demand_count || 0).toLocaleString()} in-scope cells.`
+      : 'Load Bangalore inputs to derive demand-cell territories.',
+    resultState: displayData?.result_state || null,
+  });
+  setBriefingFromSummary({
+    selected_view: displayData?.decision_grade_result?.active_view_key,
+    hard_coverage_pct: displayData?.decision_grade_result?.proposed_hard_coverage_pct,
+    avg_cost: displayData?.decision_grade_result?.proposed_avg_cost,
+    avg_dist: displayData?.decision_grade_result?.proposed_avg_dist,
+    fixed_standard_count: displayData?.decision_grade_result?.fixed_standard_count,
+    new_standard_count: displayData?.decision_grade_result?.new_standard_count,
+    mini_count: displayData?.decision_grade_result?.mini_count,
+    super_count: displayData?.decision_grade_result?.super_count,
+    overlay_super_count: displayData?.decision_grade_result?.overlay_super_count,
+    total_physical_standard_count: displayData?.decision_grade_result?.total_physical_standard_count,
+    reused_super_on_standard_count: displayData?.decision_grade_result?.reused_super_on_standard_count,
+    total_unique_physical_store_count: displayData?.decision_grade_result?.total_unique_physical_store_count
+  },{
+    phase: displayData?.pipeline?.phase || data?.pipeline?.phase,
+    dataLoaded: !!window._lastKnownStatus?.data_loaded,
+    territoryMode: window._serviceAreaPayload?.mode || 'radius_fallback',
+    territoryLabel: window._serviceAreaPayload?.available ? 'Demand-cell territories on' : 'Radius rings fallback',
+    resultState: displayData?.result_state || null,
+  });
   renderScenarioComparison();
 }
 
@@ -2583,6 +3565,18 @@ function persistScenarios(){
 
 function scenarioSummaryHtml(s){
   const p = s.params || {};
+  if(s.lane === 'solver'){
+    return `
+      <div>Lane: solver workbench</div>
+      <div>Mode: ${s.solverMode || 'exploratory'} · ${s.constraintSummary || 'published Bangalore free-play envelope'}</div>
+      <div>Std: ${p.standard_min_orders_per_day ?? '-'} / day @ ${p.standard_ds_radius ?? '-'} km</div>
+      <div>Super: ${p.super_min_orders_per_day ?? '-'} / day @ ${p.super_ds_radius ?? '-'} km</div>
+      <div>Mini: ${p.mini_min_orders_per_day ?? '-'} / day @ ${p.mini_ds_radius ?? '-'} km</div>
+      <div>Total target stores: ${p.target_total_physical_stores ?? (p.min_total_physical_sites != null && p.max_total_physical_sites != null ? `${p.min_total_physical_sites}-${p.max_total_physical_sites}` : '—')}</div>
+      <div>Target last-mile cost: ${p.target_avg_cost != null ? `₹${p.target_avg_cost}` : '—'}</div>
+      <div>Super core guard: ${p.require_super_core_city_coverage ? 'solver-cell proxy on' : 'off'} · Prefer fixed upgrades: ${p.prefer_eligible_fixed_store_upgrades_to_super ? 'yes' : 'no'}</div>
+    `;
+  }
   const targetMode = p.target_mode || (p.mode === 'calibrate_base' ? 'target_total_physical_stores' : p.mode === 'search_tiers' ? 'target_avg_cost' : ((p.target_total_physical_stores != null || p.target_total_physical_standard_stores != null || p.target_max_hubs != null) ? 'target_total_physical_stores' : (p.target_avg_cost != null ? 'target_avg_cost' : '')));
   return `
     <div>Fixed stores: ${formatFixedStoreMode(p.fixed_store_mode)}</div>
@@ -2624,7 +3618,7 @@ function renderScenarioComparison(){
             <tr>
               <td>
                 <span class="scenario-pill">${s.name}</span>
-                <div class="scenario-meta">${s.savedAt}</div>
+                <div class="scenario-meta">${s.savedAt} · ${s.lane === 'solver' ? 'solver lane' : 'legacy lane'}</div>
               </td>
               <td>${scenarioSummaryHtml(s)}</td>
               <td>
@@ -2666,6 +3660,9 @@ function saveCurrentScenario(){
   savedScenarios.unshift({
     name,
     savedAt: new Date().toLocaleString(),
+    lane: data?._solverArtifact ? 'solver' : 'legacy',
+    solverMode: data?.solver_workbench_request?.solver_mode,
+    constraintSummary: data?.solver_workbench_request?.constraint_summary,
     params: data.params || {},
     counts: {
       mini: (data.mini_ds || []).length,
@@ -2673,12 +3670,12 @@ function saveCurrentScenario(){
       super: (data.super_ds || []).length,
     },
     metrics: {
-      proposed_avg_dist: Number(data.metrics?.proposed_avg_dist || 0),
-      proposed_avg_cost: Number(data.metrics?.proposed_avg_cost || 0),
+      proposed_avg_dist: Number(data.metrics?.proposed_avg_dist ?? data.decision_grade_result?.proposed_avg_dist ?? 0),
+      proposed_avg_cost: Number(data.metrics?.proposed_avg_cost ?? data.decision_grade_result?.proposed_avg_cost ?? data._solverArtifact?.avg_last_mile_cost ?? 0),
       daily_savings: Number(data.metrics?.daily_savings || 0),
-      proposed_hard_coverage_pct: Number(data.metrics?.proposed_hard_coverage_pct ?? data.metrics?.coverage_pct ?? 0),
-      proposed_hybrid_coverage_pct: Number(data.metrics?.proposed_hybrid_coverage_pct ?? data.metrics?.coverage_pct ?? 0),
-      addressable_hard_coverage_pct: Number(data.metrics?.addressable_hard_coverage_pct ?? data.metrics?.proposed_hard_coverage_pct ?? 0),
+      proposed_hard_coverage_pct: Number(data.metrics?.proposed_hard_coverage_pct ?? data.metrics?.coverage_pct ?? data.decision_grade_result?.proposed_hard_coverage_pct ?? data._solverArtifact?.hard_coverage_pct ?? 0),
+      proposed_hybrid_coverage_pct: Number(data.metrics?.proposed_hybrid_coverage_pct ?? data.metrics?.coverage_pct ?? data.decision_grade_result?.proposed_hard_coverage_pct ?? data._solverArtifact?.hard_coverage_pct ?? 0),
+      addressable_hard_coverage_pct: Number(data.metrics?.addressable_hard_coverage_pct ?? data.metrics?.proposed_hard_coverage_pct ?? data.decision_grade_result?.proposed_hard_coverage_pct ?? data._solverArtifact?.hard_coverage_pct ?? 0),
     }
   });
   persistScenarios();
@@ -2697,6 +3694,41 @@ function clearScenarios(){
   savedScenarios = [];
   persistScenarios();
   renderScenarioComparison();
+}
+
+function applyParamsToSolverWorkbench(payload){
+  const config = payload?.config_snapshot || {};
+  const request = payload?.solver_workbench_request || {};
+  const assign = (id, value) => {
+    const el = document.getElementById(id);
+    if(!el || value == null || value === '') return;
+    el.value = value;
+    el.dispatchEvent(new Event('input'));
+    el.dispatchEvent(new Event('change'));
+  };
+  suppressParamDirty = true;
+  try{
+    assign('solverStdRadius', config.standard_radius_km);
+    assign('solverStdMinOrders', config.effective_standard_min_orders_per_day);
+    assign('solverSuperRadius', config.super_radius_km);
+    assign('solverSuperMinOrders', config.effective_super_min_orders_per_day);
+    assign('solverMiniRadius', config.mini_service_radius_km);
+    assign('solverMiniMinOrders', config.effective_mini_min_orders_per_day);
+    assign('solverExactTotalStores', config.effective_target_total_physical_sites_exact);
+    assign('solverBandMinStores', config.effective_min_total_physical_sites);
+    assign('solverBandMaxStores', config.effective_max_total_physical_sites);
+    assign('solverCostCap', config.effective_avg_last_mile_cost_cap);
+    const mode = request.solver_mode || 'exploratory';
+    const modeRadio = document.querySelector(`input[name="solverMode"][value="${mode}"]`);
+    if(modeRadio) modeRadio.checked = true;
+    const requireSuper = document.getElementById('solverRequireSuperCoreCoverage');
+    if(requireSuper) requireSuper.checked = !!config.effective_require_super_core_city_coverage;
+    const preferFixed = document.getElementById('solverPreferFixedSuperUpgrades');
+    if(preferFixed) preferFixed.checked = !!config.effective_prefer_eligible_fixed_store_upgrades_to_super;
+    syncSolverModeUI();
+  } finally {
+    suppressParamDirty = false;
+  }
 }
 
 function applyParamsToSliders(p){
@@ -2790,6 +3822,21 @@ function applyParamsToSliders(p){
 function renderRescueRecommendations(data){
   const el = document.getElementById('rescuePanelContent');
   if(!el) return;
+  if(data?._solverArtifact){
+    const counts = data?._solverArtifact?.store_counts || {};
+    const request = data?._solverArtifact?.solver_workbench_request || {};
+    const policy = data?._solverArtifact?.policy_evaluation || {};
+    const siteMix = data?._solverArtifact?.proposed_site_mix_summary || {};
+    el.innerHTML = `
+      <div style="display:grid;gap:10px">
+        <div><strong>Solver status</strong><br>${data?._solverArtifact?.feasible === false ? `Returned <strong>${data?._solverArtifact?.status || 'blocked'}</strong>` : 'Returned a feasible solver network'} for <strong>${request.constraint_summary || 'published Bangalore free-play envelope'}</strong>.</div>
+        <div><strong>Selected site mix</strong><br>${Number(siteMix.fixed_standard_remaining_open_count || counts.fixed_standard_count || 0).toLocaleString()} fixed Standard remain open. Proposed locations are <strong>${Number(siteMix.net_new_standard_count || counts.new_standard_count || 0).toLocaleString()}</strong> net-new Standard, <strong>${Number(siteMix.fixed_store_upgrades_to_super_count || counts.upgraded_super_count || 0).toLocaleString()}</strong> fixed-store Super upgrades, <strong>${Number(siteMix.net_new_super_count || counts.new_super_count || 0).toLocaleString()}</strong> net-new Super, and <strong>${Number(siteMix.net_new_mini_count || counts.mini_count || 0).toLocaleString()}</strong> net-new Mini.</div>
+        <div><strong>Download truth</strong><br>The proposed-locations table and CSV include only those proposed rows, each with an explicit site type and tier. Fixed Standard stores remaining open stay visible separately and are not mixed into the proposed download.</div>
+        <div><strong>Policy notes</strong><br>${Array.isArray(policy?.violations) && policy.violations.length ? policy.violations.join(' ') : 'No additional solver-policy violations were reported.'}</div>
+      </div>
+    `;
+    return;
+  }
   const layers = data.planning_layers || {};
   if(!layers.standard){
     el.innerHTML = 'Run the planner to see the fixed 103 baseline, new Standard / Super additions, Mini overlay savings, and any remaining exceptions.';
@@ -2839,7 +3886,7 @@ function renderRescueRecommendations(data){
       <div><strong>Standard base network</strong><br>${Number(layers.standard.fixed_open_count || 0).toLocaleString()} fixed stores stay open. ${Number(layers.standard.new_store_count || 0).toLocaleString()} new Standard stores are added for coverage. Total Standard network: ${Number(layers.standard.total_standard_sites || 0).toLocaleString()} sites at ${Number(layers.standard.coverage_pct || 0).toFixed(2)}% in-scope coverage.</div>
       <div><strong>Exception Standard hubs</strong><br>${Number(layers.standard.exception_hub_count || 0).toLocaleString()} Standard hubs are allowed to stretch from the normal ${Number(data.params?.standard_ds_radius || 3).toFixed(1)} km policy up to ${Number(data.params?.standard_exception_radius_km || 5).toFixed(1)} km to close the last gaps before opening more new Standard stores.</div>
       <div><strong>Mini overlay savings</strong><br>${Number(layers.mini?.site_count || 0).toLocaleString()} Mini sites qualify under the dense-cluster gate and shift ${Number(layers.mini?.orders_shifted_from_standard_per_day || 0).toLocaleString()} orders/day from Standard, saving about ₹${Number(layers.mini?.avg_cost_reduction_per_order || 0).toFixed(2)}/order.</div>
-      <div><strong>Super tier network</strong><br>${Number(data.super_ds.length || 0).toLocaleString()} Super sites cover ${Number(layers.super?.blanket_coverage_pct || 0).toFixed(2)}% of the in-scope geometry sample, reusing ${Number(layers.super?.reused_existing_standard_count || 0).toLocaleString()} eligible fixed stores and ${Number(layers.super?.reused_new_standard_count || 0).toLocaleString()} new stores before opening ${Number(layers.super?.new_super_site_count || 0).toLocaleString()} new Super sites.</div>
+      <div><strong>Super tier network</strong><br>${Number(data.super_ds.length || 0).toLocaleString()} Super sites cover ${Number(layers.super?.blanket_coverage_pct || 0).toFixed(2)}% ${layers.super?.coverage_basis === 'full_demand_grid_geodesic' ? 'of the full in-scope demand grid' : 'of the in-scope geometry sample'}, reusing ${Number(layers.super?.reused_existing_standard_count || 0).toLocaleString()} eligible fixed stores and ${Number(layers.super?.reused_new_standard_count || 0).toLocaleString()} new stores before opening ${Number(layers.super?.new_super_site_count || 0).toLocaleString()} new Super sites.</div>
       ${Array.isArray(data.analysis?.meeting_insights) && data.analysis.meeting_insights.length ? `<div><strong>Scenario insights</strong><br><ul style="margin:6px 0 0 18px;padding:0">${data.analysis.meeting_insights.map(x=>`<li>${x}</li>`).join('')}</ul></div>` : ''}
     </div>
   `;
@@ -2848,6 +3895,24 @@ function renderRescueRecommendations(data){
 function renderLowDensityZones(data){
   const el = document.getElementById('lowDensityPanelContent');
   if(!el) return;
+  if(data?._solverArtifact){
+    const unmet = data?._solverArtifact?.unmet_requirements || [];
+    const policy = data?._solverArtifact?.policy_evaluation || {};
+    const realism = data?._solverArtifact?.realism_diagnostics || {};
+    el.innerHTML = unmet.length
+      ? `<div><strong>Solver unmet requirements</strong><br>${unmet.join(' ')}</div>`
+      : `<div><strong>Scope + truth note</strong><br>The solver map is showing store selections against the 151-polygon Bangalore scope. Demand-cell territories and legacy service-gap polygons are not emitted by this solver endpoint yet, so they remain explicitly unavailable rather than simulated.</div>`;
+    if(Number(realism.selected_new_standard_count || 0)){
+      el.innerHTML += `<div style="margin-top:8px"><strong>Standard realism diagnostics</strong><br>${describeSolverStandardRealism(data._solverArtifact)}</div>`;
+    }
+    if(policy?.super_coverage){
+      el.innerHTML += `<div style="margin-top:8px"><strong>Super coverage definition</strong><br>${describeSolverSuperCoverage(data._solverArtifact)}</div>`;
+    }
+    if(Array.isArray(policy?.violations) && policy.violations.length){
+      el.innerHTML += `<div style="margin-top:8px"><strong>Policy evaluation</strong><br>${policy.violations.join(' ')}</div>`;
+    }
+    return;
+  }
   const gaps = data.analysis?.service_gap_polygons || [];
   if(!gaps.length){
     el.innerHTML = `The Standard base network covers all currently modeled in-scope demand. No residual Standard service gap polygons remain.`;
@@ -2873,10 +3938,77 @@ function renderLowDensityZones(data){
   `;
 }
 
+function valuesMatch(a, b){
+  if(a == null || a === '') return b == null || b === '';
+  if(b == null || b === '') return false;
+  const aNum = Number(a);
+  const bNum = Number(b);
+  if(Number.isFinite(aNum) && Number.isFinite(bNum)) return aNum === bNum;
+  return String(a) === String(b);
+}
+
+function solverScenarioMatchesCurrentArtifact(s){
+  const currentResult = window._lastResult;
+  const currentParams = currentResult?.params || {};
+  const currentRequest = currentResult?.solver_workbench_request || {};
+  const currentArtifact = currentResult?._solverArtifact || null;
+  if(!currentArtifact) return false;
+  return (
+    valuesMatch(s?.params?.standard_ds_radius, currentParams.standard_ds_radius) &&
+    valuesMatch(s?.params?.standard_min_orders_per_day, currentParams.standard_min_orders_per_day) &&
+    valuesMatch(s?.params?.super_ds_radius, currentParams.super_ds_radius) &&
+    valuesMatch(s?.params?.super_min_orders_per_day, currentParams.super_min_orders_per_day) &&
+    valuesMatch(s?.params?.mini_ds_radius, currentParams.mini_ds_radius) &&
+    valuesMatch(s?.params?.mini_min_orders_per_day, currentParams.mini_min_orders_per_day) &&
+    valuesMatch(s?.params?.target_total_physical_stores, currentParams.target_total_physical_stores) &&
+    valuesMatch(s?.params?.min_total_physical_sites, currentParams.min_total_physical_sites) &&
+    valuesMatch(s?.params?.max_total_physical_sites, currentParams.max_total_physical_sites) &&
+    valuesMatch(s?.params?.target_avg_cost, currentParams.target_avg_cost) &&
+    valuesMatch(s?.params?.require_super_core_city_coverage, currentParams.require_super_core_city_coverage) &&
+    valuesMatch(
+      s?.params?.prefer_eligible_fixed_store_upgrades_to_super,
+      currentParams.prefer_eligible_fixed_store_upgrades_to_super
+    ) &&
+    valuesMatch(s?.solverMode, currentRequest.solver_mode) &&
+    valuesMatch(s?.constraintSummary, currentRequest.constraint_summary)
+  );
+}
+
 function applyScenario(idx){
   const s = savedScenarios[idx];
   if(!s) return;
-  applyParamsToSliders(s.params || {});
+  suppressParamDirty = true;
+  try{
+    if(s.lane === 'solver'){
+      const payload = {
+        config_snapshot: {
+          standard_radius_km: s.params?.standard_ds_radius,
+          effective_standard_min_orders_per_day: s.params?.standard_min_orders_per_day,
+          super_radius_km: s.params?.super_ds_radius,
+          effective_super_min_orders_per_day: s.params?.super_min_orders_per_day,
+          mini_service_radius_km: s.params?.mini_ds_radius,
+          effective_mini_min_orders_per_day: s.params?.mini_min_orders_per_day,
+          effective_target_total_physical_sites_exact: s.params?.target_total_physical_stores,
+          effective_min_total_physical_sites: s.params?.min_total_physical_sites,
+          effective_max_total_physical_sites: s.params?.max_total_physical_sites,
+          effective_avg_last_mile_cost_cap: s.params?.target_avg_cost,
+          effective_require_super_core_city_coverage: s.params?.require_super_core_city_coverage,
+          effective_prefer_eligible_fixed_store_upgrades_to_super: s.params?.prefer_eligible_fixed_store_upgrades_to_super,
+        },
+        solver_workbench_request: {
+          solver_mode: s.solverMode,
+          constraint_summary: s.constraintSummary,
+        },
+      };
+      applyParamsToSolverWorkbench(payload);
+    }
+    applyParamsToSliders(s.params || {});
+  } finally {
+    suppressParamDirty = false;
+  }
+  if(s.lane === 'solver' && solverScenarioMatchesCurrentArtifact(s)){
+    displayBangaloreSolverResult(window._lastResult._solverArtifact);
+  }
   toast(`Loaded ${s.name}`);
 }
 
@@ -2968,13 +4100,89 @@ function classifyStandardSite(h){
   return {category, spacingRelaxed, reason, isFixed, isException, isRescue};
 }
 
-function renderDecisionDashboard(data){
+function classifySuperSite(h){
+  const semantics = String(h?.site_semantics || '').toLowerCase();
+  const siteSource = String(h?.site_source || '').toLowerCase();
+  const isOverlay = semantics === 'overlay_support' || h?.counts_as_true_super === false;
+  const isReused = siteSource === 'existing_standard' || siteSource === 'proposed_standard' || isTruthyFlag(h?.reused_on_standard_site);
+  return {
+    isOverlay,
+    isReused,
+    label: isOverlay ? 'Super overlay support' : (isReused ? 'Reused physical Super site' : 'New physical Super site'),
+    ringColor: isOverlay ? '#8b5cf6' : '#7c3aed',
+    ringFill: isOverlay ? '#ddd6fe' : '#c4b5fd',
+    markerFill: isOverlay ? '#ede9fe' : '#7c3aed',
+    markerStroke: isOverlay ? '#6d28d9' : '#ffffff',
+    markerRadius: isOverlay ? 10 : 14,
+  };
+}
+
+function getCountSemantics(data){
+  const decision = data?.decision_grade_result || {};
   const layers = data?.planning_layers || {};
   const standard = layers.standard || {};
+  const superLayer = layers.super || {};
+  const physicalStandardCount = Number(
+    decision.total_physical_standard_count ?? standard.total_standard_sites ?? (data?.standard_ds || []).length
+  ) || 0;
+  const miniCount = Number(
+    decision.mini_count ?? layers.mini?.site_count ?? (data?.mini_ds || []).length
+  ) || 0;
+  const superCount = Number(
+    decision.super_count ?? superLayer.site_count ?? (data?.super_ds || []).length
+  ) || 0;
+  const overlaySuperCount = Number(
+    decision.overlay_super_count ?? superLayer.overlay_super_count ?? 0
+  ) || 0;
+  const reusedSuperCount = Number(
+    decision.reused_super_on_standard_count
+    ?? superLayer.reused_super_on_standard_count
+    ?? ((Number(superLayer.reused_existing_standard_count || 0) + Number(superLayer.reused_new_standard_count || 0)) || 0)
+  ) || 0;
+  const newPhysicalSuperCount = Number(
+    decision.new_physical_super_count
+    ?? superLayer.new_super_site_count
+    ?? Math.max(0, superCount - reusedSuperCount)
+  ) || 0;
+  const uniquePhysicalCount = Number(
+    decision.total_unique_physical_store_count
+    ?? superLayer.total_unique_physical_store_count
+    ?? (physicalStandardCount + miniCount + newPhysicalSuperCount)
+  ) || 0;
+  return {
+    physicalStandardCount,
+    miniCount,
+    superCount,
+    overlaySuperCount,
+    reusedSuperCount,
+    newPhysicalSuperCount,
+    uniquePhysicalCount,
+  };
+}
+
+function renderDecisionDashboard(data){
+  if(data?._solverArtifact){
+    const counts = getCountSemantics(data);
+    const siteMix = data?._solverArtifact?.proposed_site_mix_summary || {};
+    if(document.getElementById('dashFixedStandard')) document.getElementById('dashFixedStandard').textContent = Number(data?.decision_grade_result?.fixed_standard_count || 0).toLocaleString();
+    if(document.getElementById('dashNewStandard')) document.getElementById('dashNewStandard').textContent = Number(data?.decision_grade_result?.new_standard_count || 0).toLocaleString();
+    if(document.getElementById('dashRescueStandard')) document.getElementById('dashRescueStandard').textContent = '—';
+    if(document.getElementById('dashExceptionStandard')) document.getElementById('dashExceptionStandard').textContent = '—';
+    if(document.getElementById('dashRelaxedNewStandard')) document.getElementById('dashRelaxedNewStandard').textContent = '—';
+    const summaryEl = document.getElementById('decisionDashboardNote');
+    if(summaryEl){
+      const request = data?.solver_workbench_request || {};
+      summaryEl.innerHTML = `<strong>Solver-selected network</strong> · ${request.constraint_summary || 'published Bangalore free-play envelope'} · <strong>${Number(siteMix.fixed_standard_remaining_open_count || 0).toLocaleString()}</strong> fixed Standard remain open, the proposed mix adds <strong>${Number(siteMix.net_new_standard_count || 0).toLocaleString()}</strong> net-new Standard, <strong>${Number(siteMix.fixed_store_upgrades_to_super_count || 0).toLocaleString()}</strong> fixed Super upgrades, <strong>${Number(siteMix.net_new_super_count || 0).toLocaleString()}</strong> net-new Super, and <strong>${Number(siteMix.net_new_mini_count || 0).toLocaleString()}</strong> net-new Mini, for <strong>${counts.uniquePhysicalCount.toLocaleString()}</strong> unique physical sites at <strong>${Number(data?.decision_grade_result?.proposed_hard_coverage_pct || 0).toFixed(2)}%</strong> hard coverage. “New Standard” is only one subset of the proposed mix, not the whole proposed answer.`;
+    }
+    return;
+  }
+  const layers = data?.planning_layers || {};
+  const standard = layers.standard || {};
+  const counts = getCountSemantics(data);
   const fixedSites = Array.isArray(standard.fixed_open_stores) && standard.fixed_open_stores.length ? standard.fixed_open_stores : (data?.existing_stores || []);
   const proposedNew = Array.isArray(standard.proposed_new_stores) && standard.proposed_new_stores.length ? standard.proposed_new_stores : (data?.standard_ds || []);
-  const rescueSites = Array.isArray(standard.rescue_sites) && standard.rescue_sites.length ? standard.rescue_sites : proposedNew.filter(h => classifyStandardSite(h).category === 'rescue');
-  const exceptionSites = Array.isArray(standard.exception_sites) && standard.exception_sites.length ? standard.exception_sites : proposedNew.filter(h => classifyStandardSite(h).category === 'exception');
+  const rescueSites = Array.isArray(standard.rescue_standard_sites) && standard.rescue_standard_sites.length ? standard.rescue_standard_sites : proposedNew.filter(h => classifyStandardSite(h).category === 'rescue');
+  const exceptionSites = Array.isArray(standard.exception_override_sites) && standard.exception_override_sites.length ? standard.exception_override_sites : proposedNew.filter(h => classifyStandardSite(h).category === 'exception');
   const newSites = proposedNew.filter(h => classifyStandardSite(h).category === 'new');
   const relaxedRescueSites = rescueSites.filter(h => classifyStandardSite(h).spacingRelaxed);
   const fixedCount = Number(data?.decision_grade_result?.fixed_standard_count ?? standard.fixed_open_count ?? fixedSites.length ?? 0);
@@ -2983,7 +4191,7 @@ function renderDecisionDashboard(data){
   const rescueCount = Number(data?.decision_grade_result?.rescue_standard_count ?? standard.rescue_store_count ?? rescueSites.length ?? 0);
   const exceptionCount = Number(data?.decision_grade_result?.exception_hub_count ?? standard.exception_hub_count ?? exceptionSites.length ?? 0);
   const relaxedCount = Number(data?.decision_grade_result?.spacing_relaxed_standard_count ?? standard.spacing_relaxed_new_store_count ?? relaxedRescueSites.length ?? 0);
-  const totalCount = Number(data?.decision_grade_result?.total_physical_standard_count ?? standard.total_standard_sites ?? (fixedCount + totalNewPhysical) ?? 0);
+  const totalCount = Number(counts.physicalStandardCount || 0);
   const summaryEl = document.getElementById('decisionDashboardNote');
   if(document.getElementById('dashFixedStandard')) document.getElementById('dashFixedStandard').textContent = Number.isFinite(fixedCount) ? fixedCount.toLocaleString() : '—';
   if(document.getElementById('dashNewStandard')) document.getElementById('dashNewStandard').textContent = Number.isFinite(totalNewPhysical) ? totalNewPhysical.toLocaleString() : '—';
@@ -2994,18 +4202,88 @@ function renderDecisionDashboard(data){
     const world = formatFixedStoreMode(data?.params?.fixed_store_mode);
     const coverage = Number(data?.decision_grade_result?.proposed_hard_coverage_pct ?? standard.coverage_pct ?? data?.metrics?.proposed_hard_coverage_pct ?? data?.metrics?.coverage_pct ?? 0).toFixed(2);
     const branch = data?._resolved_active_view_label || data?.decision_grade_result?.active_view_key || 'Active decision branch';
-    summaryEl.innerHTML = `<strong>${branch}</strong> · fixed-store world <strong>${world}</strong> · <strong>${Number.isFinite(totalCount) ? totalCount.toLocaleString() : '—'}</strong> physical stores in play at <strong>${coverage}%</strong> hard coverage. New Standard sites: <strong>${Number.isFinite(totalNewPhysical) ? totalNewPhysical.toLocaleString() : '—'}</strong> (<strong>${Number.isFinite(baseNewCount) ? baseNewCount.toLocaleString() : '—'}</strong> base + <strong>${Number.isFinite(rescueCount) ? rescueCount.toLocaleString() : '—'}</strong> rescue). Spacing-relaxed rescue Standards: <strong>${Number.isFinite(relaxedCount) ? relaxedCount.toLocaleString() : '—'}</strong>.`;
+    summaryEl.innerHTML = `<strong>${branch}</strong> · fixed-store world <strong>${world}</strong> · <strong>${Number.isFinite(totalCount) ? totalCount.toLocaleString() : '—'}</strong> physical Standard, <strong>${counts.miniCount.toLocaleString()}</strong> Mini, <strong>${counts.superCount.toLocaleString()}</strong> true Super, <strong>${counts.overlaySuperCount.toLocaleString()}</strong> Super overlay support, and <strong>${counts.uniquePhysicalCount.toLocaleString()}</strong> unique physical sites at <strong>${coverage}%</strong> hard coverage. New Standard sites: <strong>${Number.isFinite(totalNewPhysical) ? totalNewPhysical.toLocaleString() : '—'}</strong> (<strong>${Number.isFinite(baseNewCount) ? baseNewCount.toLocaleString() : '—'}</strong> base + <strong>${Number.isFinite(rescueCount) ? rescueCount.toLocaleString() : '—'}</strong> rescue). Spacing-relaxed rescue Standards: <strong>${Number.isFinite(relaxedCount) ? relaxedCount.toLocaleString() : '—'}</strong>.`;
   }
 }
 
 function populateHubTable(data){
   const section = document.getElementById('hubTableSection');
+  const rescuePanel = document.getElementById('rescueStandardPanel');
+  const exceptionPanel = document.getElementById('exceptionStandardPanel');
+  if(data?._solverArtifact){
+    const fixedBody = document.getElementById('fixedStandardTableBody');
+    const newBody = document.getElementById('newStandardTableBody');
+    const newPanel = document.getElementById('newStandardPanel');
+    const newPanelTitle = newPanel?.querySelector('.panel-title');
+    const newPanelHead = newPanel?.querySelector('thead');
+    const hubTableFoot = document.getElementById('hubTableFoot');
+    const exportBtn = document.getElementById('exportCsvButton');
+    const renderRows = (rows, renderer, emptyMsg, colSpan) => rows.length ? rows.map(renderer).join('') : `<tr><td colspan="${colSpan}" class="table-empty">${emptyMsg}</td></tr>`;
+    const fmt = (value, digits = 5) => Number.isFinite(Number(value)) ? Number(value).toFixed(digits) : '—';
+    const badgeMarkup = (label, cls='note') => `<span class="table-badge ${cls}">${label}</span>`;
+    const proposedRows = Array.isArray(data?.downloadable_proposed_site_rows) ? data.downloadable_proposed_site_rows : [];
+    const siteMix = data?._solverArtifact?.proposed_site_mix_summary || {};
+    const labelByType = {
+      net_new_standard: 'Net-new Standard',
+      fixed_store_upgrade_to_super: 'Fixed upgrade to Super',
+      net_new_super: 'Net-new Super',
+      net_new_mini: 'Net-new Mini',
+    };
+    if(fixedBody){
+      fixedBody.innerHTML = renderRows(data.existing_stores || [], h => `
+        <tr style="cursor:pointer" onclick="map.setView([${Number(h.lat)},${Number(h.lon)}],15)">
+          <td>${h.id || h.site_id || '—'}</td><td>${fmt(h.lat)}</td><td>${fmt(h.lon)}</td><td>${Number.isFinite(Number(h.orders_per_day)) ? Number(h.orders_per_day).toFixed(0) : '—'}</td><td>${Number.isFinite(Number(h.cells)) ? Number(h.cells).toLocaleString() : '—'}</td><td>${Number.isFinite(Number(h.avg_assigned_distance_km)) ? `${Number(h.avg_assigned_distance_km).toFixed(2)} km` : '—'}</td>
+        </tr>
+      `, 'No fixed Standard stores are available in the solver payload.', 6);
+    }
+    if(newPanelTitle) newPanelTitle.textContent = 'Proposed Locations';
+    if(newPanelHead){
+      newPanelHead.innerHTML = '<tr><th>Type</th><th>Store</th><th>Lat</th><th>Lon</th><th>Orders/Day</th><th>Tier</th><th>Action</th></tr>';
+    }
+    if(newBody){
+      newBody.innerHTML = renderRows(proposedRows, h => `
+        <tr style="cursor:pointer" onclick="map.setView([${Number(h.lat)},${Number(h.lon)}],15)">
+          <td>${labelByType[h.site_type] || h.site_type || '—'}</td><td>${h.site_id || '—'}</td><td>${fmt(h.lat)}</td><td>${fmt(h.lon)}</td><td>${Number.isFinite(Number(h.orders_per_day)) ? Number(h.orders_per_day).toFixed(0) : '—'}</td><td>${h.tier || '—'}</td><td>${h.action || '—'}</td>
+        </tr>
+      `, 'No proposed locations were selected.', 7);
+    }
+    const setMeta = (id, html) => { const el = document.getElementById(id); if(el) el.innerHTML = html; };
+    const setBadges = (id, items) => { const el = document.getElementById(id); if(el) el.innerHTML = items.join(' '); };
+    setMeta('fixedStandardMeta', `${Number((data.existing_stores || []).length).toLocaleString()} fixed benchmark stores remain open in the solver lane.`);
+    setMeta('newStandardMeta', `${Number(proposedRows.length).toLocaleString()} proposed rows are downloadable here: ${Number(siteMix.net_new_standard_count || 0).toLocaleString()} net-new Standard, ${Number(siteMix.fixed_store_upgrades_to_super_count || 0).toLocaleString()} fixed Super upgrades, ${Number(siteMix.net_new_super_count || 0).toLocaleString()} net-new Super, and ${Number(siteMix.net_new_mini_count || 0).toLocaleString()} net-new Mini.`);
+    setBadges('fixedStandardBadges', [badgeMarkup(`${Number((data.existing_stores || []).length).toLocaleString()} fixed`, 'fixed')]);
+    setBadges('newStandardBadges', [
+      badgeMarkup(`${Number(siteMix.net_new_standard_count || 0).toLocaleString()} net-new Standard`, 'new'),
+      badgeMarkup(`${Number(siteMix.fixed_store_upgrades_to_super_count || 0).toLocaleString()} fixed Super upgrades`, 'note'),
+      badgeMarkup(`${Number(siteMix.net_new_super_count || 0).toLocaleString()} net-new Super`, 'note'),
+      badgeMarkup(`${Number(siteMix.net_new_mini_count || 0).toLocaleString()} net-new Mini`, 'note'),
+    ]);
+    if(rescuePanel) rescuePanel.style.display = 'none';
+    if(exceptionPanel) exceptionPanel.style.display = 'none';
+    if(hubTableFoot) hubTableFoot.style.display = 'none';
+    if(exportBtn) exportBtn.textContent = 'Download Proposed Locations CSV';
+    if(section) section.style.display = 'block';
+    return;
+  }
+  const newPanel = document.getElementById('newStandardPanel');
+  const newPanelTitle = newPanel?.querySelector('.panel-title');
+  const newPanelHead = newPanel?.querySelector('thead');
+  const hubTableFoot = document.getElementById('hubTableFoot');
+  const exportBtn = document.getElementById('exportCsvButton');
+  if(newPanelTitle) newPanelTitle.textContent = 'New Standard';
+  if(newPanelHead){
+    newPanelHead.innerHTML = '<tr><th>Store</th><th>Lat</th><th>Lon</th><th>Orders/Day</th><th>Radius</th><th>Spacing</th><th>Reason</th></tr>';
+  }
+  if(rescuePanel) rescuePanel.style.display = '';
+  if(exceptionPanel) exceptionPanel.style.display = '';
+  if(hubTableFoot) hubTableFoot.style.display = '';
+  if(exportBtn) exportBtn.textContent = 'Export Hub Locations as CSV';
   const layers = data?.planning_layers || {};
   const standard = layers.standard || {};
   const fixedSites = Array.isArray(standard.fixed_open_stores) && standard.fixed_open_stores.length ? standard.fixed_open_stores : (data?.existing_stores || []);
   const proposedNew = Array.isArray(standard.proposed_new_stores) && standard.proposed_new_stores.length ? standard.proposed_new_stores : (data?.standard_ds || []);
-  const rescueSites = Array.isArray(standard.rescue_sites) && standard.rescue_sites.length ? standard.rescue_sites : proposedNew.filter(h => classifyStandardSite(h).category === 'rescue');
-  const exceptionSites = Array.isArray(standard.exception_sites) && standard.exception_sites.length ? standard.exception_sites : proposedNew.filter(h => classifyStandardSite(h).category === 'exception');
+  const rescueSites = Array.isArray(standard.rescue_standard_sites) && standard.rescue_standard_sites.length ? standard.rescue_standard_sites : proposedNew.filter(h => classifyStandardSite(h).category === 'rescue');
+  const exceptionSites = Array.isArray(standard.exception_override_sites) && standard.exception_override_sites.length ? standard.exception_override_sites : proposedNew.filter(h => classifyStandardSite(h).category === 'exception');
   const newSites = proposedNew.filter(h => classifyStandardSite(h).category === 'new');
   const relaxedRescueSites = rescueSites.filter(h => classifyStandardSite(h).spacingRelaxed);
   const sortByOrders = (a,b) => (numericValue(b?.orders_per_day) || 0) - (numericValue(a?.orders_per_day) || 0);
@@ -3025,12 +4303,19 @@ function populateHubTable(data){
     return `+${Math.max(0, r - b).toFixed(1)} km`;
   };
   const reasonText = (h, classification) => {
+    const details = [];
     if(classification.reason) return classification.reason;
-    if(classification.category === 'fixed') return 'Existing fixed store';
-    if(classification.category === 'rescue') return classification.spacingRelaxed ? 'Spacing relaxed for local repair' : 'Local repair';
-    if(classification.category === 'exception') return 'Base radius extended';
-    if(classification.spacingRelaxed) return 'Spacing relaxed';
-    return 'Coverage fill';
+    if(classification.category === 'fixed') details.push('Existing fixed store');
+    else if(classification.category === 'rescue') details.push(classification.spacingRelaxed ? 'Spacing relaxed for local repair' : 'Local repair');
+    else if(classification.category === 'exception') details.push('Base radius extended');
+    else if(classification.spacingRelaxed) details.push('Spacing relaxed');
+    else details.push('Coverage fill');
+    const boundaryClearance = numericValue(h?.boundary_clearance_km);
+    const edgePenalty = numericValue(h?.edge_penalty);
+    if(boundaryClearance != null && edgePenalty != null && edgePenalty > 0){
+      details.push(`Boundary clearance ${boundaryClearance.toFixed(1)} km`);
+    }
+    return details.join(' · ');
   };
   const badgeMarkup = (label, cls='note') => `<span class="table-badge ${cls}">${label}</span>`;
 
@@ -3082,7 +4367,8 @@ function populateHubTable(data){
   const setBadges = (id, items) => { const el = document.getElementById(id); if(el) el.innerHTML = items.join(' '); };
   setMeta('fixedStandardMeta', `${Number(fixedSites.length).toLocaleString()} fixed Standard stores from ${formatFixedStoreMode(data?.params?.fixed_store_mode)}.`);
   setMeta('newStandardMeta', `${Number(proposedNew.length).toLocaleString()} total new Standard sites in the active branch: ${Number(newSites.length).toLocaleString()} base + ${Number(rescueSites.length).toLocaleString()} rescue.`);
-  setMeta('rescueStandardMeta', `${Number(rescueSites.length).toLocaleString()} rescue Standard stores patched uncovered pockets locally. ${Number(relaxedRescueSites.length).toLocaleString()} of them needed spacing relaxation.`);
+  const edgeSensitiveRescueSites = rescueSites.filter(h => numericValue(h?.edge_penalty) != null && numericValue(h?.edge_penalty) > 0);
+  setMeta('rescueStandardMeta', `${Number(rescueSites.length).toLocaleString()} rescue Standard stores patched uncovered pockets locally. ${Number(relaxedRescueSites.length).toLocaleString()} of them needed spacing relaxation. ${Number(edgeSensitiveRescueSites.length).toLocaleString()} still sit inside the boundary-clearance warning band.`);
   setMeta('exceptionStandardMeta', `${Number(exceptionSites.length).toLocaleString()} physical Standard sites use exception radius lift beyond the base setting.`);
   setBadges('fixedStandardBadges', [
     badgeMarkup(`${Number(fixedSites.length).toLocaleString()} fixed`, 'fixed'),
@@ -3108,12 +4394,37 @@ function exportCSV(){
   const rows = [['Category','Type','Latitude','Longitude','Orders_Per_Day','Radius_km','Base_Radius_km','Reason']];
   const data = window._lastResult;
   if(!data) return;
+  if(data?._solverArtifact){
+    rows.length = 0;
+    rows.push(['Site_Type','Tier','Action','Site_ID','Latitude','Longitude','Orders_Per_Day','Radius_km','Counts_As_Unique_Physical_Site']);
+    (data.downloadable_proposed_site_rows || []).forEach(row => {
+      rows.push([
+        row.site_type || '',
+        row.tier || '',
+        row.action || '',
+        row.site_id || '',
+        row.lat ?? '',
+        row.lon ?? '',
+        numericValue(row.orders_per_day) != null ? Number(row.orders_per_day).toFixed(0) : '',
+        numericValue(row.radius_km) != null ? Number(row.radius_km).toFixed(1) : '',
+        row.counts_as_unique_physical_site ? 'yes' : 'no',
+      ]);
+    });
+    const csv = rows.map(r=>r.join(',')).join('\n');
+    const blob = new Blob([csv],{type:'text/csv'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href=url; a.download='solver_proposed_locations.csv'; a.click();
+    URL.revokeObjectURL(url);
+    toast('Proposed locations CSV exported');
+    return;
+  }
   const layers = data.planning_layers || {};
   const standard = layers.standard || {};
   const fixedSites = Array.isArray(standard.fixed_open_stores) && standard.fixed_open_stores.length ? standard.fixed_open_stores : (data.existing_stores || []);
   const proposedNew = Array.isArray(standard.proposed_new_stores) && standard.proposed_new_stores.length ? standard.proposed_new_stores : (data.standard_ds || []);
-  const rescueSites = Array.isArray(standard.rescue_sites) && standard.rescue_sites.length ? standard.rescue_sites : proposedNew.filter(h => classifyStandardSite(h).category === 'rescue');
-  const exceptionSites = Array.isArray(standard.exception_sites) && standard.exception_sites.length ? standard.exception_sites : proposedNew.filter(h => classifyStandardSite(h).category === 'exception');
+  const rescueSites = Array.isArray(standard.rescue_standard_sites) && standard.rescue_standard_sites.length ? standard.rescue_standard_sites : proposedNew.filter(h => classifyStandardSite(h).category === 'rescue');
+  const exceptionSites = Array.isArray(standard.exception_override_sites) && standard.exception_override_sites.length ? standard.exception_override_sites : proposedNew.filter(h => classifyStandardSite(h).category === 'exception');
   const newSites = proposedNew.filter(h => classifyStandardSite(h).category === 'new');
   const allStandard = [
     ...fixedSites.map(h => ({h, category:'Fixed Standard'})),
@@ -3288,6 +4599,7 @@ document.addEventListener('DOMContentLoaded',()=>{
   init();
   setupDragDrop();
   document.querySelectorAll('.scenario-input, input[type="range"], input[type="checkbox"], textarea').forEach(el=>{
+    if(el.id === 'scenarioName') return;
     el.addEventListener('input', ()=>markResultStale('Inputs changed after the last exact run.'));
     el.addEventListener('change', ()=>markResultStale('Inputs changed after the last exact run.'));
   });

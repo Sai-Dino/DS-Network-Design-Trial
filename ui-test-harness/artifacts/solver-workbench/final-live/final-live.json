@@ -1,0 +1,10 @@
+{
+  "workbench": "solver",
+  "statusChip": "Solver ready · exact total 200",
+  "stdMinPlaceholder": "Optional; blank keeps Bangalore default",
+  "superMinValue": "300",
+  "miniMinValue": "1212",
+  "exactValue": "200",
+  "decisionNote": "Solver-selected network · exact total 200 · 200 physical Standard, 17 true Super, 19 Mini, and 200 unique physical sites at 99.75% hard coverage. Legacy rescue/exception split counts are intentionally hidden here because this solver result does not emit those planner-specific layers.",
+  "mapHud": "Selected decision branch • final packet • Scope comes from /Users/thota/Downloads/DS-Network-Design-Trial-main/Store details - 151 polygons with stores.csv."
+}

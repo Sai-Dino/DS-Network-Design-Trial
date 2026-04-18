@@ -1,0 +1,41 @@
+{
+  "ui": {
+    "decisionNote": "Solver-selected network · exact total 200 · 103 fixed Standard remain open, the proposed mix adds 97 net-new Standard, 8 fixed Super upgrades, 3 net-new Super, and 19 net-new Mini, for 200 unique physical sites at 99.75% hard coverage. “New Standard” is only one subset of the proposed mix, not the whole proposed answer.",
+    "rescuePanel": "Solver statusReturned a feasible solver network for exact total 200.\n        Selected site mix103 fixed Standard remain open. Proposed locations are 97 net-new Standard, 8 fixed-store Super upgrades, 3 net-new Super, and 19 net-new Mini.\n        Download truthThe proposed-locations table and CSV include only those proposed rows, each with an explicit site type and tier. Fixed Standard stores remaining open stay visible separately and are not mixed into the proposed download.\n        Policy notesNo additional solver-policy violations were reported.",
+    "pipelineNote": "Bangalore solver lane: this map is reading bangalore_solver_v1 from the solver workbench result path, not the legacy meeting packet.Run mode: constrained · exact total 200.Scope: 151 Bangalore business polygons from /Users/thota/Downloads/DS-Network-Design-Trial-main/Store details - 151 polygons with stores.csv.Fixed stores: 103 benchmark fixed stores remain open from /Users/thota/Downloads/DS-Network-Design-Trial-main/Store details - 103 old stores.csv.Mini trigger: 1212 orders/day within 1 km.Standard realism: 12 close Standard pairs, 34 weak boundary sites out of 76, and 27 weak near-fixed sites out of 62 (100 orders/day weak threshold).Super core coverage: Super core demand-cell guard is off.Semantics: Mini markers only appear when the solver-lane density stage selected them; hard coverage remains 99.75%.Map truth: store markers are solver-selected sites against the 151-polygon Bangalore scope. Demand-cell territories stay explicitly labeled as unavailable until the solver lane emits them.",
+    "newStandardMeta": "127 proposed rows are downloadable here: 97 net-new Standard, 8 fixed Super upgrades, 3 net-new Super, and 19 net-new Mini.",
+    "exportButton": "Download Proposed Locations CSV",
+    "proposedHeaders": [
+      "Type",
+      "Store",
+      "Lat",
+      "Lon",
+      "Orders/Day",
+      "Tier",
+      "Action"
+    ],
+    "proposedRowCount": 127,
+    "fixedRowCount": 103,
+    "firstProposedRow": [
+      "Net-new Standard",
+      "cand-demand-cluster-0003",
+      "12.73147",
+      "77.70595",
+      "198",
+      "Standard",
+      "Open net-new Standard site"
+    ]
+  },
+  "download": {
+    "suggestedFilename": "solver_proposed_locations.csv",
+    "downloadPath": "/Users/thota/Downloads/DS-Network-Design-Trial-main/ui-test-harness/artifacts/solver-workbench/v26-final-live/solver_proposed_locations.csv",
+    "csvPreview": [
+      "Site_Type,Tier,Action,Site_ID,Latitude,Longitude,Orders_Per_Day,Radius_km,Counts_As_Unique_Physical_Site",
+      "net_new_standard,Standard,Open net-new Standard site,cand-demand-cluster-0003,12.73146760443125,77.70594677314845,198,3.0,yes",
+      "net_new_standard,Standard,Open net-new Standard site,cand-demand-cluster-0011,12.747971080060724,77.68409740733452,22,3.0,yes",
+      "net_new_standard,Standard,Open net-new Standard site,cand-demand-cluster-0043,12.772760954744161,77.75777755559844,80,3.0,yes",
+      "net_new_standard,Standard,Open net-new Standard site,cand-demand-cluster-0048,12.782669865952917,77.63901237223335,251,3.0,yes",
+      "net_new_standard,Standard,Open net-new Standard site,cand-demand-cluster-0056,12.781536404586646,77.72353261548797,79,3.0,yes"
+    ]
+  }
+}

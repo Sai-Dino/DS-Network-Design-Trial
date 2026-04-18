@@ -1,0 +1,202 @@
+{
+  "result_contract": "bangalore_solver_v1",
+  "solver_path": "bangalore_first_milp",
+  "status": "blocked_infeasible",
+  "feasible": false,
+  "city": "Bangalore",
+  "fixed_store_mode": "benchmark_103",
+  "hard_coverage_pct": 99.75,
+  "hard_coverage_floor_pct": 99.75,
+  "avg_last_mile_cost": null,
+  "total_last_mile_cost_per_day": 0.0,
+  "store_counts": {
+    "fixed_standard_count": 103,
+    "new_standard_count": 0,
+    "upgraded_super_count": 0,
+    "new_super_count": 0,
+    "mini_count": 0,
+    "total_unique_physical_store_count": 103
+  },
+  "reuse_counts": {
+    "fixed_standard_reused_count": 103,
+    "reused_super_on_standard_count": 0
+  },
+  "upgrade_counts": {
+    "fixed_to_super_upgrades": 0,
+    "new_super_opens": 0
+  },
+  "candidate_summary": {
+    "total_candidates": 326,
+    "selected_by_source": {
+      "demand_seed": 240,
+      "gap_fill_seed": 86
+    },
+    "candidate_spacing_km": 1.2
+  },
+  "demand_summary": {
+    "grid_cell_count": 32075,
+    "in_scope_grid_cell_count": 23255,
+    "total_demand": 143060.2,
+    "cluster_cell_size_km": 1.0,
+    "cluster_count": 1220
+  },
+  "config_snapshot": {
+    "city": "Bangalore",
+    "fixed_store_mode": "benchmark_103",
+    "order_csv_path": "/Users/thota/Downloads/DS-Network-Design-Trial-main/daily_demand_aggregated.csv",
+    "scope_csv_path": "/Users/thota/Downloads/DS-Network-Design-Trial-main/Store details - 151 polygons with stores.csv",
+    "fixed_store_csv_path": "/Users/thota/Downloads/DS-Network-Design-Trial-main/Store details - 103 old stores.csv",
+    "fixed_store_metadata_path": "/Users/thota/Downloads/DS-Network-Design-Trial-main/benchmark_103_store_metadata.csv",
+    "output_path": "optimization_results/policy_scenarios/super_ui_fix_smoke/std_100.json",
+    "output_history_dir": "optimization_results/policy_scenarios/super_ui_fix_smoke/scenario_runs",
+    "hard_coverage_floor_pct": 99.75,
+    "standard_radius_km": 3.0,
+    "super_radius_km": 5.5,
+    "standard_min_orders_per_day": 100.0,
+    "super_min_orders_per_day": 300.0,
+    "mini_min_orders_per_day": 1212.0,
+    "standard_base_cost": 29.0,
+    "standard_variable_rate": 9.0,
+    "super_base_cost": 29.0,
+    "super_fixed_penalty_per_order": 5.0,
+    "super_variable_rate": 9.0,
+    "fixed_super_min_sqft": 4000.0,
+    "cluster_cell_size_km": 1.0,
+    "candidate_spacing_km": 1.2,
+    "demand_seed_candidate_limit": 240,
+    "gap_fill_candidate_limit": 200,
+    "min_total_physical_sites": null,
+    "max_total_new_sites": null,
+    "max_total_super_sites": null,
+    "max_total_physical_sites": null,
+    "target_total_physical_sites_exact": null,
+    "avg_last_mile_cost_cap": null,
+    "mini_density_radius_km": null,
+    "mini_density_min_orders_per_day": null,
+    "mini_prefer_existing_physical_site_radius_km": null,
+    "require_super_core_city_coverage": null,
+    "super_core_city_fallback_min_demand_area_pct": null,
+    "prefer_eligible_fixed_store_upgrades_to_super": true,
+    "super_core_city_geojson": null,
+    "super_core_exclude_geojson": null,
+    "mini_service_radius_km": 1.0,
+    "mini_base_cost": 24.0,
+    "mini_variable_rate": 6.0,
+    "city_policy_overrides": {
+      "Bangalore": {
+        "min_total_physical_sites": 150,
+        "max_total_physical_sites": 200,
+        "mini_density_radius_km": 1.0,
+        "mini_density_min_orders_per_day": 1212,
+        "mini_prefer_existing_physical_site_radius_km": 1.0
+      }
+    },
+    "distance_cache_path": null,
+    "prototype_notes": [
+      "Mini opens only when the active city Mini density trigger is met in the solver lane.",
+      "Demand is clustered deterministically onto a bounded Bangalore solver lattice before MILP execution.",
+      "Super uses the honest office-profile assumption: 5.5 km full-competitor service with a +\u20b95/order penalty."
+    ],
+    "effective_super_base_cost": 34.0,
+    "resolved_city_policy": {
+      "min_total_physical_sites": 150,
+      "max_total_physical_sites": 200,
+      "target_total_physical_sites_exact": null,
+      "avg_last_mile_cost_cap": null,
+      "standard_min_orders_per_day": null,
+      "super_min_orders_per_day": null,
+      "mini_min_orders_per_day": null,
+      "mini_density_radius_km": 1.0,
+      "mini_density_min_orders_per_day": 1212,
+      "mini_prefer_existing_physical_site_radius_km": 1.0,
+      "require_super_core_city_coverage": null,
+      "super_core_city_fallback_min_demand_area_pct": 90.0,
+      "prefer_eligible_fixed_store_upgrades_to_super": null,
+      "super_core_city_geojson": null,
+      "super_core_exclude_geojson": null,
+      "effective_min_total_physical_sites": 150,
+      "effective_max_total_physical_sites": 200
+    },
+    "resolved_policy": {
+      "min_total_physical_sites": 150,
+      "max_total_physical_sites": 200,
+      "target_total_physical_sites_exact": null,
+      "avg_last_mile_cost_cap": null,
+      "standard_min_orders_per_day": 100.0,
+      "super_min_orders_per_day": 300.0,
+      "mini_min_orders_per_day": 1212.0,
+      "mini_density_radius_km": 1.0,
+      "mini_density_min_orders_per_day": 1212,
+      "mini_prefer_existing_physical_site_radius_km": 1.0,
+      "require_super_core_city_coverage": null,
+      "super_core_city_fallback_min_demand_area_pct": 90.0,
+      "prefer_eligible_fixed_store_upgrades_to_super": true,
+      "super_core_city_geojson": null,
+      "super_core_exclude_geojson": null,
+      "effective_min_total_physical_sites": 150,
+      "effective_max_total_physical_sites": 200
+    },
+    "effective_min_total_physical_sites": 150,
+    "effective_max_total_physical_sites": 200,
+    "effective_target_total_physical_sites_exact": null,
+    "effective_avg_last_mile_cost_cap": null,
+    "effective_standard_min_orders_per_day": 100.0,
+    "effective_super_min_orders_per_day": 300.0,
+    "effective_mini_min_orders_per_day": 1212.0,
+    "effective_mini_density_radius_km": 1.0,
+    "effective_mini_density_min_orders_per_day": 1212.0,
+    "effective_mini_prefer_existing_physical_site_radius_km": 1.0,
+    "effective_require_super_core_city_coverage": false,
+    "effective_super_core_city_fallback_min_demand_area_pct": 90.0,
+    "effective_prefer_eligible_fixed_store_upgrades_to_super": true,
+    "effective_super_core_city_geojson": null,
+    "effective_super_core_exclude_geojson": null
+  },
+  "policy_snapshot": {
+    "min_total_physical_sites": 150,
+    "max_total_physical_sites": 200,
+    "target_total_physical_sites_exact": null,
+    "avg_last_mile_cost_cap": null,
+    "standard_min_orders_per_day": 100.0,
+    "super_min_orders_per_day": 300.0,
+    "mini_min_orders_per_day": 1212.0,
+    "mini_density_radius_km": 1.0,
+    "mini_density_min_orders_per_day": 1212,
+    "mini_prefer_existing_physical_site_radius_km": 1.0,
+    "require_super_core_city_coverage": null,
+    "super_core_city_fallback_min_demand_area_pct": 90.0,
+    "prefer_eligible_fixed_store_upgrades_to_super": true,
+    "super_core_city_geojson": null,
+    "super_core_exclude_geojson": null,
+    "effective_min_total_physical_sites": 150,
+    "effective_max_total_physical_sites": 200
+  },
+  "selected_standard_site_ids": [],
+  "selected_super_site_ids": [],
+  "assignment_summary": {
+    "covered_cluster_count": 0,
+    "uncovered_cluster_count": 1220,
+    "covered_demand_per_day": 0.0,
+    "uncovered_demand_per_day": 143060.19999999992
+  },
+  "policy_evaluation": {
+    "blocked_reasons": [],
+    "violations": [
+      "Coverage floor infeasible under the current candidate universe or distance graph: The problem is infeasible. (HiGHS Status 8: model_status is Infeasible; primal_status is At lower/fixed bound)"
+    ],
+    "super_coverage": {},
+    "all_constraints_satisfied": false
+  },
+  "prototype_notes": [
+    "Mini opens only when the active city Mini density trigger is met in the solver lane.",
+    "Demand is clustered deterministically onto a bounded Bangalore solver lattice before MILP execution.",
+    "Super uses the honest office-profile assumption: 5.5 km full-competitor service with a +\u20b95/order penalty."
+  ],
+  "unmet_requirements": [
+    "Coverage floor infeasible under the current candidate universe or distance graph: The problem is infeasible. (HiGHS Status 8: model_status is Infeasible; primal_status is At lower/fixed bound)"
+  ],
+  "artifact_paths": {
+    "latest": "optimization_results/policy_scenarios/super_ui_fix_smoke/std_100.json",
+    "timestamped": "optimization_results/policy_scenarios/super_ui_fix_smoke/scenario_runs/bangalore_solver_v1_20260418T101852Z.json"
+  }
+}
